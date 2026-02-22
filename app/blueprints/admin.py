@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, abort
+import os
+
+from flask import Blueprint, render_template, redirect, url_for, flash, request, abort, current_app
 from flask_login import login_required, current_user
 from markupsafe import Markup, escape
 
@@ -245,6 +247,112 @@ def settings():
         return redirect(url_for("admin.settings"))
 
     return render_template("admin/settings.html", categorized=categorized, active_page="admin_settings")
+
+
+# ── Login logo upload / remove ────────────────────────────────────────────────
+
+@admin_bp.route("/settings/upload-logo", methods=["POST"])
+def upload_login_logo():
+    f = request.files.get("login_logo_file")
+    if not f or not f.filename:
+        flash("No file selected.", "danger")
+        return redirect(url_for("admin.settings"))
+
+    if not f.filename.lower().endswith(".png"):
+        flash("Only PNG files are accepted.", "danger")
+        return redirect(url_for("admin.settings"))
+
+    # Validate PNG magic bytes
+    header = f.read(8)
+    if header[:8] != b"\x89PNG\r\n\x1a\n":
+        flash("File does not appear to be a valid PNG image.", "danger")
+        return redirect(url_for("admin.settings"))
+
+    # Check size (2 MB limit)
+    f.seek(0, 2)
+    if f.tell() > 2 * 1024 * 1024:
+        flash("Logo must be under 2 MB.", "danger")
+        return redirect(url_for("admin.settings"))
+
+    img_dir = os.path.join(current_app.root_path, "static", "img")
+    os.makedirs(img_dir, exist_ok=True)
+    f.seek(0)
+    f.save(os.path.join(img_dir, "login_logo.png"))
+
+    s = Setting.query.filter_by(key="login_logo").first()
+    if s:
+        s.value = "login_logo.png"
+        db.session.commit()
+
+    flash("Login logo uploaded.", "success")
+    return redirect(url_for("admin.settings") + "#login")
+
+
+@admin_bp.route("/settings/remove-logo", methods=["POST"])
+def remove_login_logo():
+    img_path = os.path.join(current_app.root_path, "static", "img", "login_logo.png")
+    if os.path.exists(img_path):
+        os.remove(img_path)
+
+    s = Setting.query.filter_by(key="login_logo").first()
+    if s:
+        s.value = ""
+        db.session.commit()
+
+    flash("Login logo removed.", "info")
+    return redirect(url_for("admin.settings") + "#login")
+
+
+# ── App icon upload / remove ──────────────────────────────────────────────────
+
+@admin_bp.route("/settings/upload-app-icon", methods=["POST"])
+def upload_app_icon():
+    f = request.files.get("app_icon_file")
+    if not f or not f.filename:
+        flash("No file selected.", "danger")
+        return redirect(url_for("admin.settings"))
+
+    if not f.filename.lower().endswith(".png"):
+        flash("Only PNG files are accepted.", "danger")
+        return redirect(url_for("admin.settings"))
+
+    header = f.read(8)
+    if header[:8] != b"\x89PNG\r\n\x1a\n":
+        flash("File does not appear to be a valid PNG image.", "danger")
+        return redirect(url_for("admin.settings"))
+
+    f.seek(0, 2)
+    if f.tell() > 2 * 1024 * 1024:
+        flash("Icon must be under 2 MB.", "danger")
+        return redirect(url_for("admin.settings"))
+
+    img_dir = os.path.join(current_app.root_path, "static", "img")
+    os.makedirs(img_dir, exist_ok=True)
+    f.seek(0)
+    f.save(os.path.join(img_dir, "app_icon.png"))
+
+    s = Setting.query.filter_by(key="app_icon_img").first()
+    if s:
+        s.value = "app_icon.png"
+        db.session.commit()
+
+    flash("App icon uploaded.", "success")
+    return redirect(url_for("admin.settings") + "#appearance")
+
+
+@admin_bp.route("/settings/remove-app-icon", methods=["POST"])
+def remove_app_icon():
+    img_path = os.path.join(current_app.root_path, "static", "img", "app_icon.png")
+    if os.path.exists(img_path):
+        os.remove(img_path)
+
+    s = Setting.query.filter_by(key="app_icon_img").first()
+    if s:
+        s.value = ""
+        db.session.commit()
+
+    flash("App icon removed.", "info")
+    return redirect(url_for("admin.settings") + "#appearance")
 
 
 # ── Audit Log ─────────────────────────────────────────────────────────────────

@@ -211,6 +211,9 @@ def _ensure_invoice_settings() -> None:
         ("invoice_term1",       "Payment Terms: Due within 30 days",        "text",   "Default payment terms line 1",                 "invoices", None),
         ("invoice_term2",       "Make all checks payable to Jon Quincy",    "text",   "Default payment terms line 2",                 "invoices", None),
         ("ui_font_scale",       "1.0",                                      "select", "Site-wide text size (affects all pages)",       "ui",       '["0.80", "0.85", "0.90", "0.95", "1.0", "1.05", "1.10", "1.15", "1.20", "1.25"]'),
+        ("login_logo_layout",   "top",                                      "select", "Login page: logo/name/tagline position",         "login",    '["top", "left"]'),
+        ("login_logo",          "",                                         "text",   "Custom login logo filename (auto-managed)",      "login",    None),
+        ("app_icon_img",        "",                                         "text",   "Custom sidebar icon image (auto-managed)",       "appearance", None),
     ]
 
     changed = False

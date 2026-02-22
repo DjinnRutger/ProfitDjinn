@@ -72,7 +72,14 @@
 
   {# Brand #}
   <a href="{{ url_for('main.dashboard') }}" class="sidebar-brand">
+    {% set _icon_img = get_setting('app_icon_img', '') %}
+    {% if _icon_img and _icon_img != '' %}
+    <img src="{{ url_for('static', filename='img/app_icon.png') }}"
+         alt="{{ get_setting('app_name', 'LocalVibe') }}"
+         style="height:1.6rem;width:auto;object-fit:contain;flex-shrink:0">
+    {% else %}
     <i class="bi {{ get_setting('app_icon', 'bi-lightning-charge-fill') }}"></i>
+    {% endif %}
     <span>{{ get_setting('app_name', 'LocalVibe') }}</span>
   </a>
 

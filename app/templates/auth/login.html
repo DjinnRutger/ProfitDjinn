@@ -25,14 +25,241 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+
+  {# Brand color CSS variables (applied here since login.html doesn't extend base.html) #}
+  {% set _brand = get_setting('primary_color', '#2563eb') %}
+  <style>
+    :root {
+      --primary:       {{ _brand }};
+      --primary-hover: color-mix(in srgb, {{ _brand }} 82%, #000);
+      --login-brand-bg: color-mix(in srgb, {{ _brand }} 22%, #04060f);
+    }
+    .btn-primary {
+      background-color: var(--primary);
+      border-color: var(--primary);
+    }
+    .btn-primary:hover, .btn-primary:focus {
+      background-color: var(--primary-hover);
+      border-color: var(--primary-hover);
+    }
+    .form-control:focus, .form-select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
+    }
+
+    /* ── Top layout (default) ── */
+    .auth-wrapper {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bs-body-bg);
+      padding: 2rem 1rem;
+    }
+    .auth-card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--bs-body-bg);
+      border: 1px solid var(--bs-border-color);
+      border-radius: .75rem;
+      padding: 2.5rem 2rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,.12);
+      text-align: center;
+    }
+    .auth-logo {
+      font-size: 3rem;
+      color: var(--primary);
+      display: block;
+      margin-bottom: .5rem;
+    }
+    .auth-logo-img {
+      max-height: 80px;
+      max-width: 200px;
+      margin-bottom: .5rem;
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .auth-title {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: .15rem;
+    }
+    .auth-tagline {
+      font-size: .88rem;
+      color: var(--bs-secondary-color);
+      margin-bottom: 1.75rem;
+    }
+
+    /* ── Left layout: centered two-panel card ── */
+    .auth-split-wrapper {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bs-body-bg);
+      padding: 2rem 1rem;
+    }
+    .auth-split-card {
+      display: flex;
+      align-items: stretch;
+      border-radius: .75rem;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,.15);
+      border: 1px solid var(--bs-border-color);
+      width: 100%;
+      max-width: 780px;
+    }
+    .auth-brand-panel {
+      width: 320px;
+      flex-shrink: 0;
+      background: transparent;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2.5rem 1.75rem;
+      text-align: center;
+    }
+    .auth-brand-panel .auth-logo {
+      color: var(--primary);
+      font-size: 3.5rem;
+      margin-bottom: .6rem;
+    }
+    .auth-brand-panel .auth-logo-img {
+      max-height: 180px;
+      max-width: 280px;
+      margin-bottom: .75rem;
+    }
+    .auth-brand-panel .auth-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: .3rem;
+    }
+    .auth-brand-panel .auth-tagline {
+      font-size: .82rem;
+      margin-bottom: 0;
+      color: var(--bs-secondary-color);
+    }
+    .auth-form-panel {
+      flex: 1;
+      background: var(--bs-body-bg);
+      padding: 2.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      border-left: 1px solid var(--bs-border-color);
+    }
+    @media (max-width: 640px) {
+      .auth-split-card { flex-direction: column; }
+      .auth-brand-panel { width: 100%; padding: 2rem 1.5rem; }
+    }
+  </style>
 </head>
 <body>
 
+{% set _layout = get_setting('login_logo_layout', 'top') %}
+{% set _logo   = get_setting('login_logo', '') %}
+{% set _has_logo = _logo and _logo != '' %}
+
+{% if _layout == 'left' %}
+{# ── LEFT LAYOUT: centered two-panel card ─────────────────────────── #}
+<div class="auth-split-wrapper">
+  <div class="auth-split-card">
+
+    {# Brand panel #}
+    <div class="auth-brand-panel">
+      {% if _has_logo %}
+      <img src="{{ url_for('static', filename='img/login_logo.png') }}"
+           alt="{{ get_setting('app_name', 'LocalVibe') }} logo"
+           class="auth-logo-img">
+      {% else %}
+      <i class="bi {{ get_setting('app_icon', 'bi-lightning-charge-fill') }} auth-logo"></i>
+      {% endif %}
+      <h1 class="auth-title">{{ get_setting('app_name', 'LocalVibe') }}</h1>
+      <p class="auth-tagline">{{ get_setting('app_tagline', 'Your Local Network Hub') }}</p>
+    </div>
+
+    {# Form panel #}
+    <div class="auth-form-panel">
+
+      {# Flash messages #}
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }} py-2 mb-3" style="font-size:.85rem">
+          <i class="bi {% if category == 'danger' %}bi-exclamation-triangle-fill{% else %}bi-info-circle-fill{% endif %} me-1"></i>
+          {{ message }}
+        </div>
+        {% endfor %}
+      {% endif %}
+      {% endwith %}
+
+      <h2 class="fw-bold mb-1" style="font-size:1.35rem">Sign In</h2>
+      <p class="text-secondary mb-4" style="font-size:.85rem">Enter your credentials to continue</p>
+
+      {# Login form #}
+      <form method="POST" action="{{ url_for('auth.login') }}" novalidate>
+        {{ form.hidden_tag() }}
+
+        <div class="mb-3">
+          <label class="form-label" for="username">Username</label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-person"></i></span>
+            {{ form.username(class="form-control" + (" is-invalid" if form.username.errors else ""),
+                            id="username", placeholder="Enter your username", autofocus=true) }}
+            {% for error in form.username.errors %}
+            <div class="invalid-feedback">{{ error }}</div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label" for="password">Password</label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-lock"></i></span>
+            {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""),
+                            id="password", placeholder="Enter your password") }}
+            <button class="btn btn-outline-secondary" type="button" id="toggle-pw" tabindex="-1" title="Show/hide password">
+              <i class="bi bi-eye" id="pw-eye"></i>
+            </button>
+            {% for error in form.password.errors %}
+            <div class="invalid-feedback">{{ error }}</div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="mb-4 d-flex align-items-center justify-content-between">
+          <div class="form-check mb-0">
+            {{ form.remember_me(class="form-check-input", id="remember_me") }}
+            <label class="form-check-label" for="remember_me" style="font-size:.85rem">
+              Keep me signed in
+            </label>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
+          <i class="bi bi-box-arrow-in-right me-1"></i>Sign In
+        </button>
+      </form>
+
+    </div>
+  </div>
+</div>
+
+{% else %}
+{# ── TOP LAYOUT (default): centered card ──────────────────────────── #}
 <div class="auth-wrapper">
   <div class="auth-card">
 
     {# Logo & title #}
+    {% if _has_logo %}
+    <img src="{{ url_for('static', filename='img/login_logo.png') }}"
+         alt="{{ get_setting('app_name', 'LocalVibe') }} logo"
+         class="auth-logo-img">
+    {% else %}
     <i class="bi {{ get_setting('app_icon', 'bi-lightning-charge-fill') }} auth-logo"></i>
+    {% endif %}
     <h1 class="auth-title">{{ get_setting('app_name', 'LocalVibe') }}</h1>
     <p class="auth-tagline">{{ get_setting('app_tagline', 'Your Local Network Hub') }}</p>
 
@@ -95,6 +322,7 @@
 
   </div>
 </div>
+{% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc4s9bIOgUxi8T/jzmZ7r1zy1U4mEdFvXb0HhpVJp0i5" crossorigin="anonymous"></script>

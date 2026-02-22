@@ -15,17 +15,105 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
   {% for category, settings_list in categorized.items() %}
-  <div class="settings-category-card">
+  <div class="settings-category-card" id="{{ category }}">
     <div class="settings-category-header">
       <i class="bi
         {% if category == 'general' %}bi-grid-1x2
         {% elif category == 'appearance' %}bi-palette
         {% elif category == 'security' %}bi-shield-lock
+        {% elif category == 'login' %}bi-box-arrow-in-right
+        {% elif category == 'ui' %}bi-type
+        {% elif category == 'invoices' %}bi-receipt
         {% else %}bi-gear{% endif %} me-2"></i>
       {{ category | capitalize }}
     </div>
 
+    {# ── Special: App Icon upload widget ── #}
+    {% if category == 'appearance' %}
+    {% set _icon_img = get_setting('app_icon_img', '') %}
+    {% set _has_icon_img = _icon_img and _icon_img != '' %}
+    <div class="settings-row" style="align-items:center">
+      <div>
+        <div class="settings-key">app_icon_img</div>
+        <div class="settings-desc">Upload a PNG to replace the Bootstrap icon in the sidebar &amp; navbar</div>
+        <div class="settings-desc mt-1">
+          <span class="badge bg-secondary bg-opacity-50" style="font-size:.62rem">file upload</span>
+        </div>
+      </div>
+      <div>
+        {% if _has_icon_img %}
+        <div class="mb-2">
+          <img src="{{ url_for('static', filename='img/app_icon.png') }}"
+               alt="Current app icon"
+               style="height:32px;width:auto;border-radius:.4rem;border:1px solid var(--bs-border-color);padding:4px;background:var(--bs-secondary-bg)">
+        </div>
+        {% endif %}
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <input type="file" name="app_icon_file" accept=".png,image/png"
+                 form="app-icon-upload-form"
+                 class="form-control form-control-sm" style="max-width:260px">
+          <button type="submit" form="app-icon-upload-form" class="btn btn-sm btn-primary">
+            <i class="bi bi-upload me-1"></i>Upload
+          </button>
+          {% if _has_icon_img %}
+          <button type="submit" form="app-icon-remove-form" class="btn btn-sm btn-outline-danger"
+                  onclick="return confirm('Remove the custom app icon?')">
+            <i class="bi bi-trash me-1"></i>Remove
+          </button>
+          {% endif %}
+        </div>
+        <div class="settings-desc mt-1">PNG only · max 2 MB · square or transparent works best</div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── Special: Login Logo upload widget ── #}
+    {% if category == 'login' %}
+    {% set _logo = get_setting('login_logo', '') %}
+    {% set _has_logo = _logo and _logo != '' %}
+    <div class="settings-row" style="align-items:center">
+      <div>
+        <div class="settings-key">login_logo</div>
+        <div class="settings-desc">Upload a PNG image to replace the icon on the login page</div>
+        <div class="settings-desc mt-1">
+          <span class="badge bg-secondary bg-opacity-50" style="font-size:.62rem">file upload</span>
+        </div>
+      </div>
+      <div>
+        {# Preview #}
+        {% if _has_logo %}
+        <div class="mb-2">
+          <img src="{{ url_for('static', filename='img/login_logo.png') }}"
+               alt="Current login logo"
+               style="max-height:80px;max-width:200px;border-radius:.5rem;border:1px solid var(--bs-border-color);padding:6px;background:var(--bs-secondary-bg)">
+        </div>
+        {% endif %}
+
+        {# File picker + buttons referencing standalone forms below via form= attribute #}
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <input type="file" name="login_logo_file" accept=".png,image/png"
+                 form="logo-upload-form"
+                 class="form-control form-control-sm" style="max-width:260px">
+          <button type="submit" form="logo-upload-form" class="btn btn-sm btn-primary">
+            <i class="bi bi-upload me-1"></i>Upload
+          </button>
+          {% if _has_logo %}
+          <button type="submit" form="logo-remove-form" class="btn btn-sm btn-outline-danger"
+                  onclick="return confirm('Remove the custom login logo?')">
+            <i class="bi bi-trash me-1"></i>Remove
+          </button>
+          {% endif %}
+        </div>
+        <div class="settings-desc mt-1">PNG only · max 2 MB · transparent backgrounds work best</div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── Regular settings rows ── #}
     {% for s in settings_list %}
+    {# Skip login_logo — rendered as upload widget above #}
+    {% if not (category == 'login' and s.key == 'login_logo')
+          and not (category == 'appearance' and s.key == 'app_icon_img') %}
     <div class="settings-row">
       {# Label + description #}
       <div>
@@ -65,11 +153,35 @@
                id="s_{{ s.key }}" value="{{ s.value }}" style="max-width:160px">
 
         {% elif s.type == 'select' %}
+        {# Layout selector: show visual preview for login_logo_layout #}
+        {% if s.key == 'login_logo_layout' %}
+        <div class="d-flex gap-3 flex-wrap">
+          {% for opt in s.get_options_list() %}
+          <label class="layout-option-card {% if s.value == opt %}selected{% endif %}"
+                 for="layout_{{ opt }}">
+            <input type="radio" name="{{ s.key }}" id="layout_{{ opt }}" value="{{ opt }}"
+                   class="d-none" {{ 'checked' if s.value == opt }}>
+            <div class="layout-preview layout-{{ opt }}">
+              {% if opt == 'top' %}
+              <div class="lp-top-brand"></div>
+              <div class="lp-top-form"></div>
+              {% else %}
+              <div class="lp-left-brand"></div>
+              <div class="lp-left-form"></div>
+              {% endif %}
+            </div>
+            <div class="layout-label">{{ opt | capitalize }}</div>
+          </label>
+          {% endfor %}
+        </div>
+
+        {% else %}
         <select class="form-select" name="{{ s.key }}" id="s_{{ s.key }}" style="max-width:240px">
           {% for opt in s.get_options_list() %}
           <option value="{{ opt }}" {{ 'selected' if s.value == opt }}>{{ opt | capitalize }}</option>
           {% endfor %}
         </select>
+        {% endif %}
 
         {% elif s.type == 'json' %}
         <textarea class="form-control font-monospace" name="{{ s.key }}" id="s_{{ s.key }}"
@@ -81,6 +193,7 @@
         {% endif %}
       </div>
     </div>
+    {% endif %}
     {% endfor %}
   </div>
   {% endfor %}
@@ -91,6 +204,28 @@
     </button>
     <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary">Cancel</a>
   </div>
+</form>
+
+{# Standalone forms for logo upload/remove — outside main form to avoid nesting #}
+<form id="logo-upload-form" method="POST"
+      action="{{ url_for('admin.upload_login_logo') }}"
+      enctype="multipart/form-data" style="display:none">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+<form id="logo-remove-form" method="POST"
+      action="{{ url_for('admin.remove_login_logo') }}"
+      style="display:none">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+<form id="app-icon-upload-form" method="POST"
+      action="{{ url_for('admin.upload_app_icon') }}"
+      enctype="multipart/form-data" style="display:none">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+<form id="app-icon-remove-form" method="POST"
+      action="{{ url_for('admin.remove_app_icon') }}"
+      style="display:none">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 </form>
 {% endblock %}
 
@@ -112,5 +247,73 @@
       if(lbl) lbl.textContent = cb.checked ? 'Enabled' : 'Disabled';
     });
   });
+  // Layout radio cards
+  document.querySelectorAll('.layout-option-card').forEach(function(card){
+    card.addEventListener('click', function(){
+      var radio = card.querySelector('input[type="radio"]');
+      if(radio) radio.checked = true;
+      card.closest('.d-flex').querySelectorAll('.layout-option-card').forEach(function(c){
+        c.classList.remove('selected');
+      });
+      card.classList.add('selected');
+    });
+  });
 </script>
+
+<style>
+  /* Layout picker cards */
+  .layout-option-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .5rem;
+    padding: .75rem 1rem;
+    border: 2px solid var(--bs-border-color);
+    border-radius: var(--radius, .5rem);
+    cursor: pointer;
+    transition: border-color .15s, box-shadow .15s;
+    user-select: none;
+    min-width: 110px;
+  }
+  .layout-option-card:hover { border-color: var(--primary, #2563eb); }
+  .layout-option-card.selected {
+    border-color: var(--primary, #2563eb);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #2563eb) 18%, transparent);
+  }
+  .layout-label { font-size: .8rem; font-weight: 600; }
+
+  /* Preview tiles */
+  .layout-preview {
+    width: 90px; height: 60px;
+    border-radius: .35rem;
+    border: 1px solid var(--bs-border-color);
+    background: var(--bs-secondary-bg);
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Top layout: brand strip on top, form below */
+  .layout-top .lp-top-brand {
+    position: absolute; top: 0; left: 0; right: 0; height: 30%;
+    background: var(--primary, #2563eb); opacity: .85;
+    border-radius: .3rem .3rem 0 0;
+  }
+  .layout-top .lp-top-form {
+    position: absolute; bottom: 4px; left: 8px; right: 8px; height: 55%;
+    background: var(--bs-body-bg); border: 1px solid var(--bs-border-color);
+    border-radius: .25rem;
+  }
+
+  /* Left layout: brand strip on left, form on right */
+  .layout-left .lp-left-brand {
+    position: absolute; top: 0; left: 0; bottom: 0; width: 38%;
+    background: var(--primary, #2563eb); opacity: .85;
+    border-radius: .3rem 0 0 .3rem;
+  }
+  .layout-left .lp-left-form {
+    position: absolute; top: 8px; right: 6px; bottom: 8px; width: 52%;
+    background: var(--bs-body-bg); border: 1px solid var(--bs-border-color);
+    border-radius: .25rem;
+  }
+</style>
 {% endblock %}
