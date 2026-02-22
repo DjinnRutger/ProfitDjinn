@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Settings — {{ get_setting('app_name', 'LocalVibe') }}{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-sliders me-2 text-primary"></i>App Settings</h1>
+    <p class="lead">All changes take effect immediately after saving.</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="POST" id="settings-form" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  {% for category, settings_list in categorized.items() %}
+  <div class="settings-category-card">
+    <div class="settings-category-header">
+      <i class="bi
+        {% if category == 'general' %}bi-grid-1x2
+        {% elif category == 'appearance' %}bi-palette
+        {% elif category == 'security' %}bi-shield-lock
+        {% else %}bi-gear{% endif %} me-2"></i>
+      {{ category | capitalize }}
+    </div>
+
+    {% for s in settings_list %}
+    <div class="settings-row">
+      {# Label + description #}
+      <div>
+        <div class="settings-key">{{ s.key }}</div>
+        {% if s.description %}
+        <div class="settings-desc">{{ s.description }}</div>
+        {% endif %}
+        <div class="settings-desc mt-1">
+          <span class="badge bg-secondary bg-opacity-50" style="font-size:.62rem">{{ s.type }}</span>
+        </div>
+      </div>
+
+      {# Input – rendered based on type #}
+      <div>
+        {% if s.type == 'boolean' %}
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox"
+                 name="{{ s.key }}" id="s_{{ s.key }}" value="true"
+                 role="switch"
+                 {{ 'checked' if s.get_typed_value() }}>
+          <label class="form-check-label" for="s_{{ s.key }}" style="font-size:.85rem">
+            {{ 'Enabled' if s.get_typed_value() else 'Disabled' }}
+          </label>
+        </div>
+
+        {% elif s.type == 'color' %}
+        <div class="d-flex align-items-center gap-2">
+          <input type="color" class="form-control form-control-color"
+                 name="{{ s.key }}" id="s_{{ s.key }}" value="{{ s.value }}"
+                 style="width:56px;height:36px;cursor:pointer">
+          <input type="text" class="form-control form-control-sm" id="s_{{ s.key }}_text"
+                 value="{{ s.value }}" maxlength="7" style="max-width:100px;font-family:monospace">
+        </div>
+
+        {% elif s.type == 'number' %}
+        <input type="number" class="form-control" name="{{ s.key }}"
+               id="s_{{ s.key }}" value="{{ s.value }}" style="max-width:160px">
+
+        {% elif s.type == 'select' %}
+        <select class="form-select" name="{{ s.key }}" id="s_{{ s.key }}" style="max-width:240px">
+          {% for opt in s.get_options_list() %}
+          <option value="{{ opt }}" {{ 'selected' if s.value == opt }}>{{ opt | capitalize }}</option>
+          {% endfor %}
+        </select>
+
+        {% elif s.type == 'json' %}
+        <textarea class="form-control font-monospace" name="{{ s.key }}" id="s_{{ s.key }}"
+                  rows="3" style="font-size:.78rem">{{ s.value }}</textarea>
+
+        {% else %}{# text #}
+        <input type="text" class="form-control" name="{{ s.key }}"
+               id="s_{{ s.key }}" value="{{ s.value }}">
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+  <div class="d-flex gap-2 mt-2 mb-4">
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-floppy me-1"></i>Save All Settings
+    </button>
+    <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary">Cancel</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Sync color picker ↔ text input
+  document.querySelectorAll('input[type="color"]').forEach(function(picker){
+    var textInput = document.getElementById(picker.id + '_text');
+    if(!textInput) return;
+    picker.addEventListener('input', function(){ textInput.value = picker.value; });
+    textInput.addEventListener('input', function(){
+      if(/^#[0-9a-fA-F]{6}$/.test(textInput.value)) picker.value = textInput.value;
+    });
+  });
+  // Sync boolean switch label
+  document.querySelectorAll('.form-check-input[type="checkbox"]').forEach(function(cb){
+    cb.addEventListener('change', function(){
+      var lbl = cb.nextElementSibling;
+      if(lbl) lbl.textContent = cb.checked ? 'Enabled' : 'Disabled';
+    });
+  });
+</script>
+{% endblock %}

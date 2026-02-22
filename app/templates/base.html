@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en"
+      data-bs-theme="light"
+      data-theme="light"
+      data-user-theme="{{ current_user.theme if current_user.is_authenticated else 'light' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{% block title %}{{ get_setting('app_name', 'LocalVibe') }}{% endblock %}</title>
+
+  {# ── Anti-FOUC: apply theme before CSS loads ── #}
+  <script>
+    (function(){
+      var t = localStorage.getItem("theme");
+      // Migrate old darkMode key
+      if (!t) { var old = localStorage.getItem("darkMode"); if (old === "true") t = "dark"; }
+      var pref = document.documentElement.dataset.userTheme || "light";
+      var theme = t || pref;
+      document.documentElement.setAttribute("data-theme", theme);
+      document.documentElement.setAttribute("data-bs-theme", theme === "light" ? "light" : "dark");
+    })();
+  </script>
+
+  {# ── Bootstrap 5.3 ── #}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+        crossorigin="anonymous">
+  {# ── Bootstrap Icons ── #}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  {# ── VT323 terminal font ── #}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
+  {# ── Custom styles ── #}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+{# ── Mobile sidebar overlay ── #}
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+{# ════════════════════════════════════════════════════════
+   SIDEBAR
+   ════════════════════════════════════════════════════════ #}
+<nav class="sidebar" id="sidebar" aria-label="Main navigation">
+
+  {# Brand #}
+  <a href="{{ url_for('main.dashboard') }}" class="sidebar-brand">
+    <i class="bi {{ get_setting('app_icon', 'bi-lightning-charge-fill') }}"></i>
+    <span>{{ get_setting('app_name', 'LocalVibe') }}</span>
+  </a>
+
+  <div class="sidebar-nav">
+    {# ── Main section ── #}
+    <ul class="nav flex-column mb-0">
+      <li class="nav-item">
+        <a href="{{ url_for('main.dashboard') }}"
+           class="nav-link {% if active_page == 'dashboard' %}active{% endif %}">
+          <i class="bi bi-speedometer2"></i>
+          <span>Dashboard</span>
+        </a>
+      </li>
+
+      {# ╔══════════════════════════════════════════╗
+         ║  ADD FUTURE MODULE LINKS HERE            ║
+         ║  e.g.:                                   ║
+         ║  <li class="nav-item">                   ║
+         ║    <a href="..." class="nav-link">        ║
+         ║      <i class="bi bi-..."></i>           ║
+         ║      <span>My Module</span>              ║
+         ║    </a>                                  ║
+         ║  </li>                                   ║
+         ╚══════════════════════════════════════════╝ #}
+
+    </ul>
+
+    {# ── Admin section ── #}
+    {% if current_user.is_authenticated and (current_user.is_admin or current_user.has_permission('admin.full_access')) %}
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section-label">Administration</div>
+    <ul class="nav flex-column mb-0">
+      {% for item in admin_nav() %}
+      <li class="nav-item">
+        <a href="{{ item.url }}"
+           class="nav-link {% if active_page == item.key %}active{% endif %}">
+          <i class="bi {{ item.icon }}"></i>
+          <span>{{ item.label }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>{# /sidebar-nav #}
+
+  {# Logout #}
+  <div class="sidebar-footer">
+    {% if current_user.is_authenticated %}
+    <a href="{{ url_for('auth.logout') }}" class="nav-link">
+      <i class="bi bi-box-arrow-right"></i>
+      <span>Logout</span>
+    </a>
+    {% endif %}
+  </div>
+
+</nav>{# /sidebar #}
+
+
+{# ════════════════════════════════════════════════════════
+   MAIN WRAPPER
+   ════════════════════════════════════════════════════════ #}
+<div class="main-wrapper" id="main-wrapper">
+
+  {# ── Top Navbar ── #}
+  <header class="main-navbar" role="banner">
+
+    {# Sidebar toggle button #}
+    <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-label="Toggle sidebar">
+      <i class="bi bi-list fs-5"></i>
+    </button>
+
+    {# Breadcrumb slot #}
+    <nav aria-label="breadcrumb" class="d-none d-md-block">
+      {% block breadcrumb %}{% endblock %}
+    </nav>
+
+    <div class="ms-auto d-flex align-items-center gap-2">
+
+      {# User settings button – opens modal #}
+      {% if current_user.is_authenticated %}
+      <button id="user-settings-trigger"
+              class="btn btn-sm d-flex align-items-center gap-2 btn-ghost"
+              type="button" title="Account settings" aria-label="Account settings">
+        <div class="user-avatar">{{ current_user.get_initials() }}</div>
+        <span class="d-none d-lg-inline fw-semibold" style="font-size:.85rem">{{ current_user.username }}</span>
+        <i class="bi bi-chevron-down" style="font-size:.65rem; opacity:.6"></i>
+      </button>
+      {% endif %}
+
+    </div>
+  </header>{# /navbar #}
+
+  {# ── Page content ── #}
+  <main class="main-content" role="main">
+
+    {# Flash messages #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-messages">
+      {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        <i class="bi {% if category == 'success' %}bi-check-circle-fill{% elif category == 'danger' %}bi-exclamation-triangle-fill{% elif category == 'warning' %}bi-exclamation-circle-fill{% else %}bi-info-circle-fill{% endif %} me-2"></i>
+        {{ message | safe }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    {# Page header slot #}
+    {% block page_header %}{% endblock %}
+
+    {# Main content slot #}
+    {% block content %}{% endblock %}
+
+  </main>
+
+  {# Footer #}
+  <footer class="main-footer">
+    {{ get_setting('footer_text', 'LocalVibe — Built with Flask') }}
+  </footer>
+
+</div>{# /main-wrapper #}
+
+{# ════════════════════════════════════════════════════════
+   USER SETTINGS DIALOG  (native <dialog>, no Bootstrap JS needed)
+   ════════════════════════════════════════════════════════ #}
+{% if current_user.is_authenticated %}
+<dialog id="userSettingsModal" aria-label="Account settings">
+
+  {# ── Header ── #}
+  <div class="usm-header">
+    <div class="d-flex align-items-center gap-3">
+      <div class="user-avatar flex-shrink-0"
+           style="width:48px;height:48px;font-size:1.1rem;border-radius:50%">
+        {{ current_user.get_initials() }}
+      </div>
+      <div>
+        <div class="fw-bold lh-1 mb-1">{{ current_user.username }}</div>
+        <div class="text-muted" style="font-size:.78rem">{{ current_user.email }}</div>
+        <div class="mt-1 d-flex gap-1 flex-wrap">
+          {% if current_user.is_admin %}
+          <span class="badge bg-primary" style="font-size:.62rem">Admin</span>
+          {% endif %}
+          {% if current_user.role %}
+          <span class="badge bg-secondary" style="font-size:.62rem">{{ current_user.role.name }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <button type="button" class="modal-close usm-close-btn" aria-label="Close">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+
+  {# ── Body ── #}
+  <div class="usm-body">
+
+    <p class="modal-section-label">Appearance</p>
+    <div class="row g-2 mb-1">
+      <div class="col-4">
+        <div class="theme-preview-tile tile-light" data-theme-val="light"
+             role="button" tabindex="0" aria-label="Light theme">
+          <div class="tile-preview"></div>
+          <div class="tile-label">Light</div>
+        </div>
+      </div>
+      <div class="col-4">
+        <div class="theme-preview-tile tile-dark" data-theme-val="dark"
+             role="button" tabindex="0" aria-label="Dark theme">
+          <div class="tile-preview"></div>
+          <div class="tile-label">Dark</div>
+        </div>
+      </div>
+      <div class="col-4">
+        <div class="theme-preview-tile tile-terminal" data-theme-val="terminal"
+             role="button" tabindex="0" aria-label="Terminal theme">
+          <div class="tile-preview"></div>
+          <div class="tile-label">Terminal</div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="my-3">
+
+    <p class="modal-section-label">Change Password</p>
+    <div id="pw-alert" style="display:none" class="mb-2"></div>
+    <div class="mb-2">
+      <input type="password" id="modal-current-pw" class="form-control form-control-sm"
+             placeholder="Current password" autocomplete="current-password">
+    </div>
+    <div class="mb-2">
+      <input type="password" id="modal-new-pw" class="form-control form-control-sm"
+             placeholder="New password (min 8 chars)" autocomplete="new-password">
+    </div>
+    <div class="mb-3">
+      <input type="password" id="modal-confirm-pw" class="form-control form-control-sm"
+             placeholder="Confirm new password" autocomplete="new-password">
+    </div>
+    <button type="button" id="modal-pw-btn" class="btn btn-primary btn-sm w-100">
+      Update Password
+    </button>
+
+  </div>
+
+  {# ── Footer ── #}
+  <div class="usm-footer">
+    <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-danger btn-sm me-auto">
+      <i class="bi bi-box-arrow-right me-1"></i>Sign Out
+    </a>
+    <button type="button" class="modal-close btn btn-sm btn-secondary">Close</button>
+  </div>
+
+</dialog>
+{% endif %}
+
+{# ── Scripts ── #}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc4s9bIOgUxi8T/jzmZ7r1zy1U4mEdFvXb0HhpVJp0i5"
+        crossorigin="anonymous"></script>
+<script src="{{ url_for('static', filename='js/sidebar.js') }}"></script>
+<script>
+(function () {
+  var dlg     = document.getElementById("userSettingsModal");
+  var trigger = document.getElementById("user-settings-trigger");
+  if (!dlg || !trigger) return;
+
+  /* ── Open / close ── */
+  function openDlg() {
+    refreshTiles();
+    dlg.showModal();
+  }
+  function closeDlg() { dlg.close(); }
+
+  trigger.addEventListener("click", openDlg);
+
+  /* Close buttons (class="modal-close") */
+  dlg.querySelectorAll(".modal-close").forEach(function (btn) {
+    btn.addEventListener("click", closeDlg);
+  });
+
+  /* Click on the ::backdrop closes the dialog */
+  dlg.addEventListener("click", function (e) {
+    var rect = dlg.getBoundingClientRect();
+    if (e.clientX < rect.left || e.clientX > rect.right ||
+        e.clientY < rect.top  || e.clientY > rect.bottom) {
+      closeDlg();
+    }
+  });
+
+  /* ── Sync theme tiles on open ── */
+  function refreshTiles() {
+    var cur = document.documentElement.getAttribute("data-theme") || "light";
+    dlg.querySelectorAll(".theme-preview-tile").forEach(function (t) {
+      t.classList.toggle("active", t.dataset.themeVal === cur);
+    });
+  }
+
+  /* ── Theme tile clicks ── */
+  dlg.querySelectorAll(".theme-preview-tile").forEach(function (tile) {
+    tile.addEventListener("click", function () {
+      if (typeof window.applyTheme === "function") window.applyTheme(tile.dataset.themeVal);
+      dlg.querySelectorAll(".theme-preview-tile").forEach(function (t) { t.classList.remove("active"); });
+      tile.classList.add("active");
+    });
+    tile.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tile.click(); }
+    });
+  });
+
+  /* ── Password change ── */
+  var pwBtn   = document.getElementById("modal-pw-btn");
+  var pwAlert = document.getElementById("pw-alert");
+
+  function showAlert(msg, type) {
+    pwAlert.innerHTML = '<div class="alert alert-' + type + ' py-2 mb-0" style="font-size:.82rem">' + msg + '</div>';
+    pwAlert.style.display = "block";
+  }
+
+  pwBtn.addEventListener("click", function () {
+    var cur  = document.getElementById("modal-current-pw").value.trim();
+    var nw   = document.getElementById("modal-new-pw").value;
+    var conf = document.getElementById("modal-confirm-pw").value;
+    pwAlert.style.display = "none";
+
+    if (!cur || !nw || !conf) { showAlert("All fields are required.", "danger"); return; }
+    if (nw.length < 8)        { showAlert("New password must be at least 8 characters.", "danger"); return; }
+    if (nw !== conf)          { showAlert("Passwords do not match.", "danger"); return; }
+
+    pwBtn.disabled = true;
+    pwBtn.textContent = "Updating\u2026";
+
+    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    var csrf = csrfMeta ? csrfMeta.getAttribute("content") : "";
+
+    fetch("/api/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+      body: JSON.stringify({ current_password: cur, new_password: nw, confirm_password: conf }),
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.success) {
+        showAlert("Password updated successfully!", "success");
+        document.getElementById("modal-current-pw").value = "";
+        document.getElementById("modal-new-pw").value = "";
+        document.getElementById("modal-confirm-pw").value = "";
+      } else {
+        showAlert(data.error || "An error occurred.", "danger");
+      }
+    })
+    .catch(function () { showAlert("Network error. Please try again.", "danger"); })
+    .finally(function () { pwBtn.disabled = false; pwBtn.textContent = "Update Password"; });
+  });
+
+  /* ── Clear form when dialog closes ── */
+  dlg.addEventListener("close", function () {
+    ["modal-current-pw", "modal-new-pw", "modal-confirm-pw"].forEach(function (id) {
+      var el = document.getElementById(id); if (el) el.value = "";
+    });
+    pwAlert.style.display = "none";
+  });
+})();
+</script>
+{% block scripts %}{% endblock %}
+
+</body>
+</html>

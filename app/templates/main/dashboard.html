@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — {{ get_setting('app_name', 'LocalVibe') }}{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <h1>Dashboard</h1>
+    <p class="lead">Welcome back, {{ current_user.username }}!</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+
+{# ── Stat cards ── #}
+<div class="row g-3 mb-4">
+
+  <div class="col-6 col-xl-3">
+    <div class="stat-card">
+      <div class="d-flex align-items-start justify-content-between">
+        <div>
+          <div class="stat-value text-primary">{{ stats.total_users }}</div>
+          <div class="stat-label">Total Users</div>
+        </div>
+        <div class="stat-icon bg-primary bg-opacity-10 text-primary">
+          <i class="bi bi-people-fill"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-xl-3">
+    <div class="stat-card">
+      <div class="d-flex align-items-start justify-content-between">
+        <div>
+          <div class="stat-value text-success">{{ stats.active_users }}</div>
+          <div class="stat-label">Active Users</div>
+        </div>
+        <div class="stat-icon bg-success bg-opacity-10 text-success">
+          <i class="bi bi-person-check-fill"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-xl-3">
+    <div class="stat-card">
+      <div class="d-flex align-items-start justify-content-between">
+        <div>
+          <div class="stat-value text-warning">{{ stats.total_roles }}</div>
+          <div class="stat-label">Roles</div>
+        </div>
+        <div class="stat-icon bg-warning bg-opacity-10 text-warning">
+          <i class="bi bi-shield-fill"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-xl-3">
+    <div class="stat-card">
+      <div class="d-flex align-items-start justify-content-between">
+        <div>
+          <div class="stat-value text-info">{{ stats.total_settings }}</div>
+          <div class="stat-label">Settings</div>
+        </div>
+        <div class="stat-icon bg-info bg-opacity-10 text-info">
+          <i class="bi bi-sliders-fill"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{# ── Recent Activity ── #}
+<div class="card">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-activity me-2 text-primary"></i>Recent Activity</span>
+    {% if current_user.is_admin %}
+    <a href="{{ url_for('admin.audit') }}" class="btn btn-sm btn-outline-secondary">
+      View All <i class="bi bi-arrow-right ms-1"></i>
+    </a>
+    {% endif %}
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Action</th>
+          <th>Resource</th>
+          <th>User</th>
+          <th>IP</th>
+          <th>When</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in recent_activity %}
+        <tr>
+          <td>
+            <span class="badge
+              {% if log.action in ('login','created','activated') %}bg-success
+              {% elif log.action in ('deleted','login_failed','deactivated') %}bg-danger
+              {% elif log.action == 'logout' %}bg-secondary
+              {% else %}bg-primary{% endif %} bg-opacity-75">
+              {{ log.action }}
+            </span>
+          </td>
+          <td class="text-muted" style="font-size:.82rem">
+            {{ log.resource or '—' }}{% if log.resource_id %} #{{ log.resource_id }}{% endif %}
+          </td>
+          <td style="font-size:.82rem">
+            {% if log.user %}{{ log.user.username }}{% else %}<span class="text-muted">system</span>{% endif %}
+          </td>
+          <td class="text-muted font-monospace" style="font-size:.78rem">{{ log.ip_address or '—' }}</td>
+          <td class="text-muted" style="font-size:.78rem">{{ log.created_at.strftime('%b %d, %H:%M') }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="empty-state">
+            <i class="bi bi-journal-x"></i>
+            No activity yet.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ╔══════════════════════════════════════════════════════════════╗
+   ║  ADD FUTURE DASHBOARD WIDGETS / CHARTS HERE                 ║
+   ╚══════════════════════════════════════════════════════════════╝ #}
+
+{% endblock %}
