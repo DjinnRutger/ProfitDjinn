@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}{{ customer.name }} — {{ get_setting('app_name', 'ProfitDjinn') }}{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb mb-0">
+  <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+  <li class="breadcrumb-item"><a href="{{ url_for('customers.list_customers') }}">Customers</a></li>
+  <li class="breadcrumb-item active">{{ customer.name }}</li>
+</ol>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <h1>{{ customer.name }}</h1>
+    {% if customer.attn %}<p class="lead mb-0">Attn: {{ customer.attn }}</p>{% endif %}
+  </div>
+  <div class="d-flex gap-2">
+    {% if current_user.has_permission('invoices.create') %}
+    <a href="{{ url_for('invoices.create', customer_id=customer.id) }}" class="btn btn-success">
+      <i class="bi bi-receipt me-1"></i>New Invoice
+    </a>
+    {% endif %}
+    {% if current_user.has_permission('customers.edit') %}
+    <a href="{{ url_for('customers.edit', customer_id=customer.id) }}" class="btn btn-primary">
+      <i class="bi bi-pencil me-1"></i>Edit
+    </a>
+    {% endif %}
+    {% if current_user.has_permission('customers.delete') %}
+    <form method="post" action="{{ url_for('customers.delete', customer_id=customer.id) }}"
+          onsubmit="return confirm('Delete {{ customer.name }}? This also deletes all their invoices.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-outline-danger">
+        <i class="bi bi-trash me-1"></i>Delete
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  {# Left: Contact info + financials #}
+  <div class="col-lg-4">
+
+    <div class="card mb-4">
+      <div class="card-header">
+        <i class="bi bi-person-vcard me-2 text-primary"></i>Contact Info
+      </div>
+      <div class="card-body">
+        <dl class="row mb-0" style="font-size:.9rem">
+          {% if customer.address %}
+          <dt class="col-4 text-muted">Address</dt>
+          <dd class="col-8">
+            {{ customer.address }}<br>
+            {% if customer.city or customer.state or customer.zip_code %}
+            {{ [customer.city, customer.state, customer.zip_code]|select|join(', ') }}
+            {% endif %}
+          </dd>
+          {% endif %}
+          {% if customer.phone %}
+          <dt class="col-4 text-muted">Phone</dt>
+          <dd class="col-8"><a href="tel:{{ customer.phone }}">{{ customer.phone }}</a></dd>
+          {% endif %}
+          {% if customer.email %}
+          <dt class="col-4 text-muted">Email</dt>
+          <dd class="col-8 text-break"><a href="mailto:{{ customer.email }}">{{ customer.email }}</a></dd>
+          {% endif %}
+          <dt class="col-4 text-muted">Status</dt>
+          <dd class="col-8">
+            {% if customer.is_active %}
+            <span class="badge bg-success bg-opacity-75">Active</span>
+            {% else %}
+            <span class="badge bg-secondary">Inactive</span>
+            {% endif %}
+          </dd>
+          {% if customer.notes %}
+          <dt class="col-4 text-muted">Notes</dt>
+          <dd class="col-8">{{ customer.notes }}</dd>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+
+    {# Financial summary #}
+    {% set credit = customer.account_credit %}
+    <div class="row g-3">
+      <div class="col-6">
+        <div class="stat-card">
+          <div class="stat-value text-primary" style="font-size:1.4rem">${{ "%.2f"|format(customer.total_invoiced) }}</div>
+          <div class="stat-label">Total Invoiced</div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="stat-card">
+          <div class="stat-value text-success" style="font-size:1.4rem">${{ "%.2f"|format(customer.total_paid) }}</div>
+          <div class="stat-label">Total Paid</div>
+        </div>
+      </div>
+      <div class="col-{% if credit > 0 %}6{% else %}12{% endif %}">
+        <div class="stat-card">
+          {% set outstanding = customer.total_outstanding %}
+          <div class="stat-value {% if outstanding > 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size:1.6rem">
+            ${{ "%.2f"|format(outstanding) }}
+          </div>
+          <div class="stat-label">Outstanding Balance</div>
+        </div>
+      </div>
+      {% if credit > 0 %}
+      <div class="col-6">
+        <div class="stat-card" style="border-left:3px solid var(--bs-warning)">
+          <div class="stat-value text-warning" style="font-size:1.4rem">${{ "%.2f"|format(credit) }}</div>
+          <div class="stat-label">Account Credit</div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+
+  {# Right: Invoice history #}
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span><i class="bi bi-receipt me-2 text-primary"></i>Invoice History</span>
+        <span class="badge bg-secondary">{{ invoices|length }}</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Invoice #</th>
+              <th>Date</th>
+              <th class="text-end">Amount</th>
+              <th class="text-end">Balance</th>
+              <th class="text-center">Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for inv in invoices %}
+            <tr>
+              <td>
+                <a href="{{ url_for('invoices.detail', invoice_id=inv.id) }}"
+                   class="fw-semibold text-decoration-none font-monospace">
+                  {{ inv.invoice_number }}
+                </a>
+              </td>
+              <td class="text-muted" style="font-size:.85rem">
+                {{ inv.date.strftime('%b %d, %Y') }}
+              </td>
+              <td class="text-end fw-semibold">${{ "%.2f"|format(inv.total) }}</td>
+              <td class="text-end">
+                {% if inv.balance_due > 0 %}
+                <span class="text-danger">${{ "%.2f"|format(inv.balance_due) }}</span>
+                {% else %}
+                <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td class="text-center">
+                <span class="badge bg-{{ inv.status_badge_class }} bg-opacity-85">
+                  {{ inv.status_label }}
+                </span>
+              </td>
+              <td class="text-end">
+                <a href="{{ url_for('invoices.detail', invoice_id=inv.id) }}"
+                   class="btn btn-sm btn-outline-secondary">
+                  <i class="bi bi-eye"></i>
+                </a>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="6" class="empty-state">
+                <i class="bi bi-receipt"></i>
+                No invoices yet.
+                {% if current_user.has_permission('invoices.create') %}
+                <a href="{{ url_for('invoices.create', customer_id=customer.id) }}">Create the first one.</a>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

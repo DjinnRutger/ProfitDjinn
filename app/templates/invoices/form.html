@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — {{ get_setting('app_name', 'ProfitDjinn') }}{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb mb-0">
+  <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+  <li class="breadcrumb-item"><a href="{{ url_for('invoices.list_invoices') }}">Invoices</a></li>
+  {% if invoice %}
+  <li class="breadcrumb-item">
+    <a href="{{ url_for('invoices.detail', invoice_id=invoice.id) }}">{{ invoice.invoice_number }}</a>
+  </li>
+  {% endif %}
+  <li class="breadcrumb-item active">{{ title }}</li>
+</ol>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <h1>{{ title }}</h1>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" id="invoice-form" novalidate>
+  {{ form.hidden_tag() }}
+  {{ form.line_items_json(id="line_items_json") }}
+
+  <div class="row g-4">
+
+    {# Left: Invoice fields #}
+    <div class="col-lg-8">
+
+      {# Header fields #}
+      <div class="card mb-4">
+        <div class="card-header">Invoice Details</div>
+        <div class="card-body">
+          <div class="row g-3">
+
+            {# Customer #}
+            <div class="col-md-8">
+              <label class="form-label fw-semibold">Customer <span class="text-danger">*</span></label>
+              <select name="customer_id" id="customer_id"
+                      class="form-select {% if form.customer_id.errors %}is-invalid{% endif %}" required>
+                <option value="">— Select customer —</option>
+                {% for c in customers %}
+                <option value="{{ c.id }}"
+                  {% if form.customer_id.data == c.id %}selected{% endif %}>
+                  {{ c.name }}{% if c.attn %} ({{ c.attn }}){% endif %}
+                </option>
+                {% endfor %}
+              </select>
+              {% for err in form.customer_id.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+            </div>
+
+            {# Invoice # #}
+            <div class="col-md-4">
+              <label class="form-label fw-semibold" for="invoice_number">Invoice # <span class="text-danger">*</span></label>
+              {{ form.invoice_number(class="form-control font-monospace" + (" is-invalid" if form.invoice_number.errors else ""),
+                                    id="invoice_number", style="text-transform:uppercase") }}
+              {% for err in form.invoice_number.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+            </div>
+
+            {# Date #}
+            <div class="col-md-4">
+              <label class="form-label fw-semibold" for="date">Date <span class="text-danger">*</span></label>
+              {{ form.date(class="form-control" + (" is-invalid" if form.date.errors else ""), id="date") }}
+              {% for err in form.date.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+            </div>
+
+            {# Paid #}
+            <div class="col-md-4 d-flex align-items-end">
+              <div class="form-check mb-2">
+                {{ form.paid(class="form-check-input", id="paid") }}
+                <label class="form-check-label fw-semibold" for="paid">{{ form.paid.label.text }}</label>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      {# Line Items #}
+      <div class="card mb-4">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <span><i class="bi bi-list-ul me-2 text-primary"></i>Line Items</span>
+          <div class="d-flex gap-2">
+            {% if service_items %}
+            <select id="service-item-picker" class="form-select form-select-sm" style="max-width:240px">
+              <option value="">Quick-add service…</option>
+              {% for si in service_items %}
+              <option value="{{ si.description }}" data-price="{{ si.price }}">
+                {{ si.description }} — ${{ "%.2f"|format(si.price) }}
+              </option>
+              {% endfor %}
+            </select>
+            {% endif %}
+            <button type="button" id="add-line-btn" class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-plus-lg me-1"></i>Add Line
+            </button>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <table class="table mb-0" id="line-items-table">
+            <thead>
+              <tr>
+                <th style="min-width:260px">Description</th>
+                <th style="width:90px" class="text-center">Qty</th>
+                <th style="width:130px" class="text-end">Amount ($)</th>
+                <th style="width:48px"></th>
+              </tr>
+            </thead>
+            <tbody id="line-items-body">
+              {# Rows injected by JS #}
+            </tbody>
+            <tfoot>
+              <tr class="table-active">
+                <td colspan="2" class="text-end fw-semibold">Total</td>
+                <td class="text-end fw-bold" id="line-total">$0.00</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+          <div id="no-lines-msg" class="text-center text-muted py-3" style="font-size:.9rem">
+            No line items yet. Click <strong>Add Line</strong> to get started.
+          </div>
+        </div>
+      </div>
+
+      {# Notes + Terms #}
+      <div class="card">
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label" for="notes">Notes</label>
+              {{ form.notes(class="form-control", id="notes", rows=2) }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="term1">{{ form.term1.label.text }}</label>
+              {{ form.term1(class="form-control form-control-sm", id="term1") }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="term2">{{ form.term2.label.text }}</label>
+              {{ form.term2(class="form-control form-control-sm", id="term2") }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    {# Right: summary / submit #}
+    <div class="col-lg-4">
+      <div class="card sticky-top" style="top:80px">
+        <div class="card-header">Summary</div>
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="text-muted">Invoice Total</span>
+            <span class="fw-bold fs-4" id="summary-total">$0.00</span>
+          </div>
+          <hr>
+          <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-primary btn-lg">
+              <i class="bi bi-check-lg me-1"></i>Save Invoice
+            </button>
+            {% if invoice %}
+            <a href="{{ url_for('invoices.detail', invoice_id=invoice.id) }}" class="btn btn-outline-secondary">Cancel</a>
+            {% else %}
+            <a href="{{ url_for('invoices.list_invoices') }}" class="btn btn-outline-secondary">Cancel</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+
+  /* ── Seed data from server (edit mode) ────────────────────────── */
+  var seedItems = {{ (invoice.line_items | map(attribute='__dict__') | list | tojson) if invoice else '[]' }};
+
+  /* Work around SQLAlchemy __dict__ including internal keys */
+  var existingLines = [];
+  {% if invoice %}
+  {% for item in invoice.line_items %}
+  existingLines.push({
+    description: {{ item.description | tojson }},
+    quantity: {{ item.quantity }},
+    amount: {{ item.amount }}
+  });
+  {% endfor %}
+  {% endif %}
+
+  var tbody = document.getElementById("line-items-body");
+  var noLinesMsg = document.getElementById("no-lines-msg");
+  var lineTotal = document.getElementById("line-total");
+  var summaryTotal = document.getElementById("summary-total");
+  var hiddenInput = document.getElementById("line_items_json");
+  var rowIndex = 0;
+
+  function fmt(n) {
+    return "$" + parseFloat(n || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+
+  function updateTotal() {
+    var total = 0;
+    tbody.querySelectorAll("tr").forEach(function (row) {
+      var amt = parseFloat(row.querySelector(".line-amount").value) || 0;
+      total += amt;
+    });
+    lineTotal.textContent = fmt(total);
+    summaryTotal.textContent = fmt(total);
+    syncHidden();
+    noLinesMsg.style.display = tbody.children.length ? "none" : "block";
+  }
+
+  function syncHidden() {
+    var items = [];
+    tbody.querySelectorAll("tr").forEach(function (row) {
+      items.push({
+        description: row.querySelector(".line-desc").value.trim(),
+        quantity:    parseFloat(row.querySelector(".line-qty").value) || 1,
+        amount:      parseFloat(row.querySelector(".line-amount").value) || 0,
+      });
+    });
+    hiddenInput.value = JSON.stringify(items);
+  }
+
+  function addRow(desc, qty, amt) {
+    desc = desc || "";
+    qty  = qty  !== undefined ? qty : 1;
+    amt  = amt  !== undefined ? amt : "";
+
+    var tr = document.createElement("tr");
+    tr.dataset.idx = rowIndex++;
+    tr.innerHTML =
+      '<td><input type="text" class="form-control form-control-sm line-desc" value="' + esc(desc) + '" placeholder="Description" required></td>' +
+      '<td><input type="number" class="form-control form-control-sm text-center line-qty" value="' + qty + '" min="0.01" step="any" style="max-width:80px"></td>' +
+      '<td><input type="number" class="form-control form-control-sm text-end line-amount" value="' + (amt !== "" ? parseFloat(amt).toFixed(2) : "") + '" min="0" step="0.01" placeholder="0.00" required></td>' +
+      '<td><button type="button" class="btn btn-sm btn-ghost text-danger remove-line" title="Remove"><i class="bi bi-trash3"></i></button></td>';
+
+    tr.querySelector(".remove-line").addEventListener("click", function () {
+      tr.remove();
+      updateTotal();
+    });
+    tr.querySelectorAll("input").forEach(function (inp) {
+      inp.addEventListener("input", updateTotal);
+    });
+
+    tbody.appendChild(tr);
+    updateTotal();
+    tr.querySelector(".line-desc").focus();
+  }
+
+  function esc(s) {
+    return String(s).replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  }
+
+  /* ── Initial rows (edit mode) ────────────────────────────────── */
+  existingLines.forEach(function (item) {
+    addRow(item.description, item.quantity, item.amount);
+  });
+
+  /* ── Add line button ─────────────────────────────────────────── */
+  document.getElementById("add-line-btn").addEventListener("click", function () {
+    addRow();
+  });
+
+  /* ── Service item quick-pick ─────────────────────────────────── */
+  var picker = document.getElementById("service-item-picker");
+  if (picker) {
+    picker.addEventListener("change", function () {
+      var opt = picker.options[picker.selectedIndex];
+      if (!opt.value) return;
+      addRow(opt.value, 1, parseFloat(opt.dataset.price) || "");
+      picker.selectedIndex = 0;
+    });
+  }
+
+  /* ── Pre-submit validation ───────────────────────────────────── */
+  document.getElementById("invoice-form").addEventListener("submit", function (e) {
+    syncHidden();
+    var items = JSON.parse(hiddenInput.value || "[]");
+    if (!items.length) {
+      e.preventDefault();
+      alert("Please add at least one line item before saving.");
+    }
+  });
+
+  updateTotal();
+})();
+</script>
+{% endblock %}

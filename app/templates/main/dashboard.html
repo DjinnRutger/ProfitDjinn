@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Dashboard — {{ get_setting('app_name', 'LocalVibe') }}{% endblock %}
+{% block title %}Dashboard — {{ get_setting('app_name', 'ProfitDjinn') }}{% endblock %}
 
 {% block page_header %}
 <div class="page-header">
@@ -12,18 +12,18 @@
 
 {% block content %}
 
-{# ── Stat cards ── #}
+{# ── Business stat cards ── #}
 <div class="row g-3 mb-4">
 
   <div class="col-6 col-xl-3">
     <div class="stat-card">
       <div class="d-flex align-items-start justify-content-between">
         <div>
-          <div class="stat-value text-primary">{{ stats.total_users }}</div>
-          <div class="stat-label">Total Users</div>
+          <div class="stat-value text-primary">{{ stats.total_customers }}</div>
+          <div class="stat-label">Customers</div>
         </div>
         <div class="stat-icon bg-primary bg-opacity-10 text-primary">
-          <i class="bi bi-people-fill"></i>
+          <i class="bi bi-building"></i>
         </div>
       </div>
     </div>
@@ -33,93 +33,95 @@
     <div class="stat-card">
       <div class="d-flex align-items-start justify-content-between">
         <div>
-          <div class="stat-value text-success">{{ stats.active_users }}</div>
-          <div class="stat-label">Active Users</div>
-        </div>
-        <div class="stat-icon bg-success bg-opacity-10 text-success">
-          <i class="bi bi-person-check-fill"></i>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-6 col-xl-3">
-    <div class="stat-card">
-      <div class="d-flex align-items-start justify-content-between">
-        <div>
-          <div class="stat-value text-warning">{{ stats.total_roles }}</div>
-          <div class="stat-label">Roles</div>
-        </div>
-        <div class="stat-icon bg-warning bg-opacity-10 text-warning">
-          <i class="bi bi-shield-fill"></i>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-6 col-xl-3">
-    <div class="stat-card">
-      <div class="d-flex align-items-start justify-content-between">
-        <div>
-          <div class="stat-value text-info">{{ stats.total_settings }}</div>
-          <div class="stat-label">Settings</div>
+          <div class="stat-value text-info">{{ stats.total_invoices }}</div>
+          <div class="stat-label">Total Invoices</div>
         </div>
         <div class="stat-icon bg-info bg-opacity-10 text-info">
-          <i class="bi bi-sliders-fill"></i>
+          <i class="bi bi-receipt"></i>
         </div>
       </div>
     </div>
+  </div>
+
+  <div class="col-6 col-xl-3">
+    <a href="{{ url_for('invoices.list_invoices', status='unpaid') }}" class="text-decoration-none">
+    <div class="stat-card {% if stats.unpaid_invoices > 0 %}border-warning border-opacity-50{% endif %}">
+      <div class="d-flex align-items-start justify-content-between">
+        <div>
+          <div class="stat-value {% if stats.unpaid_invoices > 0 %}text-warning{% else %}text-muted{% endif %}">
+            ${{ "%.2f"|format(stats.unpaid_total) }}
+          </div>
+          <div class="stat-label">
+            Outstanding
+            {% if stats.unpaid_invoices > 0 %}
+            <span class="badge bg-warning text-dark ms-1">{{ stats.unpaid_invoices }}</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="stat-icon bg-warning bg-opacity-10 text-warning">
+          <i class="bi bi-exclamation-circle-fill"></i>
+        </div>
+      </div>
+    </div>
+    </a>
+  </div>
+
+  <div class="col-6 col-xl-3">
+    <a href="{{ url_for('main.revenue') }}" class="text-decoration-none">
+    <div class="stat-card" style="border-bottom:3px solid var(--bs-success)">
+      <div class="d-flex align-items-start justify-content-between">
+        <div>
+          <div class="stat-value text-success">${{ "%.2f"|format(stats.yearly_revenue) }}</div>
+          <div class="stat-label">
+            {{ stats.current_year }} Revenue
+            <i class="bi bi-arrow-right ms-1 text-muted" style="font-size:.75rem"></i>
+          </div>
+        </div>
+        <div class="stat-icon bg-success bg-opacity-10 text-success">
+          <i class="bi bi-graph-up-arrow"></i>
+        </div>
+      </div>
+    </div>
+    </a>
   </div>
 
 </div>
 
-{# ── Recent Activity ── #}
+{# ── Recent Invoices ── #}
+{% if recent_invoices %}
 <div class="card">
   <div class="card-header d-flex align-items-center justify-content-between">
-    <span><i class="bi bi-activity me-2 text-primary"></i>Recent Activity</span>
-    {% if current_user.is_admin %}
-    <a href="{{ url_for('admin.audit') }}" class="btn btn-sm btn-outline-secondary">
+    <span><i class="bi bi-receipt me-2 text-primary"></i>Recent Invoices</span>
+    <a href="{{ url_for('invoices.list_invoices') }}" class="btn btn-sm btn-outline-secondary">
       View All <i class="bi bi-arrow-right ms-1"></i>
     </a>
-    {% endif %}
   </div>
   <div class="table-responsive">
     <table class="table table-hover mb-0">
       <thead>
         <tr>
-          <th>Action</th>
-          <th>Resource</th>
-          <th>User</th>
-          <th>IP</th>
-          <th>When</th>
+          <th>Invoice #</th>
+          <th>Customer</th>
+          <th>Date</th>
+          <th class="text-end">Amount</th>
+          <th class="text-center">Status</th>
         </tr>
       </thead>
       <tbody>
-        {% for log in recent_activity %}
+        {% for inv in recent_invoices %}
         <tr>
           <td>
-            <span class="badge
-              {% if log.action in ('login','created','activated') %}bg-success
-              {% elif log.action in ('deleted','login_failed','deactivated') %}bg-danger
-              {% elif log.action == 'logout' %}bg-secondary
-              {% else %}bg-primary{% endif %} bg-opacity-75">
-              {{ log.action }}
-            </span>
+            <a href="{{ url_for('invoices.detail', invoice_id=inv.id) }}"
+               class="fw-semibold font-monospace text-decoration-none">{{ inv.invoice_number }}</a>
           </td>
-          <td class="text-muted" style="font-size:.82rem">
-            {{ log.resource or '—' }}{% if log.resource_id %} #{{ log.resource_id }}{% endif %}
+          <td>
+            <a href="{{ url_for('customers.detail', customer_id=inv.customer.id) }}"
+               class="text-decoration-none">{{ inv.customer.name }}</a>
           </td>
-          <td style="font-size:.82rem">
-            {% if log.user %}{{ log.user.username }}{% else %}<span class="text-muted">system</span>{% endif %}
-          </td>
-          <td class="text-muted font-monospace" style="font-size:.78rem">{{ log.ip_address or '—' }}</td>
-          <td class="text-muted" style="font-size:.78rem">{{ log.created_at.strftime('%b %d, %H:%M') }}</td>
-        </tr>
-        {% else %}
-        <tr>
-          <td colspan="5" class="empty-state">
-            <i class="bi bi-journal-x"></i>
-            No activity yet.
+          <td class="text-muted" style="font-size:.85rem">{{ inv.date.strftime('%b %d, %Y') }}</td>
+          <td class="text-end fw-semibold">${{ "%.2f"|format(inv.total) }}</td>
+          <td class="text-center">
+            <span class="badge bg-{{ inv.status_badge_class }} bg-opacity-85">{{ inv.status_label }}</span>
           </td>
         </tr>
         {% endfor %}
@@ -127,9 +129,6 @@
     </table>
   </div>
 </div>
-
-{# ╔══════════════════════════════════════════════════════════════╗
-   ║  ADD FUTURE DASHBOARD WIDGETS / CHARTS HERE                 ║
-   ╚══════════════════════════════════════════════════════════════╝ #}
+{% endif %}
 
 {% endblock %}

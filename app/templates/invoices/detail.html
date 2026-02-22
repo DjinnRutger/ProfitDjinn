@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+{% block title %}{{ invoice.invoice_number }} — {{ get_setting('app_name', 'ProfitDjinn') }}{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb mb-0">
+  <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+  <li class="breadcrumb-item"><a href="{{ url_for('invoices.list_invoices') }}">Invoices</a></li>
+  <li class="breadcrumb-item active">{{ invoice.invoice_number }}</li>
+</ol>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div class="d-flex align-items-center gap-3">
+    <div>
+      <h1 class="font-monospace">{{ invoice.invoice_number }}</h1>
+      <p class="lead mb-0">
+        <a href="{{ url_for('customers.detail', customer_id=invoice.customer.id) }}"
+           class="text-decoration-none">
+          {{ invoice.customer.name }}
+        </a>
+        &nbsp;·&nbsp; {{ invoice.date.strftime('%B %d, %Y') }}
+      </p>
+    </div>
+    <span class="badge bg-{{ invoice.status_badge_class }} fs-6 px-3 py-2">
+      {{ invoice.status_label }}
+    </span>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{{ url_for('invoices.print_view', invoice_id=invoice.id) }}"
+       target="_blank" class="btn btn-outline-secondary">
+      <i class="bi bi-printer me-1"></i>Print
+    </a>
+    <a href="{{ url_for('invoices.pdf_download', invoice_id=invoice.id) }}"
+       class="btn btn-outline-secondary">
+      <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+    </a>
+    {% if current_user.has_permission('invoices.edit') %}
+    <a href="{{ url_for('invoices.edit', invoice_id=invoice.id) }}" class="btn btn-primary">
+      <i class="bi bi-pencil me-1"></i>Edit
+    </a>
+    {% if invoice.balance_due > 0 %}
+    <button type="button" class="btn btn-success" id="openPaymentDialog">
+      <i class="bi bi-cash-coin me-1"></i>Record Payment
+    </button>
+    {% endif %}
+    {% if invoice.paid or invoice.is_partial %}
+    <form method="post" action="{{ url_for('invoices.mark_unpaid', invoice_id=invoice.id) }}"
+          onsubmit="return confirm('Mark as Unpaid? This will delete ALL payment records for this invoice.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-outline-warning">
+        <i class="bi bi-arrow-counterclockwise me-1"></i>Mark Unpaid
+      </button>
+    </form>
+    {% endif %}
+    {% endif %}
+    {% if current_user.has_permission('invoices.delete') %}
+    <form method="post" action="{{ url_for('invoices.delete', invoice_id=invoice.id) }}"
+          onsubmit="return confirm('Delete invoice {{ invoice.invoice_number }}?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-outline-danger">
+        <i class="bi bi-trash me-1"></i>Delete
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  {# Left column: invoice line items + payment history #}
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-list-ul me-2 text-primary"></i>Line Items
+      </div>
+      <div class="table-responsive">
+        <table class="table mb-0">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th class="text-center">Qty</th>
+              <th class="text-end">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in invoice.line_items %}
+            <tr>
+              <td>{{ item.description }}</td>
+              <td class="text-center text-muted">{{ item.quantity|int if item.quantity == item.quantity|int else item.quantity }}</td>
+              <td class="text-end">${{ "%.2f"|format(item.amount) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr class="table-active">
+              <td colspan="2" class="fw-bold text-end">TOTAL</td>
+              <td class="fw-bold text-end fs-5">${{ "%.2f"|format(invoice.total) }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    {# Payment history #}
+    {% if invoice.payments %}
+    <div class="card mt-4">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span><i class="bi bi-cash-stack me-2 text-success"></i>Payment History</span>
+        <span class="badge bg-secondary">{{ invoice.payments|length }}</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table mb-0" style="font-size:.9rem">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Method</th>
+              <th>Check #</th>
+              <th>Notes</th>
+              <th class="text-end">Amount</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for pmt in invoice.payments %}
+            <tr>
+              <td>{{ pmt.date.strftime('%b %d, %Y') }}</td>
+              <td>{{ pmt.method_label }}</td>
+              <td class="text-muted font-monospace">{{ pmt.check_number or '—' }}</td>
+              <td class="text-muted">{{ pmt.notes or '' }}</td>
+              <td class="text-end fw-semibold text-success">${{ "%.2f"|format(pmt.amount) }}</td>
+              <td class="text-end">
+                {% if current_user.has_permission('invoices.edit') %}
+                <form method="post"
+                      action="{{ url_for('invoices.delete_payment', invoice_id=invoice.id, payment_id=pmt.id) }}"
+                      onsubmit="return confirm('Delete this payment of ${{ '%.2f'|format(pmt.amount) }}?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete payment">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr class="table-active">
+              <td colspan="4" class="fw-bold text-end">Total Paid</td>
+              <td class="fw-bold text-end text-success">${{ "%.2f"|format(invoice.amount_paid) }}</td>
+              <td></td>
+            </tr>
+            {% if invoice.balance_due > 0 %}
+            <tr>
+              <td colspan="4" class="text-end text-muted">Balance Due</td>
+              <td class="text-end fw-semibold text-danger">${{ "%.2f"|format(invoice.balance_due) }}</td>
+              <td></td>
+            </tr>
+            {% endif %}
+            {% if invoice.credit_amount > 0 %}
+            <tr>
+              <td colspan="4" class="text-end text-muted">Account Credit</td>
+              <td class="text-end fw-semibold text-warning">${{ "%.2f"|format(invoice.credit_amount) }}</td>
+              <td></td>
+            </tr>
+            {% endif %}
+          </tfoot>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if invoice.notes or invoice.term1 or invoice.term2 %}
+    <div class="card mt-4">
+      <div class="card-body">
+        {% if invoice.notes %}
+        <p class="mb-2"><strong>Notes:</strong> {{ invoice.notes }}</p>
+        {% endif %}
+        {% if invoice.term1 or invoice.term2 %}
+        <hr class="my-2">
+        <p class="text-muted mb-1" style="font-size:.85rem">{{ invoice.term1 }}</p>
+        <p class="text-muted mb-0" style="font-size:.85rem">{{ invoice.term2 }}</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# Right column: customer + payment info #}
+  <div class="col-lg-4">
+
+    <div class="card mb-3">
+      <div class="card-header">
+        <i class="bi bi-person-vcard me-2 text-primary"></i>Bill To
+      </div>
+      <div class="card-body" style="font-size:.9rem">
+        <div class="fw-semibold">{{ invoice.customer.name }}</div>
+        {% if invoice.customer.attn %}
+        <div class="text-muted">Attn: {{ invoice.customer.attn }}</div>
+        {% endif %}
+        {% if invoice.customer.address %}
+        <div>{{ invoice.customer.address }}</div>
+        {% endif %}
+        {% if invoice.customer.city or invoice.customer.state %}
+        <div>{{ [invoice.customer.city, invoice.customer.state, invoice.customer.zip_code]|select|join(', ') }}</div>
+        {% endif %}
+        {% if invoice.customer.phone %}
+        <div><a href="tel:{{ invoice.customer.phone }}">{{ invoice.customer.phone }}</a></div>
+        {% endif %}
+        {% if invoice.customer.email %}
+        <div><a href="mailto:{{ invoice.customer.email }}">{{ invoice.customer.email }}</a></div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-info-circle me-2 text-primary"></i>Details
+      </div>
+      <div class="card-body">
+        <dl class="row mb-0" style="font-size:.9rem">
+          <dt class="col-6 text-muted">Invoice #</dt>
+          <dd class="col-6 font-monospace">{{ invoice.invoice_number }}</dd>
+          <dt class="col-6 text-muted">Date</dt>
+          <dd class="col-6">{{ invoice.date.strftime('%b %d, %Y') }}</dd>
+          <dt class="col-6 text-muted">Invoice Total</dt>
+          <dd class="col-6 fw-semibold">${{ "%.2f"|format(invoice.total) }}</dd>
+          {% if invoice.amount_paid > 0 %}
+          <dt class="col-6 text-muted">Amount Paid</dt>
+          <dd class="col-6 text-success fw-semibold">${{ "%.2f"|format(invoice.amount_paid) }}</dd>
+          {% endif %}
+          {% if invoice.balance_due > 0 %}
+          <dt class="col-6 text-muted">Balance Due</dt>
+          <dd class="col-6 text-danger fw-semibold">${{ "%.2f"|format(invoice.balance_due) }}</dd>
+          {% endif %}
+          {% if invoice.credit_amount > 0 %}
+          <dt class="col-6 text-muted">Account Credit</dt>
+          <dd class="col-6 text-warning fw-semibold">${{ "%.2f"|format(invoice.credit_amount) }}</dd>
+          {% endif %}
+          <dt class="col-6 text-muted">Status</dt>
+          <dd class="col-6">
+            <span class="badge bg-{{ invoice.status_badge_class }}">{{ invoice.status_label }}</span>
+          </dd>
+          {% if invoice.paid_date %}
+          <dt class="col-6 text-muted">Paid On</dt>
+          <dd class="col-6">{{ invoice.paid_date.strftime('%b %d, %Y') }}</dd>
+          {% endif %}
+          <dt class="col-6 text-muted">Created</dt>
+          <dd class="col-6 text-muted" style="font-size:.8rem">{{ invoice.created_at.strftime('%b %d, %Y') }}</dd>
+        </dl>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{# Payment Dialog #}
+{% if current_user.has_permission('invoices.edit') and invoice.balance_due > 0 %}
+<dialog id="payment-dialog" style="border:none;border-radius:.75rem;padding:0;max-width:480px;width:95%;box-shadow:0 8px 40px rgba(0,0,0,.25)">
+  <form method="post" action="{{ url_for('invoices.record_payment', invoice_id=invoice.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="modal-header px-4 py-3 border-bottom d-flex align-items-center justify-content-between">
+      <h5 class="mb-0">
+        <i class="bi bi-cash-coin me-2 text-success"></i>
+        Record Payment — <span class="font-monospace">{{ invoice.invoice_number }}</span>
+      </h5>
+      <button type="button" class="btn-close" id="closePaymentDialog" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4 py-3">
+      <p class="text-muted mb-3" style="font-size:.9rem">
+        Balance due: <strong class="text-danger">${{ "%.2f"|format(invoice.balance_due) }}</strong>
+      </p>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Amount <span class="text-danger">*</span></label>
+        <div class="input-group">
+          <span class="input-group-text">$</span>
+          <input type="number" name="amount" class="form-control" step="0.01" min="0.01"
+                 value="{{ '%.2f'|format(invoice.balance_due) }}" required>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Payment Method <span class="text-danger">*</span></label>
+        <select name="method" id="paymentMethod" class="form-select" required>
+          <option value="cash">Cash</option>
+          <option value="check">Check</option>
+          <option value="credit_card">Credit Card</option>
+          <option value="ach">ACH</option>
+          <option value="venmo">Venmo</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div class="mb-3" id="checkNumberGroup" style="display:none">
+        <label class="form-label fw-semibold">Check Number</label>
+        <input type="text" name="check_number" id="checkNumber" class="form-control font-monospace"
+               placeholder="e.g. 1042" maxlength="50">
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Date <span class="text-danger">*</span></label>
+        <input type="date" name="date" class="form-control"
+               value="{{ today.isoformat() }}" required>
+      </div>
+
+      <div class="mb-1">
+        <label class="form-label fw-semibold">Notes</label>
+        <textarea name="notes" class="form-control" rows="2"
+                  placeholder="Optional notes about this payment…"></textarea>
+      </div>
+    </div>
+
+    <div class="modal-footer px-4 py-3 border-top d-flex justify-content-end gap-2">
+      <button type="button" class="btn btn-outline-secondary" id="cancelPaymentDialog">Cancel</button>
+      <button type="submit" class="btn btn-success">
+        <i class="bi bi-check-circle me-1"></i>Record Payment
+      </button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(function () {
+  const dialog = document.getElementById('payment-dialog');
+  const openBtn = document.getElementById('openPaymentDialog');
+  const closeBtn = document.getElementById('closePaymentDialog');
+  const cancelBtn = document.getElementById('cancelPaymentDialog');
+  const methodSel = document.getElementById('paymentMethod');
+  const checkGroup = document.getElementById('checkNumberGroup');
+  const checkInput = document.getElementById('checkNumber');
+
+  if (openBtn) openBtn.addEventListener('click', () => dialog.showModal());
+  if (closeBtn) closeBtn.addEventListener('click', () => dialog.close());
+  if (cancelBtn) cancelBtn.addEventListener('click', () => dialog.close());
+
+  // Backdrop click closes dialog (e.target === dialog when clicking outside content)
+  dialog.addEventListener('click', (e) => {
+    if (e.target === dialog) dialog.close();
+  });
+
+  // Show/hide check number field
+  function toggleCheckNumber() {
+    const isCheck = methodSel.value === 'check';
+    checkGroup.style.display = isCheck ? '' : 'none';
+    checkInput.required = isCheck;
+  }
+  methodSel.addEventListener('change', toggleCheckNumber);
+  toggleCheckNumber();
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — {{ get_setting('app_name', 'ProfitDjinn') }}{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb mb-0">
+  <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+  <li class="breadcrumb-item"><a href="{{ url_for('customers.list_customers') }}">Customers</a></li>
+  {% if customer %}
+  <li class="breadcrumb-item">
+    <a href="{{ url_for('customers.detail', customer_id=customer.id) }}">{{ customer.name }}</a>
+  </li>
+  {% endif %}
+  <li class="breadcrumb-item active">{{ title }}</li>
+</ol>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <h1>{{ title }}</h1>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body">
+        <form method="post" novalidate>
+          {{ form.hidden_tag() }}
+
+          <div class="row g-3">
+            {# Name #}
+            <div class="col-12">
+              <label class="form-label fw-semibold" for="name">{{ form.name.label.text }} <span class="text-danger">*</span></label>
+              {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else ""), id="name", autofocus=true) }}
+              {% for err in form.name.errors %}
+              <div class="invalid-feedback">{{ err }}</div>
+              {% endfor %}
+            </div>
+
+            {# Attn #}
+            <div class="col-md-6">
+              <label class="form-label" for="attn">{{ form.attn.label.text }}</label>
+              {{ form.attn(class="form-control" + (" is-invalid" if form.attn.errors else ""), id="attn") }}
+              {% for err in form.attn.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+            </div>
+
+            {# Phone #}
+            <div class="col-md-6">
+              <label class="form-label" for="phone">{{ form.phone.label.text }}</label>
+              {{ form.phone(class="form-control" + (" is-invalid" if form.phone.errors else ""), id="phone") }}
+              {% for err in form.phone.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+            </div>
+
+            {# Email #}
+            <div class="col-12">
+              <label class="form-label" for="email">{{ form.email.label.text }}</label>
+              {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else ""), id="email", type="email") }}
+              {% for err in form.email.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+            </div>
+
+            {# Address #}
+            <div class="col-12">
+              <label class="form-label" for="address">{{ form.address.label.text }}</label>
+              {{ form.address(class="form-control" + (" is-invalid" if form.address.errors else ""), id="address") }}
+              {% for err in form.address.errors %}<div class="invalid-feedback">{{ err }}</div>{% endfor %}
+            </div>
+
+            {# City / State / ZIP #}
+            <div class="col-md-6">
+              <label class="form-label" for="city">{{ form.city.label.text }}</label>
+              {{ form.city(class="form-control", id="city") }}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="state">{{ form.state.label.text }}</label>
+              {{ form.state(class="form-control", id="state", maxlength=2, style="text-transform:uppercase") }}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="zip_code">{{ form.zip_code.label.text }}</label>
+              {{ form.zip_code(class="form-control", id="zip_code") }}
+            </div>
+
+            {# Notes #}
+            <div class="col-12">
+              <label class="form-label" for="notes">{{ form.notes.label.text }}</label>
+              {{ form.notes(class="form-control", id="notes", rows=3) }}
+            </div>
+
+            {# Active toggle #}
+            <div class="col-12">
+              <div class="form-check">
+                {{ form.is_active(class="form-check-input", id="is_active") }}
+                <label class="form-check-label" for="is_active">{{ form.is_active.label.text }}</label>
+              </div>
+            </div>
+          </div>
+
+          <hr class="my-4">
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-lg me-1"></i>Save Customer
+            </button>
+            {% if customer %}
+            <a href="{{ url_for('customers.detail', customer_id=customer.id) }}" class="btn btn-outline-secondary">Cancel</a>
+            {% else %}
+            <a href="{{ url_for('customers.list_customers') }}" class="btn btn-outline-secondary">Cancel</a>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

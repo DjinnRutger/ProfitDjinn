@@ -34,6 +34,30 @@
   {# ── Custom styles ── #}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
 
+  {# ── Brand color + font scale ── #}
+  {% set _brand = get_setting('primary_color', '#2563eb') %}
+  <style>
+    :root {
+      --primary:       {{ _brand }};
+      --primary-hover: color-mix(in srgb, {{ _brand }} 82%, #000);
+      --sidebar-bg:    color-mix(in srgb, {{ _brand }} 22%, #04060f);
+    }
+    /* Active nav item bg uses a hardcoded rgba in custom.css — override it */
+    .sidebar-nav .nav-link.active {
+      background: color-mix(in srgb, {{ _brand }} 28%, transparent);
+    }
+    /* Focus rings */
+    .form-control:focus, .form-select:focus {
+      border-color: {{ _brand }};
+      box-shadow: 0 0 0 3px color-mix(in srgb, {{ _brand }} 18%, transparent);
+    }
+    /* Permission checkbox highlight */
+    .permission-item.checked {
+      background: color-mix(in srgb, {{ _brand }} 8%, transparent);
+    }
+    html { font-size: {{ (get_setting('ui_font_scale', '1.0') | float * 100) | round | int }}%; }
+  </style>
+
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -63,16 +87,35 @@
         </a>
       </li>
 
-      {# ╔══════════════════════════════════════════╗
-         ║  ADD FUTURE MODULE LINKS HERE            ║
-         ║  e.g.:                                   ║
-         ║  <li class="nav-item">                   ║
-         ║    <a href="..." class="nav-link">        ║
-         ║      <i class="bi bi-..."></i>           ║
-         ║      <span>My Module</span>              ║
-         ║    </a>                                  ║
-         ║  </li>                                   ║
-         ╚══════════════════════════════════════════╝ #}
+      {% if current_user.is_authenticated and current_user.has_permission('customers.view') %}
+      <li class="nav-item">
+        <a href="{{ url_for('customers.list_customers') }}"
+           class="nav-link {% if active_page == 'customers' %}active{% endif %}">
+          <i class="bi bi-building"></i>
+          <span>Customers</span>
+        </a>
+      </li>
+      {% endif %}
+
+      {% if current_user.is_authenticated and current_user.has_permission('invoices.view') %}
+      <li class="nav-item">
+        <a href="{{ url_for('invoices.list_invoices') }}"
+           class="nav-link {% if active_page == 'invoices' %}active{% endif %}">
+          <i class="bi bi-receipt"></i>
+          <span>Invoices</span>
+        </a>
+      </li>
+      {% endif %}
+
+      {% if current_user.is_authenticated and current_user.has_permission('invoices.view') %}
+      <li class="nav-item">
+        <a href="{{ url_for('main.revenue') }}"
+           class="nav-link {% if active_page == 'revenue' %}active{% endif %}">
+          <i class="bi bi-graph-up-arrow"></i>
+          <span>Revenue</span>
+        </a>
+      </li>
+      {% endif %}
 
     </ul>
 

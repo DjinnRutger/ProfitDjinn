@@ -31,11 +31,15 @@ def create_app(config_name: str = "default") -> Flask:
     from app.blueprints.main import main_bp
     from app.blueprints.admin import admin_bp
     from app.blueprints.database_mgr import database_bp
+    from app.blueprints.customers import customers_bp
+    from app.blueprints.invoices import invoices_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(database_bp)
+    app.register_blueprint(customers_bp)
+    app.register_blueprint(invoices_bp)
 
     # ── Context processors ───────────────────────────────────────────────────
     @app.context_processor
@@ -80,6 +84,8 @@ def create_app(config_name: str = "default") -> Flask:
         db.create_all()
         _run_migrations()
         _seed_database()
+        _ensure_invoice_settings()
+        _ensure_permissions()
 
     return app
 
@@ -129,6 +135,14 @@ def _seed_database() -> None:
         ("database.view",      "View database management"),
         ("database.backup",    "Download database backups"),
         ("database.configure", "Configure database connection"),
+        ("customers.view",     "View customers"),
+        ("customers.create",   "Create customers"),
+        ("customers.edit",     "Edit customers"),
+        ("customers.delete",   "Delete customers"),
+        ("invoices.view",      "View invoices"),
+        ("invoices.create",    "Create invoices"),
+        ("invoices.edit",      "Edit invoices"),
+        ("invoices.delete",    "Delete invoices"),
     ]
     perms: dict[str, Permission] = {}
     for name, desc in perm_defs:
@@ -177,3 +191,71 @@ def _seed_database() -> None:
                                description=desc, category=cat, options=opts))
 
     db.session.commit()
+
+
+# ── Invoice settings bootstrap (idempotent) ───────────────────────────────────
+def _ensure_invoice_settings() -> None:
+    """Add invoice/company settings if they don't already exist in the DB."""
+    from app.models.setting import Setting
+
+    new_settings = [
+        ("company_name",        "Jon Quincy",                               "text",   "Your name / company name on invoices",         "invoices", None),
+        ("company_address",     "2804 Cheyenne Street",                     "text",   "Street address for invoice header",            "invoices", None),
+        ("company_city",        "Columbus",                                 "text",   "City for invoice header",                      "invoices", None),
+        ("company_state",       "NE",                                       "text",   "State for invoice header",                     "invoices", None),
+        ("company_zip",         "68601",                                    "text",   "ZIP code for invoice header",                  "invoices", None),
+        ("company_email",       "jon.quincy@outlook.com",                   "text",   "Email shown on invoices",                      "invoices", None),
+        ("company_phone",       "(308) 940-0851",                           "text",   "Phone shown on invoices",                      "invoices", None),
+        ("invoice_prefix",      "JQ",                                       "text",   "Invoice number prefix",                        "invoices", None),
+        ("invoice_next_number", "2018",                                     "number", "Next invoice number sequence start",           "invoices", None),
+        ("invoice_term1",       "Payment Terms: Due within 30 days",        "text",   "Default payment terms line 1",                 "invoices", None),
+        ("invoice_term2",       "Make all checks payable to Jon Quincy",    "text",   "Default payment terms line 2",                 "invoices", None),
+        ("ui_font_scale",       "1.0",                                      "select", "Site-wide text size (affects all pages)",       "ui",       '["0.80", "0.85", "0.90", "0.95", "1.0", "1.05", "1.10", "1.15", "1.20", "1.25"]'),
+    ]
+
+    changed = False
+    for key, value, stype, desc, cat, opts in new_settings:
+        if not Setting.query.filter_by(key=key).first():
+            db.session.add(Setting(key=key, value=value, type=stype,
+                                   description=desc, category=cat, options=opts))
+            changed = True
+    if changed:
+        db.session.commit()
+
+
+# ── Ensure new permissions exist and are on admin roles (idempotent) ──────────
+def _ensure_permissions() -> None:
+    """Create any missing permissions and grant them to roles with full_access."""
+    from app.models.permission import Permission
+    from app.models.role import Role
+
+    new_perms = [
+        ("customers.view",   "View customers"),
+        ("customers.create", "Create customers"),
+        ("customers.edit",   "Edit customers"),
+        ("customers.delete", "Delete customers"),
+        ("invoices.view",    "View invoices"),
+        ("invoices.create",  "Create invoices"),
+        ("invoices.edit",    "Edit invoices"),
+        ("invoices.delete",  "Delete invoices"),
+    ]
+
+    changed = False
+    for name, desc in new_perms:
+        perm = Permission.query.filter_by(name=name).first()
+        if not perm:
+            perm = Permission(name=name, description=desc)
+            db.session.add(perm)
+            db.session.flush()
+            changed = True
+
+        # Grant to any role that has admin.full_access
+        full_access = Permission.query.filter_by(name="admin.full_access").first()
+        if full_access:
+            for role in Role.query.all():
+                if full_access in role.permissions and perm not in role.permissions:
+                    role.permissions.append(perm)
+                    changed = True
+
+    if changed:
+        db.session.commit()
