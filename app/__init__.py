@@ -9,7 +9,13 @@ from app.extensions import db, login_manager, csrf, limiter, migrate
 
 
 def create_app(config_name: str = "default") -> Flask:
-    app = Flask(__name__, instance_relative_config=True)
+    # When running as a frozen EXE, FLASK_INSTANCE_PATH is set to a writable
+    # folder next to the EXE so SQLite persists between runs.
+    _instance_path = os.environ.get("FLASK_INSTANCE_PATH")
+    if _instance_path:
+        app = Flask(__name__, instance_relative_config=True, instance_path=_instance_path)
+    else:
+        app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(config[config_name])
 
     # Ensure instance directory exists (SQLite lives here)
@@ -86,6 +92,7 @@ def create_app(config_name: str = "default") -> Flask:
         _seed_database()
         _ensure_invoice_settings()
         _ensure_permissions()
+        _apply_brand_defaults()
 
     return app
 
@@ -175,10 +182,10 @@ def _seed_database() -> None:
     # ── Default settings ─────────────────────────────────────────────────────
     # (key, value, type, description, category, options_json)
     setting_defs = [
-        ("app_name",          "LocalVibe",                  "text",    "Application display name",                        "general",    None),
-        ("app_tagline",       "Your Local Network Hub",     "text",    "Tagline shown on the login page",                 "general",    None),
+        ("app_name",          "ProfitDjinn",                "text",    "Application display name",                        "general",    None),
+        ("app_tagline",       "Rub the Lamp, Send the Invoice, Count the Gold!", "text", "Tagline shown on the login page", "general", None),
         ("app_icon",          "bi-lightning-charge-fill",   "text",    "Bootstrap Icons class for the sidebar logo",      "appearance", None),
-        ("footer_text",       "LocalVibe \u2014 Built with Flask", "text", "Footer copyright text",                      "general",    None),
+        ("footer_text",       "ProfitDjinn \u2014 Built with Flask", "text", "Footer copyright text",                     "general",    None),
         ("primary_color",     "#2563eb",                    "color",   "Primary brand/accent colour",                     "appearance", None),
         ("default_theme",     "light",                      "select",  "Default colour theme for new users",              "appearance", '["light","dark","terminal"]'),
         ("allow_registration","false",                      "boolean", "Allow new visitors to self-register",             "security",   None),
@@ -211,9 +218,9 @@ def _ensure_invoice_settings() -> None:
         ("invoice_term1",       "Payment Terms: Due within 30 days",        "text",   "Default payment terms line 1",                 "invoices", None),
         ("invoice_term2",       "Make all checks payable to Jon Quincy",    "text",   "Default payment terms line 2",                 "invoices", None),
         ("ui_font_scale",       "1.0",                                      "select", "Site-wide text size (affects all pages)",       "ui",       '["0.80", "0.85", "0.90", "0.95", "1.0", "1.05", "1.10", "1.15", "1.20", "1.25"]'),
-        ("login_logo_layout",   "top",                                      "select", "Login page: logo/name/tagline position",         "login",    '["top", "left"]'),
-        ("login_logo",          "",                                         "text",   "Custom login logo filename (auto-managed)",      "login",    None),
-        ("app_icon_img",        "",                                         "text",   "Custom sidebar icon image (auto-managed)",       "appearance", None),
+        ("login_logo_layout",   "left",                                     "select", "Login page: logo/name/tagline position",         "login",    '["top", "left"]'),
+        ("login_logo",          "login_logo.png",                           "text",   "Custom login logo filename (auto-managed)",      "login",    None),
+        ("app_icon_img",        "app_icon.png",                             "text",   "Custom sidebar icon image (auto-managed)",       "appearance", None),
     ]
 
     changed = False
@@ -221,6 +228,46 @@ def _ensure_invoice_settings() -> None:
         if not Setting.query.filter_by(key=key).first():
             db.session.add(Setting(key=key, value=value, type=stype,
                                    description=desc, category=cat, options=opts))
+            changed = True
+    if changed:
+        db.session.commit()
+
+
+# ── Apply brand defaults (idempotent migration) ───────────────────────────────
+def _apply_brand_defaults() -> None:
+    """Migrate any DB still holding the old LocalVibe defaults to ProfitDjinn defaults.
+    Only updates a value if it still equals the old default — never overwrites
+    a value the user has intentionally changed to something else."""
+    import shutil
+    from flask import current_app
+    from app.models.setting import Setting
+
+    # ── Copy default images into static/img if not already present ───────────
+    img_dir = os.path.join(current_app.root_path, "static", "img")
+    os.makedirs(img_dir, exist_ok=True)
+    src = os.path.join(os.path.dirname(current_app.root_path),
+                       "Images-Org", "ProfitDjinn-No Name-Md.png")
+    if os.path.exists(src):
+        for dest_name in ("login_logo.png", "app_icon.png"):
+            dest = os.path.join(img_dir, dest_name)
+            if not os.path.exists(dest):
+                shutil.copy2(src, dest)
+
+    # ── Migrate text/select settings from old defaults to new ────────────────
+    # Format: key → (old_default_to_replace, new_default)
+    migrations = {
+        "app_name":          ("LocalVibe",              "ProfitDjinn"),
+        "app_tagline":       ("Your Local Network Hub", "Rub the Lamp, Send the Invoice, Count the Gold!"),
+        "footer_text":       ("LocalVibe \u2014 Built with Flask", "ProfitDjinn \u2014 Built with Flask"),
+        "login_logo_layout": ("top",                    "left"),
+        "login_logo":        ("",                       "login_logo.png"),
+        "app_icon_img":      ("",                       "app_icon.png"),
+    }
+    changed = False
+    for key, (old_val, new_val) in migrations.items():
+        s = Setting.query.filter_by(key=key).first()
+        if s and s.value == old_val:
+            s.value = new_val
             changed = True
     if changed:
         db.session.commit()

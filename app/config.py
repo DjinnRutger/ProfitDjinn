@@ -74,9 +74,17 @@ class TestingConfig(Config):
     RATELIMIT_ENABLED = False
 
 
+class GUIConfig(Config):
+    """Standalone desktop app — no console, no browser, local HTTP only."""
+    DEBUG = False
+    TALISMAN_ENABLED = False        # Not needed for a local desktop window
+    SESSION_COOKIE_SECURE = False   # Local HTTP, not HTTPS
+
+
 config: dict = {
     "development": DevelopmentConfig,
     "production":  ProductionConfig,
     "testing":     TestingConfig,
+    "gui":         GUIConfig,
     "default":     DevelopmentConfig,
 }

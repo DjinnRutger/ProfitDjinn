@@ -25,6 +25,11 @@
     </a>
   </li>
   <li class="nav-item">
+    <a class="nav-link" href="#" data-dbtab="restore">
+      <i class="bi bi-upload me-1"></i>Restore
+    </a>
+  </li>
+  <li class="nav-item">
     <a class="nav-link" href="#" data-dbtab="config">
       <i class="bi bi-plug me-1"></i>Configuration
     </a>
@@ -339,6 +344,130 @@ pg_restore -U username -h hostname \
 
 
 {# ════════════════════════════════════════════════════════
+   RESTORE TAB
+   ════════════════════════════════════════════════════════ #}
+<div class="db-tab-pane d-none" id="dbtab-restore">
+
+  {# ── Warning banner ── #}
+  <div class="alert alert-danger d-flex gap-3 mb-4" style="font-size:.875rem">
+    <i class="bi bi-exclamation-triangle-fill fs-4 flex-shrink-0"></i>
+    <div>
+      <strong>Destructive operation — read before proceeding.</strong><br>
+      Restoring a backup <em>replaces the entire database</em>.
+      All data created since the backup was taken will be permanently lost.
+      A safety copy of the current database will be saved automatically before any changes are made.
+    </div>
+  </div>
+
+  {% if not db_info.is_sqlite %}
+  <div class="alert alert-info">
+    <i class="bi bi-info-circle me-2"></i>
+    Restore is only available for <strong>SQLite</strong> databases.
+    Use <code>pg_restore</code> for PostgreSQL.
+  </div>
+  {% else %}
+
+  <div class="row g-3">
+
+    {# ── Step 1: Upload + Analyze ── #}
+    <div class="col-12 col-lg-5">
+      <div class="card">
+        <div class="card-header">
+          <span class="fw-semibold">
+            <i class="bi bi-search me-2 text-primary"></i>Step 1 — Upload &amp; Analyze
+          </span>
+        </div>
+        <div class="card-body">
+          <p class="mb-3" style="font-size:.875rem">
+            Select a <code>.db</code> backup file. The analyzer will inspect its schema
+            and tell you if it is compatible before anything is changed.
+          </p>
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="restore-file-input" style="font-size:.875rem">
+              Backup file (.db)
+            </label>
+            <input type="file" id="restore-file-input" accept=".db,application/octet-stream"
+                   class="form-control">
+          </div>
+          <button type="button" id="analyze-btn" class="btn btn-primary" disabled>
+            <i class="bi bi-search me-1"></i>Analyze Backup
+          </button>
+          <div id="analyze-spinner" class="d-none mt-3 d-flex align-items-center gap-2"
+               style="font-size:.875rem">
+            <span class="spinner-border spinner-border-sm text-primary"></span>
+            Analyzing schema…
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ── Step 2: Analysis result (populated by JS) ── #}
+    <div class="col-12 col-lg-7" id="analysis-result-col" style="display:none">
+      <div class="card h-100" id="analysis-card">
+        <div class="card-header d-flex align-items-center gap-2" id="analysis-card-header">
+          <i class="bi bi-clipboard-check text-primary"></i>
+          <span class="fw-semibold">Analysis Result</span>
+        </div>
+        <div class="card-body" id="analysis-card-body">
+          {# Populated by JS #}
+        </div>
+      </div>
+    </div>
+
+  </div>{# /row #}
+
+  {# ── Step 3: Confirm + Apply (shown only after compatible analysis) ── #}
+  <div id="apply-section" class="mt-3" style="display:none">
+    <div class="card border-danger">
+      <div class="card-header bg-danger bg-opacity-10">
+        <span class="fw-semibold text-danger">
+          <i class="bi bi-database-fill-x me-2"></i>Step 2 — Confirm Restore
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-warning d-flex gap-2 mb-3" style="font-size:.85rem">
+          <i class="bi bi-shield-exclamation flex-shrink-0 mt-1"></i>
+          <div>
+            A safety copy of the <strong>current</strong> database will be saved automatically
+            in the same folder as the database file before replacing it.
+            If restore fails, it is rolled back automatically.
+          </div>
+        </div>
+
+        <form method="POST" action="{{ url_for('database.restore_apply') }}"
+              enctype="multipart/form-data" id="restore-apply-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {# The file input is cloned here by JS when the user proceeds #}
+          <input type="file" id="restore-apply-file" name="backup_file"
+                 accept=".db,application/octet-stream" class="d-none">
+
+          <div class="form-check mb-4">
+            <input class="form-check-input" type="checkbox" name="confirm"
+                   value="yes" id="restore-confirm-check">
+            <label class="form-check-label text-danger fw-semibold" for="restore-confirm-check"
+                   style="font-size:.9rem">
+              I understand this will replace the current database and cannot be undone.
+            </label>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-danger" id="apply-btn" disabled>
+              <i class="bi bi-database-fill-x me-2"></i>Restore Database
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="cancel-restore-btn">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {% endif %}
+</div>{# /dbtab-restore #}
+
+
+{# ════════════════════════════════════════════════════════
    CONFIGURATION TAB
    ════════════════════════════════════════════════════════ #}
 <div class="db-tab-pane d-none" id="dbtab-config">
@@ -602,6 +731,191 @@ pg_restore -U username -h hostname \
     if (!testResult) return;
     testResult.innerHTML = '<div class="alert alert-' + type + ' py-2 mb-0">' + msg + '</div>';
     testResult.style.display = "block";
+  }
+
+  /* ── Restore: analyze + apply ── */
+  var fileInput      = document.getElementById("restore-file-input");
+  var analyzeBtn     = document.getElementById("analyze-btn");
+  var analyzeSpinner = document.getElementById("analyze-spinner");
+  var resultCol      = document.getElementById("analysis-result-col");
+  var resultHeader   = document.getElementById("analysis-card-header");
+  var resultBody     = document.getElementById("analysis-card-body");
+  var applySection   = document.getElementById("apply-section");
+  var applyFileInput = document.getElementById("restore-apply-file");
+  var applyBtn       = document.getElementById("apply-btn");
+  var confirmCheck   = document.getElementById("restore-confirm-check");
+  var cancelBtn      = document.getElementById("cancel-restore-btn");
+
+  if (fileInput) {
+    fileInput.addEventListener("change", function () {
+      analyzeBtn.disabled = !fileInput.files.length;
+      // Reset previous analysis when new file chosen
+      resultCol.style.display     = "none";
+      applySection.style.display  = "none";
+      if (confirmCheck) confirmCheck.checked = false;
+      if (applyBtn)     applyBtn.disabled = true;
+    });
+  }
+
+  if (analyzeBtn) {
+    analyzeBtn.addEventListener("click", function () {
+      if (!fileInput || !fileInput.files.length) return;
+
+      analyzeBtn.disabled         = true;
+      analyzeSpinner.classList.remove("d-none");
+      resultCol.style.display     = "none";
+      applySection.style.display  = "none";
+
+      var fd = new FormData();
+      fd.append("backup_file", fileInput.files[0]);
+
+      fetch("{{ url_for('database.restore_analyze') }}", {
+        method: "POST",
+        body:   fd,
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        analyzeSpinner.classList.add("d-none");
+        analyzeBtn.disabled = false;
+
+        if (!data.ok) {
+          showAnalysisError(data.error || "Unknown error.");
+          return;
+        }
+
+        showAnalysisResult(data);
+
+        // Show apply section only for compatible or needs_migration
+        if (data.status === "compatible" || data.status === "needs_migration") {
+          applySection.style.display = "block";
+          // Copy the selected file into the hidden apply file input using a DataTransfer
+          try {
+            var dt = new DataTransfer();
+            dt.items.add(fileInput.files[0]);
+            applyFileInput.files = dt.files;
+          } catch (e) {
+            // DataTransfer not supported in some older browsers — form will still work
+          }
+        }
+      })
+      .catch(function (err) {
+        analyzeSpinner.classList.add("d-none");
+        analyzeBtn.disabled = false;
+        showAnalysisError("Network error: " + err);
+      });
+    });
+  }
+
+  if (confirmCheck) {
+    confirmCheck.addEventListener("change", function () {
+      applyBtn.disabled = !confirmCheck.checked;
+    });
+  }
+
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", function () {
+      applySection.style.display  = "none";
+      resultCol.style.display     = "none";
+      fileInput.value             = "";
+      analyzeBtn.disabled         = true;
+      if (confirmCheck) confirmCheck.checked = false;
+      if (applyBtn)     applyBtn.disabled = true;
+    });
+  }
+
+  function showAnalysisError(msg) {
+    resultCol.style.display = "block";
+    resultHeader.innerHTML  =
+      '<i class="bi bi-x-circle-fill text-danger me-2"></i>' +
+      '<span class="fw-semibold text-danger">Analysis Failed</span>';
+    resultBody.innerHTML =
+      '<div class="alert alert-danger mb-0"><i class="bi bi-exclamation-triangle-fill me-2"></i>' +
+      escHtml(msg) + '</div>';
+  }
+
+  function showAnalysisResult(d) {
+    resultCol.style.display = "block";
+
+    var iconClass, headerColor, alertClass;
+    if (d.status === "compatible") {
+      iconClass = "bi-check-circle-fill text-success"; headerColor = "text-success"; alertClass = "success";
+    } else if (d.status === "needs_migration") {
+      iconClass = "bi-arrow-up-circle-fill text-warning"; headerColor = "text-warning"; alertClass = "warning";
+    } else {
+      iconClass = "bi-x-circle-fill text-danger"; headerColor = "text-danger"; alertClass = "danger";
+    }
+
+    resultHeader.innerHTML =
+      '<i class="bi ' + iconClass + ' me-2"></i>' +
+      '<span class="fw-semibold ' + headerColor + '">Analysis Result — ' + capFirst(d.status.replace("_", " ")) + '</span>';
+
+    var html = '<div class="alert alert-' + alertClass + ' mb-3" style="font-size:.875rem">' +
+               '<strong>' + capFirst(d.status.replace("_", " ")) + ':</strong> ' + escHtml(d.message) + '</div>';
+
+    // Stats row
+    html += '<div class="row g-2 mb-3">';
+    html += statBadge("bi-table", "primary",  d.backup_tables.length + " tables in backup");
+    html += statBadge("bi-grid-3x3", "success", (d.total_rows || 0).toLocaleString() + " total rows");
+    if (d.missing_tables.length)
+      html += statBadge("bi-table text-warning", "warning", d.missing_tables.length + " missing table(s)");
+    if (d.extra_tables.length)
+      html += statBadge("bi-plus-circle", "secondary", d.extra_tables.length + " extra table(s)");
+    html += '</div>';
+
+    // Missing tables
+    if (d.missing_tables.length) {
+      html += '<p class="mb-1 fw-semibold" style="font-size:.82rem">Tables to be created after restore:</p>';
+      html += '<div class="d-flex flex-wrap gap-1 mb-3">';
+      d.missing_tables.forEach(function (t) {
+        html += '<span class="badge bg-warning text-dark">' + escHtml(t) + '</span>';
+      });
+      html += '</div>';
+    }
+
+    // Missing columns
+    if (Object.keys(d.missing_columns).length) {
+      html += '<p class="mb-1 fw-semibold" style="font-size:.82rem">Columns to be added after restore:</p>';
+      html += '<ul class="mb-3" style="font-size:.8rem">';
+      Object.entries(d.missing_columns).forEach(function (kv) {
+        html += '<li><code>' + escHtml(kv[0]) + '</code>: ' +
+                kv[1].map(function (c) { return '<code>' + escHtml(c) + '</code>'; }).join(", ") + '</li>';
+      });
+      html += '</ul>';
+    }
+
+    // Row counts table (top tables in backup)
+    var sortedTables = Object.entries(d.row_counts)
+      .sort(function (a, b) { return b[1] - a[1]; })
+      .slice(0, 10);
+    if (sortedTables.length) {
+      html += '<p class="mb-1 fw-semibold" style="font-size:.82rem">Row counts in backup:</p>';
+      html += '<div style="max-height:180px;overflow-y:auto">';
+      html += '<table class="table table-sm table-bordered mb-0" style="font-size:.78rem">';
+      html += '<thead><tr><th>Table</th><th class="text-end">Rows</th></tr></thead><tbody>';
+      sortedTables.forEach(function (kv) {
+        html += '<tr><td><code>' + escHtml(kv[0]) + '</code></td>' +
+                '<td class="text-end">' + kv[1].toLocaleString() + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+
+    resultBody.innerHTML = html;
+  }
+
+  function statBadge(icon, color, text) {
+    return '<div class="col-auto"><span class="badge bg-' + color + ' bg-opacity-15 text-' + color +
+           ' d-flex align-items-center gap-1 px-2 py-2" style="font-size:.78rem">' +
+           '<i class="bi ' + icon + '"></i>' + escHtml(text) + '</span></div>';
+  }
+
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;");
+  }
+
+  function capFirst(s) {
+    return s.charAt(0).toUpperCase() + s.slice(1);
   }
 
   /* ── Chart bar hover tooltip ── */
