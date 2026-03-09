@@ -76,10 +76,6 @@
             <span class="badge bg-secondary">Inactive</span>
             {% endif %}
           </dd>
-          {% if customer.notes %}
-          <dt class="col-4 text-muted">Notes</dt>
-          <dd class="col-8">{{ customer.notes }}</dd>
-          {% endif %}
         </dl>
       </div>
     </div>
@@ -116,6 +112,32 @@
         </div>
       </div>
       {% endif %}
+    </div>
+
+    {# Notes #}
+    <div class="card mt-4">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span><i class="bi bi-sticky me-2 text-warning"></i>Account Notes</span>
+      </div>
+      <div class="card-body">
+        {% if current_user.has_permission('customers.edit') %}
+        <form method="post" action="{{ url_for('customers.update_notes', customer_id=customer.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <textarea name="notes" class="form-control mb-2" rows="4"
+                    placeholder="Add notes about this customer…"
+                    style="font-size:.875rem;resize:vertical">{{ customer.notes or '' }}</textarea>
+          <button type="submit" class="btn btn-sm btn-primary">
+            <i class="bi bi-save me-1"></i>Save Notes
+          </button>
+        </form>
+        {% else %}
+          {% if customer.notes %}
+          <p class="mb-0" style="white-space:pre-wrap;font-size:.875rem">{{ customer.notes }}</p>
+          {% else %}
+          <p class="text-muted mb-0" style="font-size:.875rem">No notes on file.</p>
+          {% endif %}
+        {% endif %}
+      </div>
     </div>
 
   </div>

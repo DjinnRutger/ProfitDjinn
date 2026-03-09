@@ -111,6 +111,17 @@ def edit(customer_id):
     )
 
 
+@customers_bp.route("/<int:customer_id>/notes", methods=["POST"])
+@login_required
+@permission_required("customers.edit")
+def update_notes(customer_id):
+    customer = Customer.query.get_or_404(customer_id)
+    customer.notes = request.form.get("notes", "").strip()
+    db.session.commit()
+    flash("Notes saved.", "success")
+    return redirect(url_for("customers.detail", customer_id=customer.id))
+
+
 @customers_bp.route("/<int:customer_id>/delete", methods=["POST"])
 @login_required
 @permission_required("customers.delete")

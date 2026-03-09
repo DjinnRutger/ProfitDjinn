@@ -124,6 +124,16 @@
       </li>
       {% endif %}
 
+      {% if current_user.is_authenticated and current_user.has_permission('items.view') %}
+      <li class="nav-item">
+        <a href="{{ url_for('items.list_items') }}"
+           class="nav-link {% if active_page == 'items' %}active{% endif %}">
+          <i class="bi bi-box-seam"></i>
+          <span>Items</span>
+        </a>
+      </li>
+      {% endif %}
+
     </ul>
 
     {# ── Admin section ── #}

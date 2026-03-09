@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Service Items — {{ get_setting('app_name', 'ProfitDjinn') }}{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb mb-0">
+  <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+  <li class="breadcrumb-item active">Service Items</li>
+</ol>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <h1><i class="bi bi-box-seam me-2 text-primary"></i>Service Items</h1>
+  <div class="d-flex gap-2 align-items-center">
+    <div class="form-check mb-0">
+      <input class="form-check-input" type="checkbox" id="showInactive"
+             onchange="window.location.href='?inactive=' + (this.checked ? '1' : '0')"
+             {% if show_inactive %}checked{% endif %}>
+      <label class="form-check-label text-muted" for="showInactive" style="font-size:.85rem">Show inactive</label>
+    </div>
+    {% if current_user.has_permission('items.create') %}
+    <a href="{{ url_for('items.create') }}" class="btn btn-primary">
+      <i class="bi bi-plus-lg me-1"></i>New Item
+    </a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th class="text-end" style="width:130px">Default Price</th>
+          <th class="text-center" style="width:100px">Status</th>
+          <th style="width:140px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr class="{% if not item.is_active %}text-muted{% endif %}">
+          <td>
+            <span {% if not item.is_active %}style="text-decoration:line-through;opacity:.6"{% endif %}>
+              {{ item.description }}
+            </span>
+          </td>
+          <td class="text-end fw-semibold font-monospace">
+            ${{ "%.2f"|format(item.price) }}
+          </td>
+          <td class="text-center">
+            {% if item.is_active %}
+            <span class="badge bg-success bg-opacity-75">Active</span>
+            {% else %}
+            <span class="badge bg-secondary">Inactive</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <div class="d-flex gap-1 justify-content-end">
+              {% if current_user.has_permission('items.edit') %}
+              <a href="{{ url_for('items.edit', item_id=item.id) }}"
+                 class="btn btn-sm btn-outline-primary" title="Edit">
+                <i class="bi bi-pencil"></i>
+              </a>
+              <form method="post" action="{{ url_for('items.toggle', item_id=item.id) }}?inactive={{ '1' if show_inactive else '0' }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-outline-secondary"
+                        title="{{ 'Deactivate' if item.is_active else 'Activate' }}">
+                  <i class="bi {{ 'bi-toggle-on' if item.is_active else 'bi-toggle-off' }}"></i>
+                </button>
+              </form>
+              {% endif %}
+              {% if current_user.has_permission('items.delete') %}
+              <form method="post" action="{{ url_for('items.delete', item_id=item.id) }}"
+                    onsubmit="return confirm('Delete \'{{ item.description }}\'?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="4" class="empty-state">
+            <i class="bi bi-box-seam"></i>
+            No service items yet.
+            {% if current_user.has_permission('items.create') %}
+            <a href="{{ url_for('items.create') }}">Add the first one.</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

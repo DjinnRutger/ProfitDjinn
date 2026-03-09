@@ -39,6 +39,7 @@ def create_app(config_name: str = "default") -> Flask:
     from app.blueprints.database_mgr import database_bp
     from app.blueprints.customers import customers_bp
     from app.blueprints.invoices import invoices_bp
+    from app.blueprints.items import items_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -46,6 +47,7 @@ def create_app(config_name: str = "default") -> Flask:
     app.register_blueprint(database_bp)
     app.register_blueprint(customers_bp)
     app.register_blueprint(invoices_bp)
+    app.register_blueprint(items_bp)
 
     # ── Context processors ───────────────────────────────────────────────────
     @app.context_processor
@@ -150,6 +152,10 @@ def _seed_database() -> None:
         ("invoices.create",    "Create invoices"),
         ("invoices.edit",      "Edit invoices"),
         ("invoices.delete",    "Delete invoices"),
+        ("items.view",         "View service items"),
+        ("items.create",       "Create service items"),
+        ("items.edit",         "Edit service items"),
+        ("items.delete",       "Delete service items"),
     ]
     perms: dict[str, Permission] = {}
     for name, desc in perm_defs:
@@ -288,6 +294,10 @@ def _ensure_permissions() -> None:
         ("invoices.create",  "Create invoices"),
         ("invoices.edit",    "Edit invoices"),
         ("invoices.delete",  "Delete invoices"),
+        ("items.view",       "View service items"),
+        ("items.create",     "Create service items"),
+        ("items.edit",       "Edit service items"),
+        ("items.delete",     "Delete service items"),
     ]
 
     changed = False
