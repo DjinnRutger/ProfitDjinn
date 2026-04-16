@@ -82,6 +82,7 @@
             <tr>
               <th>Description</th>
               <th class="text-center">Qty</th>
+              <th class="text-end">Unit Price</th>
               <th class="text-end">Amount</th>
             </tr>
           </thead>
@@ -90,13 +91,14 @@
             <tr>
               <td>{{ item.description }}</td>
               <td class="text-center text-muted">{{ item.quantity|int if item.quantity == item.quantity|int else item.quantity }}</td>
+              <td class="text-end text-muted">${{ "%.2f"|format(item.unit_price) }}</td>
               <td class="text-end">${{ "%.2f"|format(item.amount) }}</td>
             </tr>
             {% endfor %}
           </tbody>
           <tfoot>
             <tr class="table-active">
-              <td colspan="2" class="fw-bold text-end">TOTAL</td>
+              <td colspan="3" class="fw-bold text-end">TOTAL</td>
               <td class="fw-bold text-end fs-5">${{ "%.2f"|format(invoice.total) }}</td>
             </tr>
           </tfoot>
@@ -243,6 +245,10 @@
           <dd class="col-6">
             <span class="badge bg-{{ invoice.status_badge_class }}">{{ invoice.status_label }}</span>
           </dd>
+          {% if invoice.payments %}
+          <dt class="col-6 text-muted">Paid Via</dt>
+          <dd class="col-6">{{ invoice.payments | map(attribute='method_label') | unique | join(', ') }}</dd>
+          {% endif %}
           {% if invoice.paid_date %}
           <dt class="col-6 text-muted">Paid On</dt>
           <dd class="col-6">{{ invoice.paid_date.strftime('%b %d, %Y') }}</dd>

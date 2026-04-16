@@ -105,7 +105,7 @@
               <tr>
                 <th style="min-width:260px">Description</th>
                 <th style="width:90px" class="text-center">Qty</th>
-                <th style="width:130px" class="text-end">Amount ($)</th>
+                <th style="width:130px" class="text-end">Unit Price ($)</th>
                 <th style="width:48px"></th>
               </tr>
             </thead>
@@ -182,16 +182,13 @@
   "use strict";
 
   /* ── Seed data from server (edit mode) ────────────────────────── */
-  var seedItems = {{ (invoice.line_items | map(attribute='__dict__') | list | tojson) if invoice else '[]' }};
-
-  /* Work around SQLAlchemy __dict__ including internal keys */
   var existingLines = [];
   {% if invoice %}
   {% for item in invoice.line_items %}
   existingLines.push({
     description: {{ item.description | tojson }},
     quantity: {{ item.quantity }},
-    amount: {{ item.amount }}
+    unit_price: {{ item.unit_price }}
   });
   {% endfor %}
   {% endif %}
@@ -210,8 +207,9 @@
   function updateTotal() {
     var total = 0;
     tbody.querySelectorAll("tr").forEach(function (row) {
-      var amt = parseFloat(row.querySelector(".line-amount").value) || 0;
-      total += amt;
+      var qty = parseFloat(row.querySelector(".line-qty").value) || 1;
+      var price = parseFloat(row.querySelector(".line-amount").value) || 0;
+      total += qty * price;
     });
     lineTotal.textContent = fmt(total);
     summaryTotal.textContent = fmt(total);
@@ -222,10 +220,12 @@
   function syncHidden() {
     var items = [];
     tbody.querySelectorAll("tr").forEach(function (row) {
+      var qty = parseFloat(row.querySelector(".line-qty").value) || 1;
+      var price = parseFloat(row.querySelector(".line-amount").value) || 0;
       items.push({
         description: row.querySelector(".line-desc").value.trim(),
-        quantity:    parseFloat(row.querySelector(".line-qty").value) || 1,
-        amount:      parseFloat(row.querySelector(".line-amount").value) || 0,
+        quantity:    qty,
+        amount:      qty * price,
       });
     });
     hiddenInput.value = JSON.stringify(items);
@@ -263,7 +263,7 @@
 
   /* ── Initial rows (edit mode) ────────────────────────────────── */
   existingLines.forEach(function (item) {
-    addRow(item.description, item.quantity, item.amount);
+    addRow(item.description, item.quantity, item.unit_price);
   });
 
   /* ── Add line button ─────────────────────────────────────────── */

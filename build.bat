@@ -30,13 +30,7 @@ echo [OK] Build dependencies ready.
 REM ── Convert PNG icon to ICO ───────────────────────────────────────────────────
 echo.
 echo [2/5] Converting icon PNG to ICO...
-python -c ^
-  "from PIL import Image; ^
-   sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)]; ^
-   img=Image.open('Images-Org/ProfitDjinn-No Name-Md.png').convert('RGBA'); ^
-   imgs=[img.resize(s,Image.LANCZOS) for s in sizes]; ^
-   imgs[0].save('dist_icon.ico',format='ICO',sizes=sizes,append_images=imgs[1:]); ^
-   print('  Saved dist_icon.ico')"
+python -c "from PIL import Image; sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)]; img=Image.open('Images-Org/ProfitDjinn-No Name-Md.png').convert('RGBA'); imgs=[img.resize(s,Image.LANCZOS) for s in sizes]; imgs[0].save('dist_icon.ico',format='ICO',sizes=sizes,append_images=imgs[1:]); print('  Saved dist_icon.ico')"
 if errorlevel 1 (
     echo WARNING: Icon conversion failed - building without custom icon.
     REM Patch spec to remove icon reference so build still works
