@@ -231,10 +231,25 @@
     </table>
 
     {# ── Total (outside table) ── #}
+    {% if invoice.credit_applied > 0 %}
+    <div class="total-row" style="font-weight:400; margin-bottom:4px;">
+      <span class="total-label">Subtotal:</span>
+      <span class="total-amount">${{ "%.2f"|format(invoice.total) }}</span>
+    </div>
+    <div class="total-row" style="font-weight:400; margin-bottom:4px;">
+      <span class="total-label">Account Credit Applied:</span>
+      <span class="total-amount">−${{ "%.2f"|format(invoice.credit_applied) }}</span>
+    </div>
+    <div class="total-row">
+      <span class="total-label">Amount Due:</span>
+      <span class="total-amount">${{ "%.2f"|format(invoice.net_total) }}</span>
+    </div>
+    {% else %}
     <div class="total-row">
       <span class="total-label">Total:</span>
       <span class="total-amount">${{ "%.2f"|format(invoice.total) }}</span>
     </div>
+    {% endif %}
 
     {# ── Notes + Terms ── #}
     {% if invoice.notes %}

@@ -36,6 +36,31 @@ def _next_invoice_number() -> str:
     return f"{prefix}{num:04d}"
 
 
+def _apply_credit(invoice, use_credit: bool) -> None:
+    """Set invoice.credit_applied from the customer's available account credit.
+
+    Always recomputed server-side. The invoice's own currently-applied credit is
+    treated as reclaimable so re-saving an edit produces a clean result. Credit
+    applied is capped at the invoice total — never more than what's owed.
+    """
+    # Free this invoice's current credit before measuring availability, so the
+    # customer.account_credit calc doesn't double-count it.
+    invoice.credit_applied = 0.0
+    db.session.flush()
+
+    customer = invoice.customer
+    available = customer.account_credit if customer else 0.0
+
+    if use_credit and available > 0 and invoice.total > 0:
+        invoice.credit_applied = round(min(available, invoice.total), 2)
+
+    # If credit fully settles the invoice, mark it paid.
+    if invoice.credit_applied > 0 and invoice.credit_applied >= invoice.total:
+        invoice.paid = True
+        if not invoice.paid_date:
+            invoice.paid_date = date.today()
+
+
 # ── List ─────────────────────────────────────────────────────────────────────
 
 @invoices_bp.route("/")
@@ -100,6 +125,7 @@ def create():
     customers = Customer.query.filter_by(is_active=True).order_by(Customer.name).all()
     from app.models.service_item import ServiceItem
     service_items = ServiceItem.query.filter_by(is_active=True).order_by(ServiceItem.description).all()
+    customer_credits = {c.id: round(c.account_credit, 2) for c in customers}
 
     preselect_customer_id = request.args.get("customer_id", type=int)
 
@@ -122,16 +148,16 @@ def create():
             flash("At least one line item is required.", "danger")
             return render_template(
                 "invoices/form.html", form=form, customers=customers,
-                service_items=service_items, title="New Invoice",
-                active_page="invoices",
+                service_items=service_items, customer_credits=customer_credits,
+                title="New Invoice", active_page="invoices",
             )
 
         if Invoice.query.filter_by(invoice_number=form.invoice_number.data.strip().upper()).first():
             flash(f"Invoice number {form.invoice_number.data} already exists.", "danger")
             return render_template(
                 "invoices/form.html", form=form, customers=customers,
-                service_items=service_items, title="New Invoice",
-                active_page="invoices",
+                service_items=service_items, customer_credits=customer_credits,
+                title="New Invoice", active_page="invoices",
             )
 
         invoice = Invoice(
@@ -154,15 +180,27 @@ def create():
                 quantity=float(item.get("quantity", 1.0)),
                 amount=float(item.get("amount", 0.0)),
             ))
+        db.session.flush()
+
+        # Apply account credit if requested (computed server-side, never trusting
+        # the client for the amount).
+        _apply_credit(invoice, form.use_credit.data)
 
         db.session.commit()
-        flash(f"Invoice {invoice.invoice_number} created.", "success")
+        if invoice.credit_applied > 0:
+            flash(
+                f"Invoice {invoice.invoice_number} created. "
+                f"${invoice.credit_applied:.2f} account credit applied.",
+                "success",
+            )
+        else:
+            flash(f"Invoice {invoice.invoice_number} created.", "success")
         return redirect(url_for("invoices.detail", invoice_id=invoice.id))
 
     return render_template(
         "invoices/form.html", form=form, customers=customers,
-        service_items=service_items, title="New Invoice",
-        active_page="invoices",
+        service_items=service_items, customer_credits=customer_credits,
+        title="New Invoice", active_page="invoices",
         preselect_customer_id=preselect_customer_id,
     )
 
@@ -179,8 +217,17 @@ def edit(invoice_id):
     from app.models.service_item import ServiceItem
     service_items = ServiceItem.query.filter_by(is_active=True).order_by(ServiceItem.description).all()
 
+    # Available credit per customer. This invoice's own applied credit is
+    # reclaimable, so add it back for its current customer.
+    customer_credits = {c.id: round(c.account_credit, 2) for c in customers}
+    if invoice.customer_id in customer_credits:
+        customer_credits[invoice.customer_id] = round(
+            customer_credits[invoice.customer_id] + (invoice.credit_applied or 0.0), 2
+        )
+
     if request.method == "GET":
         form.customer_id.data = invoice.customer_id
+        form.use_credit.data = (invoice.credit_applied or 0.0) > 0
 
     if form.validate_on_submit():
         raw = request.form.get("line_items_json", "[]")
@@ -193,8 +240,8 @@ def edit(invoice_id):
             flash("At least one line item is required.", "danger")
             return render_template(
                 "invoices/form.html", form=form, customers=customers,
-                service_items=service_items, invoice=invoice,
-                title="Edit Invoice", active_page="invoices",
+                service_items=service_items, customer_credits=customer_credits,
+                invoice=invoice, title="Edit Invoice", active_page="invoices",
             )
 
         dup = Invoice.query.filter(
@@ -205,8 +252,8 @@ def edit(invoice_id):
             flash(f"Invoice number {form.invoice_number.data} already exists.", "danger")
             return render_template(
                 "invoices/form.html", form=form, customers=customers,
-                service_items=service_items, invoice=invoice,
-                title="Edit Invoice", active_page="invoices",
+                service_items=service_items, customer_credits=customer_credits,
+                invoice=invoice, title="Edit Invoice", active_page="invoices",
             )
 
         invoice.invoice_number = form.invoice_number.data.strip().upper()
@@ -233,6 +280,9 @@ def edit(invoice_id):
                 quantity=float(item.get("quantity", 1.0)),
                 amount=float(item.get("amount", 0.0)),
             ))
+        db.session.flush()
+
+        _apply_credit(invoice, form.use_credit.data)
 
         db.session.commit()
         flash(f"Invoice {invoice.invoice_number} updated.", "success")
@@ -240,8 +290,8 @@ def edit(invoice_id):
 
     return render_template(
         "invoices/form.html", form=form, customers=customers,
-        service_items=service_items, invoice=invoice,
-        title="Edit Invoice", active_page="invoices",
+        service_items=service_items, customer_credits=customer_credits,
+        invoice=invoice, title="Edit Invoice", active_page="invoices",
     )
 
 
@@ -298,13 +348,13 @@ def record_payment(invoice_id):
     db.session.add(payment)
     db.session.flush()
 
-    # Recalculate paid status
+    # Recalculate paid status against the net amount owed (after account credit)
     new_amount_paid = sum(p.amount for p in invoice.payments)
-    if new_amount_paid >= invoice.total:
+    if new_amount_paid >= invoice.net_total:
         invoice.paid = True
         if not invoice.paid_date:
             invoice.paid_date = payment_date
-        credit = new_amount_paid - invoice.total
+        credit = new_amount_paid - invoice.net_total
         if credit > 0:
             flash(
                 f"Payment of ${amount:.2f} recorded. Invoice paid in full. "
@@ -316,7 +366,7 @@ def record_payment(invoice_id):
     else:
         invoice.paid = False
         invoice.paid_date = None
-        balance = invoice.total - new_amount_paid
+        balance = invoice.net_total - new_amount_paid
         flash(
             f"Partial payment of ${amount:.2f} recorded. Balance remaining: ${balance:.2f}.",
             "info",
@@ -338,7 +388,7 @@ def delete_payment(invoice_id, payment_id):
 
     # Recalculate paid status after deletion
     remaining_paid = sum(p.amount for p in invoice.payments if p.id != payment_id)
-    if remaining_paid >= invoice.total:
+    if remaining_paid >= invoice.net_total:
         invoice.paid = True
     else:
         invoice.paid = False

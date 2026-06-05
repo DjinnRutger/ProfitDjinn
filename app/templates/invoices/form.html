@@ -157,6 +157,31 @@
             <span class="text-muted">Invoice Total</span>
             <span class="fw-bold fs-4" id="summary-total">$0.00</span>
           </div>
+
+          {# Account credit — shown only when the selected customer has credit #}
+          <div id="credit-block" class="mb-3" style="display:none">
+            <div class="alert alert-warning py-2 px-3 mb-2" style="font-size:.85rem">
+              <i class="bi bi-wallet2 me-1"></i>
+              This customer has <strong id="credit-available">$0.00</strong> in account credit.
+            </div>
+            <div class="form-check">
+              {{ form.use_credit(class="form-check-input", id="use_credit") }}
+              <label class="form-check-label fw-semibold" for="use_credit">
+                Apply account credit to this invoice
+              </label>
+            </div>
+            <div id="credit-detail" style="display:none">
+              <div class="d-flex justify-content-between align-items-center mt-3">
+                <span class="text-muted">Credit Applied</span>
+                <span class="fw-semibold text-warning" id="summary-credit">−$0.00</span>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mt-2">
+                <span class="text-muted">Amount Due</span>
+                <span class="fw-bold fs-5 text-danger" id="summary-due">$0.00</span>
+              </div>
+            </div>
+          </div>
+
           <hr>
           <div class="d-grid gap-2">
             <button type="submit" class="btn btn-primary btn-lg">
@@ -200,22 +225,70 @@
   var hiddenInput = document.getElementById("line_items_json");
   var rowIndex = 0;
 
+  /* ── Account credit ───────────────────────────────────────────── */
+  var customerCredits = {{ (customer_credits or {}) | tojson }};
+  var customerSelect = document.getElementById("customer_id");
+  var creditBlock = document.getElementById("credit-block");
+  var creditDetail = document.getElementById("credit-detail");
+  var creditAvailableEl = document.getElementById("credit-available");
+  var summaryCredit = document.getElementById("summary-credit");
+  var summaryDue = document.getElementById("summary-due");
+  var useCreditChk = document.getElementById("use_credit");
+
   function fmt(n) {
     return "$" + parseFloat(n || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
 
-  function updateTotal() {
+  function currentTotal() {
     var total = 0;
     tbody.querySelectorAll("tr").forEach(function (row) {
       var qty = parseFloat(row.querySelector(".line-qty").value) || 1;
       var price = parseFloat(row.querySelector(".line-amount").value) || 0;
       total += qty * price;
     });
+    return total;
+  }
+
+  function availableCredit() {
+    var id = customerSelect ? customerSelect.value : "";
+    return parseFloat(customerCredits[id] || 0) || 0;
+  }
+
+  function updateCredit() {
+    var credit = availableCredit();
+    if (credit <= 0) {
+      // No credit → invoice is unchanged from the original behaviour.
+      creditBlock.style.display = "none";
+      if (useCreditChk) useCreditChk.checked = false;
+      creditDetail.style.display = "none";
+      return;
+    }
+
+    creditBlock.style.display = "";
+    creditAvailableEl.textContent = fmt(credit);
+
+    if (useCreditChk && useCreditChk.checked) {
+      var total = currentTotal();
+      var applied = Math.min(credit, total);
+      summaryCredit.textContent = "−" + fmt(applied);
+      summaryDue.textContent = fmt(total - applied);
+      creditDetail.style.display = "";
+    } else {
+      creditDetail.style.display = "none";
+    }
+  }
+
+  function updateTotal() {
+    var total = currentTotal();
     lineTotal.textContent = fmt(total);
     summaryTotal.textContent = fmt(total);
     syncHidden();
     noLinesMsg.style.display = tbody.children.length ? "none" : "block";
+    updateCredit();
   }
+
+  if (customerSelect) customerSelect.addEventListener("change", updateCredit);
+  if (useCreditChk) useCreditChk.addEventListener("change", updateCredit);
 
   function syncHidden() {
     var items = [];

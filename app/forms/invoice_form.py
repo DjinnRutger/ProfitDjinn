@@ -11,5 +11,6 @@ class InvoiceForm(FlaskForm):
     term1 = StringField("Payment Terms", validators=[Optional(), Length(max=300)])
     term2 = StringField("Additional Terms", validators=[Optional(), Length(max=300)])
     paid = BooleanField("Mark as Paid", default=False)
+    use_credit = BooleanField("Apply account credit", default=False)
     # Populated by JavaScript before form submit
     line_items_json = HiddenField("Line Items JSON")

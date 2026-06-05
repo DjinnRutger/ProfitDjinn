@@ -114,6 +114,13 @@ def _run_migrations() -> None:
             ))
         db.session.commit()
 
+    invoice_cols = [c["name"] for c in inspector.get_columns("invoices")]
+    if "credit_applied" not in invoice_cols:
+        db.session.execute(text(
+            "ALTER TABLE invoices ADD COLUMN credit_applied FLOAT NOT NULL DEFAULT 0"
+        ))
+        db.session.commit()
+
 
 # ── Seed helper ──────────────────────────────────────────────────────────────
 def _seed_database() -> None:

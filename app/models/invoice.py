@@ -14,6 +14,8 @@ class Invoice(db.Model):
     term2 = db.Column(db.String(300), default="")
     paid = db.Column(db.Boolean, default=False, nullable=False)
     paid_date = db.Column(db.Date)
+    # Account credit (from prior overpayments) applied against this invoice.
+    credit_applied = db.Column(db.Float, default=0.0, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     customer = db.relationship("Customer", back_populates="invoices")
@@ -38,28 +40,33 @@ class Invoice(db.Model):
         return sum(item.amount for item in self.line_items)
 
     @property
+    def net_total(self):
+        """Amount actually owed after applying any account credit."""
+        return max(0.0, self.total - (self.credit_applied or 0.0))
+
+    @property
     def amount_paid(self):
-        """Sum of all payment records. Falls back to total for legacy paid invoices."""
+        """Sum of all payment records. Falls back to net total for legacy paid invoices."""
         if self.payments:
             return sum(p.amount for p in self.payments)
-        # Legacy: if marked paid with no payment records, treat as fully paid
+        # Legacy: if marked paid with no payment records, treat the net amount as covered
         if self.paid:
-            return self.total
+            return self.net_total
         return 0.0
 
     @property
     def balance_due(self):
-        return max(0.0, self.total - self.amount_paid)
+        return max(0.0, self.net_total - self.amount_paid)
 
     @property
     def credit_amount(self):
         """Overpayment that becomes account credit."""
-        return max(0.0, self.amount_paid - self.total)
+        return max(0.0, self.amount_paid - self.net_total)
 
     @property
     def is_partial(self):
         paid_amt = self.amount_paid
-        return 0 < paid_amt < self.total
+        return 0 < paid_amt < self.net_total
 
     @property
     def status_label(self):

@@ -53,5 +53,8 @@ class Customer(db.Model):
 
     @property
     def account_credit(self):
-        """Sum of overpayments across all invoices."""
-        return sum(inv.credit_amount for inv in self.invoices)
+        """Available account credit: overpayments earned minus credit already
+        applied against other invoices."""
+        earned = sum(inv.credit_amount for inv in self.invoices)
+        applied = sum((inv.credit_applied or 0.0) for inv in self.invoices)
+        return max(0.0, earned - applied)

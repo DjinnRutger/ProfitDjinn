@@ -97,10 +97,25 @@
             {% endfor %}
           </tbody>
           <tfoot>
+            {% if invoice.credit_applied > 0 %}
+            <tr>
+              <td colspan="3" class="text-end text-muted">Subtotal</td>
+              <td class="text-end">${{ "%.2f"|format(invoice.total) }}</td>
+            </tr>
+            <tr>
+              <td colspan="3" class="text-end text-muted">Account Credit Applied</td>
+              <td class="text-end text-warning">−${{ "%.2f"|format(invoice.credit_applied) }}</td>
+            </tr>
+            <tr class="table-active">
+              <td colspan="3" class="fw-bold text-end">AMOUNT DUE</td>
+              <td class="fw-bold text-end fs-5">${{ "%.2f"|format(invoice.net_total) }}</td>
+            </tr>
+            {% else %}
             <tr class="table-active">
               <td colspan="3" class="fw-bold text-end">TOTAL</td>
               <td class="fw-bold text-end fs-5">${{ "%.2f"|format(invoice.total) }}</td>
             </tr>
+            {% endif %}
           </tfoot>
         </table>
       </div>
@@ -229,6 +244,12 @@
           <dd class="col-6">{{ invoice.date.strftime('%b %d, %Y') }}</dd>
           <dt class="col-6 text-muted">Invoice Total</dt>
           <dd class="col-6 fw-semibold">${{ "%.2f"|format(invoice.total) }}</dd>
+          {% if invoice.credit_applied > 0 %}
+          <dt class="col-6 text-muted">Credit Applied</dt>
+          <dd class="col-6 text-warning fw-semibold">−${{ "%.2f"|format(invoice.credit_applied) }}</dd>
+          <dt class="col-6 text-muted">Amount Due</dt>
+          <dd class="col-6 fw-semibold">${{ "%.2f"|format(invoice.net_total) }}</dd>
+          {% endif %}
           {% if invoice.amount_paid > 0 %}
           <dt class="col-6 text-muted">Amount Paid</dt>
           <dd class="col-6 text-success fw-semibold">${{ "%.2f"|format(invoice.amount_paid) }}</dd>

@@ -130,12 +130,29 @@ def generate_invoice_pdf(invoice, company: dict) -> bytes:
 
     pdf.ln(5)
 
-    # Total — right-aligned below table (matching old invoice style)
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(eff_w - col_up - col_tot, 7, "")
-    pdf.cell(col_up, 7, "Total:", align="R")
-    pdf.cell(col_tot, 7, f"${invoice.total:,.2f}", align="R")
-    pdf.ln()
+    # Total(s) — right-aligned below table (matching old invoice style)
+    credit_applied = invoice.credit_applied or 0.0
+    if credit_applied > 0:
+        pdf.set_font("Helvetica", "", 10)
+        pdf.cell(eff_w - col_up - col_tot, 6, "")
+        pdf.cell(col_up, 6, "Subtotal:", align="R")
+        pdf.cell(col_tot, 6, f"${invoice.total:,.2f}", align="R")
+        pdf.ln()
+        pdf.cell(eff_w - col_up - col_tot, 6, "")
+        pdf.cell(col_up, 6, "Credit:", align="R")
+        pdf.cell(col_tot, 6, f"-${credit_applied:,.2f}", align="R")
+        pdf.ln()
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(eff_w - col_up - col_tot, 7, "")
+        pdf.cell(col_up, 7, "Amount Due:", align="R")
+        pdf.cell(col_tot, 7, f"${invoice.net_total:,.2f}", align="R")
+        pdf.ln()
+    else:
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(eff_w - col_up - col_tot, 7, "")
+        pdf.cell(col_up, 7, "Total:", align="R")
+        pdf.cell(col_tot, 7, f"${invoice.total:,.2f}", align="R")
+        pdf.ln()
 
     pdf.ln(8)
 
