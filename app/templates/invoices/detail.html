@@ -302,14 +302,13 @@
         Balance due: <strong class="text-danger">${{ "%.2f"|format(invoice.balance_due) }}</strong>
       </p>
 
-      <div class="mb-3">
-        <label class="form-label fw-semibold">Amount <span class="text-danger">*</span></label>
-        <div class="input-group">
-          <span class="input-group-text">$</span>
-          <input type="number" name="amount" class="form-control" step="0.01" min="0.01"
-                 value="{{ '%.2f'|format(invoice.balance_due) }}" required>
-        </div>
+      {% if available_credit > 0 %}
+      <div class="alert alert-warning py-2 px-3 mb-3" style="font-size:.85rem">
+        <i class="bi bi-wallet2 me-1"></i>
+        This customer has <strong>${{ "%.2f"|format(available_credit) }}</strong> in account credit.
+        Choose <strong>Account Credit</strong> below to apply it.
       </div>
+      {% endif %}
 
       <div class="mb-3">
         <label class="form-label fw-semibold">Payment Method <span class="text-danger">*</span></label>
@@ -320,7 +319,22 @@
           <option value="ach">ACH</option>
           <option value="venmo">Venmo</option>
           <option value="other">Other</option>
+          {% if available_credit > 0 %}
+          <option value="account_credit">Account Credit (${{ "%.2f"|format(available_credit) }} available)</option>
+          {% endif %}
         </select>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Amount <span class="text-danger">*</span></label>
+        <div class="input-group">
+          <span class="input-group-text">$</span>
+          <input type="number" name="amount" id="paymentAmount" class="form-control" step="0.01" min="0.01"
+                 value="{{ '%.2f'|format(invoice.balance_due) }}" required>
+        </div>
+        <div class="form-text" id="creditHint" style="display:none">
+          Applies account credit against this invoice — not recorded as a money payment.
+        </div>
       </div>
 
       <div class="mb-3" id="checkNumberGroup" style="display:none">
@@ -360,6 +374,12 @@
   const methodSel = document.getElementById('paymentMethod');
   const checkGroup = document.getElementById('checkNumberGroup');
   const checkInput = document.getElementById('checkNumber');
+  const amountInput = document.getElementById('paymentAmount');
+  const creditHint = document.getElementById('creditHint');
+
+  const availableCredit = {{ available_credit|tojson }};
+  const balanceDue = {{ invoice.balance_due|tojson }};
+  const maxCredit = Math.min(availableCredit, balanceDue);
 
   if (openBtn) openBtn.addEventListener('click', () => dialog.showModal());
   if (closeBtn) closeBtn.addEventListener('click', () => dialog.close());
@@ -370,14 +390,26 @@
     if (e.target === dialog) dialog.close();
   });
 
-  // Show/hide check number field
-  function toggleCheckNumber() {
+  // Adjust fields based on the selected method
+  function onMethodChange() {
     const isCheck = methodSel.value === 'check';
     checkGroup.style.display = isCheck ? '' : 'none';
     checkInput.required = isCheck;
+
+    const isCredit = methodSel.value === 'account_credit';
+    creditHint.style.display = isCredit ? '' : 'none';
+    if (isCredit) {
+      // Cap the amount at the credit that can actually be applied.
+      amountInput.max = maxCredit.toFixed(2);
+      if (parseFloat(amountInput.value) > maxCredit || !amountInput.value) {
+        amountInput.value = maxCredit.toFixed(2);
+      }
+    } else {
+      amountInput.removeAttribute('max');
+    }
   }
-  methodSel.addEventListener('change', toggleCheckNumber);
-  toggleCheckNumber();
+  methodSel.addEventListener('change', onMethodChange);
+  onMethodChange();
 })();
 </script>
 {% endif %}

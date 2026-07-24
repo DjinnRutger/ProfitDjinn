@@ -36,29 +36,20 @@ def _next_invoice_number() -> str:
     return f"{prefix}{num:04d}"
 
 
-def _apply_credit(invoice, use_credit: bool) -> None:
-    """Set invoice.credit_applied from the customer's available account credit.
+def _recalc_paid_status(invoice, when=None) -> None:
+    """Recompute an invoice's paid flag from its payments + applied credit.
 
-    Always recomputed server-side. The invoice's own currently-applied credit is
-    treated as reclaimable so re-saving an edit produces a clean result. Credit
-    applied is capped at the invoice total — never more than what's owed.
+    `net_total` already nets out applied account credit, so a fully credit-covered
+    invoice (net_total == 0) settles even with no money payments.
     """
-    # Free this invoice's current credit before measuring availability, so the
-    # customer.account_credit calc doesn't double-count it.
-    invoice.credit_applied = 0.0
-    db.session.flush()
-
-    customer = invoice.customer
-    available = customer.account_credit if customer else 0.0
-
-    if use_credit and available > 0 and invoice.total > 0:
-        invoice.credit_applied = round(min(available, invoice.total), 2)
-
-    # If credit fully settles the invoice, mark it paid.
-    if invoice.credit_applied > 0 and invoice.credit_applied >= invoice.total:
+    when = when or date.today()
+    if invoice.amount_paid >= invoice.net_total:
         invoice.paid = True
         if not invoice.paid_date:
-            invoice.paid_date = date.today()
+            invoice.paid_date = when
+    else:
+        invoice.paid = False
+        invoice.paid_date = None
 
 
 # ── List ─────────────────────────────────────────────────────────────────────
@@ -107,10 +98,12 @@ def list_invoices():
 @permission_required("invoices.view")
 def detail(invoice_id):
     invoice = Invoice.query.get_or_404(invoice_id)
+    available_credit = invoice.customer.account_credit if invoice.customer else 0.0
     return render_template(
         "invoices/detail.html",
         invoice=invoice,
         today=date.today(),
+        available_credit=round(available_credit, 2),
         active_page="invoices",
     )
 
@@ -125,7 +118,6 @@ def create():
     customers = Customer.query.filter_by(is_active=True).order_by(Customer.name).all()
     from app.models.service_item import ServiceItem
     service_items = ServiceItem.query.filter_by(is_active=True).order_by(ServiceItem.description).all()
-    customer_credits = {c.id: round(c.account_credit, 2) for c in customers}
 
     preselect_customer_id = request.args.get("customer_id", type=int)
 
@@ -148,7 +140,7 @@ def create():
             flash("At least one line item is required.", "danger")
             return render_template(
                 "invoices/form.html", form=form, customers=customers,
-                service_items=service_items, customer_credits=customer_credits,
+                service_items=service_items,
                 title="New Invoice", active_page="invoices",
             )
 
@@ -156,7 +148,7 @@ def create():
             flash(f"Invoice number {form.invoice_number.data} already exists.", "danger")
             return render_template(
                 "invoices/form.html", form=form, customers=customers,
-                service_items=service_items, customer_credits=customer_credits,
+                service_items=service_items,
                 title="New Invoice", active_page="invoices",
             )
 
@@ -180,26 +172,14 @@ def create():
                 quantity=float(item.get("quantity", 1.0)),
                 amount=float(item.get("amount", 0.0)),
             ))
-        db.session.flush()
-
-        # Apply account credit if requested (computed server-side, never trusting
-        # the client for the amount).
-        _apply_credit(invoice, form.use_credit.data)
 
         db.session.commit()
-        if invoice.credit_applied > 0:
-            flash(
-                f"Invoice {invoice.invoice_number} created. "
-                f"${invoice.credit_applied:.2f} account credit applied.",
-                "success",
-            )
-        else:
-            flash(f"Invoice {invoice.invoice_number} created.", "success")
+        flash(f"Invoice {invoice.invoice_number} created.", "success")
         return redirect(url_for("invoices.detail", invoice_id=invoice.id))
 
     return render_template(
         "invoices/form.html", form=form, customers=customers,
-        service_items=service_items, customer_credits=customer_credits,
+        service_items=service_items,
         title="New Invoice", active_page="invoices",
         preselect_customer_id=preselect_customer_id,
     )
@@ -217,17 +197,8 @@ def edit(invoice_id):
     from app.models.service_item import ServiceItem
     service_items = ServiceItem.query.filter_by(is_active=True).order_by(ServiceItem.description).all()
 
-    # Available credit per customer. This invoice's own applied credit is
-    # reclaimable, so add it back for its current customer.
-    customer_credits = {c.id: round(c.account_credit, 2) for c in customers}
-    if invoice.customer_id in customer_credits:
-        customer_credits[invoice.customer_id] = round(
-            customer_credits[invoice.customer_id] + (invoice.credit_applied or 0.0), 2
-        )
-
     if request.method == "GET":
         form.customer_id.data = invoice.customer_id
-        form.use_credit.data = (invoice.credit_applied or 0.0) > 0
 
     if form.validate_on_submit():
         raw = request.form.get("line_items_json", "[]")
@@ -240,7 +211,7 @@ def edit(invoice_id):
             flash("At least one line item is required.", "danger")
             return render_template(
                 "invoices/form.html", form=form, customers=customers,
-                service_items=service_items, customer_credits=customer_credits,
+                service_items=service_items,
                 invoice=invoice, title="Edit Invoice", active_page="invoices",
             )
 
@@ -252,7 +223,7 @@ def edit(invoice_id):
             flash(f"Invoice number {form.invoice_number.data} already exists.", "danger")
             return render_template(
                 "invoices/form.html", form=form, customers=customers,
-                service_items=service_items, customer_credits=customer_credits,
+                service_items=service_items,
                 invoice=invoice, title="Edit Invoice", active_page="invoices",
             )
 
@@ -282,7 +253,12 @@ def edit(invoice_id):
             ))
         db.session.flush()
 
-        _apply_credit(invoice, form.use_credit.data)
+        # Keep any previously-applied account credit within the (possibly changed)
+        # total so it can never exceed what's owed.
+        if (invoice.credit_applied or 0.0) > invoice.total:
+            invoice.credit_applied = round(invoice.total, 2)
+        if not form.paid.data:
+            _recalc_paid_status(invoice)
 
         db.session.commit()
         flash(f"Invoice {invoice.invoice_number} updated.", "success")
@@ -290,7 +266,7 @@ def edit(invoice_id):
 
     return render_template(
         "invoices/form.html", form=form, customers=customers,
-        service_items=service_items, customer_credits=customer_credits,
+        service_items=service_items,
         invoice=invoice, title="Edit Invoice", active_page="invoices",
     )
 
@@ -327,6 +303,33 @@ def record_payment(invoice_id):
         return redirect(url_for("invoices.detail", invoice_id=invoice_id))
 
     method = request.form.get("method", "cash")
+
+    # ── Account credit ────────────────────────────────────────────────────────
+    # Applying credit reduces what's owed (credit_applied), it is NOT recorded as
+    # a money payment — otherwise the customer's account_credit would not draw down.
+    if method == "account_credit":
+        customer = invoice.customer
+        available = customer.account_credit if customer else 0.0
+        applied = round(min(amount, available, invoice.balance_due), 2)
+        if applied <= 0:
+            flash("No account credit is available to apply.", "warning")
+            return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
+        invoice.credit_applied = round((invoice.credit_applied or 0.0) + applied, 2)
+        db.session.flush()
+        _recalc_paid_status(invoice)
+        db.session.commit()
+
+        if invoice.balance_due <= 0:
+            flash(f"${applied:.2f} account credit applied. Invoice paid in full.", "success")
+        else:
+            flash(
+                f"${applied:.2f} account credit applied. "
+                f"Balance remaining: ${invoice.balance_due:.2f}.",
+                "info",
+            )
+        return redirect(url_for("invoices.detail", invoice_id=invoice_id))
+
     check_number = request.form.get("check_number", "").strip()
     notes = request.form.get("notes", "").strip()
 
