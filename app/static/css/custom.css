@@ -531,6 +531,21 @@ html, body {
 }
 [data-theme="terminal"] .modal-section-label { color: var(--term-dim) !important; }
 
+/* Generic native <dialog> modals (record payment, log work). #userSettingsModal
+   above wins on specificity, so its own styling is unaffected. */
+[data-theme="terminal"] dialog {
+  background: var(--term-card) !important;
+  border: 1px solid var(--term-border) !important;
+  border-radius: 0 !important;
+  box-shadow: 0 0 40px rgba(0,255,65,.2) !important;
+  color: var(--term-green) !important;
+}
+[data-theme="terminal"] dialog::backdrop { background: rgba(0,4,0,.85); }
+[data-theme="terminal"] dialog .modal-header,
+[data-theme="terminal"] dialog .modal-footer {
+  border-color: var(--term-border) !important;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    THEME PICKER BUTTONS (kept for profile page if used)
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -563,6 +578,24 @@ html, body {
 }
 [data-theme="dark"] .auth-card,
 [data-bs-theme="dark"]:not([data-theme="terminal"]) .auth-card { background: #161b22; }
+
+/* Native <dialog> modals (record payment, log work) — the UA default is a
+   white box, which reads as a hole punched in a dark page. */
+[data-theme="dark"] dialog,
+[data-bs-theme="dark"]:not([data-theme="terminal"]) dialog {
+  background: #161b22;
+  color: #e6edf3;
+}
+[data-theme="dark"] dialog .modal-header,
+[data-theme="dark"] dialog .modal-footer,
+[data-bs-theme="dark"]:not([data-theme="terminal"]) dialog .modal-header,
+[data-bs-theme="dark"]:not([data-theme="terminal"]) dialog .modal-footer {
+  border-color: #30363d;
+}
+[data-theme="dark"] dialog::backdrop,
+[data-bs-theme="dark"]:not([data-theme="terminal"]) dialog::backdrop {
+  background: rgba(1, 4, 9, .7);
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TERMINAL THEME – Fallout phosphor-green CRT aesthetic

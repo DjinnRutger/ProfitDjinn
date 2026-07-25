@@ -1,0 +1,626 @@
+{% extends "base.html" %}
+{% block title %}{{ customer.name }} — Work Order — {{ get_setting('app_name', 'ProfitDjinn') }}{% endblock %}
+
+{% set can_edit = current_user.has_permission('workorders.edit') %}
+{% set can_add = current_user.has_permission('workorders.create') %}
+{% set can_delete = current_user.has_permission('workorders.delete') %}
+{% set ready = work_order.ready_to_bill_total %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb mb-0">
+  <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+  <li class="breadcrumb-item"><a href="{{ url_for('work_orders.index') }}">Work Orders</a></li>
+  <li class="breadcrumb-item active">{{ customer.name }}</li>
+</ol>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div class="d-flex align-items-center gap-3">
+    <div>
+      <h1>{{ customer.name }}</h1>
+      <p class="lead mb-0">
+        Work Order <span class="font-monospace">{{ work_order.number }}</span>
+        {% if work_order.pending_count %}
+        &nbsp;·&nbsp;{{ work_order.pending_count }} to-do{% if work_order.pending_count != 1 %}s{% endif %}
+        {% endif %}
+      </p>
+    </div>
+    {% if ready > 0 %}
+    <span class="badge bg-warning text-dark fs-6 px-3 py-2">${{ "%.2f"|format(ready) }} ready to bill</span>
+    {% endif %}
+  </div>
+  <div class="d-flex gap-2">
+    {% if current_user.has_permission('customers.view') %}
+    <a href="{{ url_for('customers.detail', customer_id=customer.id) }}" class="btn btn-outline-secondary">
+      <i class="bi bi-building me-1"></i>Customer
+    </a>
+    {% endif %}
+    {% if ready > 0 and current_user.has_permission('invoices.create') %}
+    <a href="{{ url_for('work_orders.bill', wo_id=work_order.id) }}" class="btn btn-success">
+      <i class="bi bi-receipt me-1"></i>Bill ${{ "%.2f"|format(ready) }}
+    </a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+
+{% if default_hourly_rate <= 0 and can_add %}
+<div class="alert alert-warning alert-dismissible fade show py-2 px-3" role="alert" style="font-size:.875rem">
+  <i class="bi bi-exclamation-triangle me-2"></i>
+  Your default hourly rate is not set yet, so labor lines start at $0.00.
+  {% if current_user.is_admin or current_user.has_permission('settings.edit') %}
+  <a href="{{ url_for('admin.settings') }}#workorders" class="alert-link">Set it in Admin → Settings</a>.
+  {% endif %}
+  <button type="button" class="btn-close py-2" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+<div class="row g-4">
+
+  {# ── Main column ─────────────────────────────────────────────────────── #}
+  <div class="col-lg-8">
+
+    {% if can_add %}
+    {# Quick-add: the whole point — jot it down before you forget #}
+    <div class="card mb-4">
+      <div class="card-body py-3">
+        <form method="post" action="{{ url_for('work_orders.add_line', wo_id=work_order.id) }}"
+              class="d-flex flex-wrap gap-2 align-items-center" id="quick-add-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="mode" value="todo">
+          <div class="flex-grow-1" style="min-width:220px">
+            <input type="text" name="description" id="quick-desc" class="form-control form-control-sm"
+                   placeholder="What needs doing? (e.g. Configure VLANs)" autocomplete="off" required>
+          </div>
+          <div style="width:180px">
+            <input type="text" name="project_label" id="quick-label" class="form-control form-control-sm"
+                   list="project-labels" placeholder="Project (optional)" autocomplete="off">
+            <datalist id="project-labels">
+              {% for label in work_order.open_labels %}
+              <option value="{{ label }}"></option>
+              {% endfor %}
+            </datalist>
+          </div>
+          <button type="submit" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-plus-lg me-1"></i>Add To-Do
+          </button>
+          <button type="button" class="btn btn-sm btn-primary" id="log-work-btn">
+            <i class="bi bi-clock-history me-1"></i>Log Work…
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── Open work, grouped by project label ──────────────────────────── #}
+    {% for label, lines in groups.items() %}
+    {% set group_ready = lines | selectattr('status', 'equalto', 'completed')
+                               | rejectattr('no_charge')
+                               | sum(attribute='amount') %}
+    {% set group_pending = lines | selectattr('status', 'equalto', 'pending') | list | length %}
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <span>
+          <i class="bi bi-folder2-open me-2 text-primary"></i>{{ label }}
+        </span>
+        <div class="d-flex align-items-center gap-2">
+          {% if group_pending %}
+          <span class="badge bg-secondary">{{ group_pending }} to-do{% if group_pending != 1 %}s{% endif %}</span>
+          {% endif %}
+          {% if group_ready > 0 %}
+          <span class="badge bg-warning text-dark">${{ "%.2f"|format(group_ready) }} ready</span>
+          {% if current_user.has_permission('invoices.create') and label != general_label %}
+          <a href="{{ url_for('work_orders.bill', wo_id=work_order.id, label=label) }}"
+             class="btn btn-sm btn-outline-success" title="Bill just this project">
+            <i class="bi bi-receipt"></i>
+          </a>
+          {% endif %}
+          {% endif %}
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th style="width:42px"></th>
+              <th>Description</th>
+              <th style="width:110px">Date</th>
+              <th style="width:150px" class="text-end">Qty × Rate</th>
+              <th style="width:100px" class="text-end">Amount</th>
+              <th style="width:130px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for line in lines %}
+            <tr {% if line.status == 'pending' %}class="table-light"{% endif %}>
+              <td class="text-center">
+                {% if line.status == 'pending' %}
+                <i class="bi bi-square text-muted" title="Pending"></i>
+                {% elif line.no_charge %}
+                <i class="bi bi-check-square text-info" title="No charge"></i>
+                {% else %}
+                <i class="bi bi-check-square text-success" title="Ready to bill"></i>
+                {% endif %}
+              </td>
+              <td>
+                <span {% if line.status == 'pending' %}class="text-muted"{% endif %}>{{ line.description }}</span>
+                {% if line.no_charge %}
+                <span class="badge bg-info bg-opacity-75 ms-1">No Charge</span>
+                {% endif %}
+                {% if line.status == 'completed' and line.line_type != 'labor' %}
+                <span class="badge bg-secondary bg-opacity-50 ms-1">{{ line.type_label }}</span>
+                {% endif %}
+                {% if line.internal_note %}
+                <i class="bi bi-sticky text-warning ms-1" title="{{ line.internal_note }}"></i>
+                {% endif %}
+              </td>
+              <td class="text-muted" style="font-size:.85rem">
+                {% if line.date_performed %}{{ line.date_performed.strftime('%b %d, %Y') }}
+                {% else %}<span class="text-muted">—</span>{% endif %}
+              </td>
+              <td class="text-end text-muted" style="font-size:.85rem">
+                {% if line.status == 'completed' %}
+                {{ line.quantity_label }} × ${{ "%.2f"|format(line.rate) }}
+                {% else %}<span class="text-muted">—</span>{% endif %}
+              </td>
+              <td class="text-end fw-semibold">
+                {% if line.status != 'completed' %}<span class="text-muted">—</span>
+                {% elif line.no_charge %}<span class="text-muted text-decoration-line-through">${{ "%.2f"|format(line.amount) }}</span>
+                {% else %}${{ "%.2f"|format(line.amount) }}{% endif %}
+              </td>
+              <td class="text-end">
+                <div class="d-flex gap-1 justify-content-end">
+                  {% if can_edit %}
+                    {% if line.status == 'pending' %}
+                    <button type="button" class="btn btn-sm btn-outline-success line-action-btn"
+                            title="Mark complete"
+                            data-action="{{ url_for('work_orders.complete_line', line_id=line.id) }}"
+                            data-mode="complete"
+                            data-title="Complete: {{ line.description }}"
+                            data-submit="Mark Complete"
+                            data-description="{{ line.description }}"
+                            data-label="{{ line.project_label or '' }}"
+                            data-type="{{ line.line_type }}"
+                            data-qty="{{ line.quantity }}"
+                            data-rate="{{ line.rate if line.rate else default_hourly_rate }}"
+                            data-date="{{ today.isoformat() }}"
+                            data-nocharge="{{ '1' if line.no_charge else '' }}"
+                            data-note="{{ line.internal_note or '' }}">
+                      <i class="bi bi-check-lg"></i>
+                    </button>
+                    {% else %}
+                    <form method="post" action="{{ url_for('work_orders.reopen_line', line_id=line.id) }}"
+                          onsubmit="return confirm('Move this back to a pending to-do? The logged hours will be cleared.');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button type="submit" class="btn btn-sm btn-outline-secondary" title="Back to pending">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                      </button>
+                    </form>
+                    <form method="post" action="{{ url_for('work_orders.toggle_no_charge', line_id=line.id) }}">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button type="submit" class="btn btn-sm btn-outline-info"
+                              title="{{ 'Make billable' if line.no_charge else 'Mark no charge' }}">
+                        <i class="bi bi-{{ 'currency-dollar' if line.no_charge else 'slash-circle' }}"></i>
+                      </button>
+                    </form>
+                    {% endif %}
+                    <button type="button" class="btn btn-sm btn-outline-primary line-action-btn"
+                            title="Edit"
+                            data-action="{{ url_for('work_orders.edit_line', line_id=line.id) }}"
+                            data-mode="edit"
+                            data-title="Edit line"
+                            data-submit="Save Changes"
+                            data-status="{{ line.status }}"
+                            data-description="{{ line.description }}"
+                            data-label="{{ line.project_label or '' }}"
+                            data-type="{{ line.line_type }}"
+                            data-qty="{{ line.quantity }}"
+                            data-rate="{{ line.rate }}"
+                            data-date="{{ line.date_performed.isoformat() if line.date_performed else '' }}"
+                            data-nocharge="{{ '1' if line.no_charge else '' }}"
+                            data-note="{{ line.internal_note or '' }}">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                  {% endif %}
+                  {% if can_delete %}
+                  <form method="post" action="{{ url_for('work_orders.delete_line', line_id=line.id) }}"
+                        onsubmit="return confirm('Delete this line? This cannot be undone.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                      <i class="bi bi-trash3"></i>
+                    </button>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% else %}
+    <div class="card mb-4">
+      <div class="empty-state">
+        <i class="bi bi-clipboard-check"></i>
+        Nothing on this tab yet.
+        {% if can_add %}Add a to-do above, or click <strong>Log Work…</strong> to record work you've already done.{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+
+    {# ── Billed history ───────────────────────────────────────────────── #}
+    {% if billed_groups %}
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <a class="d-flex align-items-center gap-2 text-decoration-none flex-grow-1"
+           data-bs-toggle="collapse" href="#billed-history" role="button"
+           aria-expanded="false" aria-controls="billed-history">
+          <i class="bi bi-chevron-right text-muted"></i>
+          <span><i class="bi bi-archive me-2 text-success"></i>Billed History</span>
+        </a>
+        <span class="badge bg-secondary">
+          {{ work_order.billed_lines|length }} line{% if work_order.billed_lines|length != 1 %}s{% endif %}
+          · ${{ "%.2f"|format(work_order.billed_total) }}
+        </span>
+      </div>
+      <div class="collapse" id="billed-history">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th style="width:120px">Invoice</th>
+                <th>Work</th>
+                <th style="width:110px">Billed</th>
+                <th style="width:100px" class="text-end">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for group in billed_groups %}
+              <tr class="table-active">
+                <td>
+                  {% if group.invoice %}
+                  <a href="{{ url_for('invoices.detail', invoice_id=group.invoice.id) }}"
+                     class="fw-semibold text-decoration-none font-monospace">{{ group.invoice.invoice_number }}</a>
+                  {% else %}
+                  <span class="text-muted" title="Invoice no longer exists">deleted</span>
+                  {% endif %}
+                </td>
+                <td class="text-muted" style="font-size:.85rem">
+                  {{ group.lines|length }} line{% if group.lines|length != 1 %}s{% endif %}
+                </td>
+                <td class="text-muted" style="font-size:.85rem">
+                  {% if group.billed_at %}{{ group.billed_at.strftime('%b %d, %Y') }}{% else %}—{% endif %}
+                </td>
+                <td class="text-end fw-semibold">${{ "%.2f"|format(group.total) }}</td>
+              </tr>
+              {% for line in group.lines %}
+              <tr>
+                <td></td>
+                <td style="font-size:.85rem">
+                  {% if line.project_label %}
+                  <span class="badge bg-secondary bg-opacity-50 me-1">{{ line.project_label }}</span>
+                  {% endif %}
+                  {{ line.description }}
+                  {% if line.no_charge %}<span class="badge bg-info bg-opacity-75 ms-1">No Charge</span>{% endif %}
+                </td>
+                <td class="text-muted" style="font-size:.85rem">
+                  {% if line.date_performed %}{{ line.date_performed.strftime('%b %d') }}{% else %}—{% endif %}
+                </td>
+                <td class="text-end text-muted" style="font-size:.85rem">${{ "%.2f"|format(line.amount) }}</td>
+              </tr>
+              {% endfor %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  {# ── Sidebar ─────────────────────────────────────────────────────────── #}
+  <div class="col-lg-4">
+
+    <div class="row g-3 mb-4">
+      <div class="col-6">
+        <div class="stat-card">
+          <div class="stat-value text-warning" style="font-size:1.4rem">${{ "%.2f"|format(ready) }}</div>
+          <div class="stat-label">Ready to Bill</div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="stat-card">
+          <div class="stat-value text-secondary" style="font-size:1.4rem">{{ work_order.pending_count }}</div>
+          <div class="stat-label">To-Dos</div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="stat-card">
+          <div class="stat-value text-success" style="font-size:1.4rem">${{ "%.2f"|format(work_order.billed_total) }}</div>
+          <div class="stat-label">Billed to Date</div>
+        </div>
+      </div>
+    </div>
+
+    {# Work order notes #}
+    <div class="card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span><i class="bi bi-sticky me-2 text-warning"></i>Work Order Notes</span>
+      </div>
+      <div class="card-body">
+        {% if can_edit %}
+        <form method="post" action="{{ url_for('work_orders.update_notes', wo_id=work_order.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <textarea name="notes" class="form-control mb-2" rows="4"
+                    placeholder="Site details, gate codes, who to call…"
+                    style="font-size:.875rem;resize:vertical">{{ work_order.notes or '' }}</textarea>
+          <button type="submit" class="btn btn-sm btn-primary">
+            <i class="bi bi-save me-1"></i>Save Notes
+          </button>
+        </form>
+        {% else %}
+          {% if work_order.notes %}
+          <p class="mb-0" style="white-space:pre-wrap;font-size:.875rem">{{ work_order.notes }}</p>
+          {% else %}
+          <p class="text-muted mb-0" style="font-size:.875rem">No notes on file.</p>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{# ── Log Work / Complete / Edit dialog ──────────────────────────────────── #}
+{% if can_add or can_edit %}
+<dialog id="work-dialog"
+        style="border:none;border-radius:.75rem;padding:0;max-width:560px;width:95%;box-shadow:0 8px 40px rgba(0,0,0,.25)">
+  <form method="post" id="work-dialog-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="mode" value="work">
+
+    <div class="modal-header">
+      <h5 class="modal-title" id="work-dialog-title">Log Work</h5>
+      <button type="button" class="btn-close" id="work-dialog-close" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body">
+
+      {% if service_items %}
+      <div class="mb-3">
+        <label class="form-label">Quick-pick from Items</label>
+        <select id="wd-service-picker" class="form-select form-select-sm">
+          <option value="">Choose a saved service or part…</option>
+          {% for si in service_items %}
+          <option value="{{ si.description }}" data-price="{{ si.price }}">
+            {{ si.description }} — ${{ "%.2f"|format(si.price) }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+
+      <div class="mb-3">
+        <label class="form-label" for="wd-description">Description</label>
+        <input type="text" name="description" id="wd-description" class="form-control" required
+               placeholder="What did you do?">
+      </div>
+
+      <div class="row g-2 mb-3">
+        <div class="col-6">
+          <label class="form-label" for="wd-label">Project</label>
+          <input type="text" name="project_label" id="wd-label" class="form-control"
+                 list="project-labels" placeholder="Optional" autocomplete="off">
+        </div>
+        <div class="col-6">
+          <label class="form-label" for="wd-type">Type</label>
+          <select name="line_type" id="wd-type" class="form-select">
+            <option value="labor">Labor (hourly)</option>
+            <option value="part">Part / Material</option>
+            <option value="service">Service</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row g-2 mb-3">
+        <div class="col-4">
+          <label class="form-label" for="wd-date">Date</label>
+          <input type="date" name="date_performed" id="wd-date" class="form-control">
+          <div class="form-text" id="wd-date-hint" style="display:none;font-size:.75rem">
+            Leave blank to keep this a to-do.
+          </div>
+        </div>
+        <div class="col-4">
+          <label class="form-label" for="wd-qty"><span id="wd-qty-label">Hours</span></label>
+          <input type="number" name="quantity" id="wd-qty" class="form-control text-end"
+                 min="0" step="any" value="1">
+        </div>
+        <div class="col-4">
+          <label class="form-label" for="wd-rate"><span id="wd-rate-label">Rate ($/hr)</span></label>
+          <input type="number" name="rate" id="wd-rate" class="form-control text-end"
+                 min="0" step="0.01" value="0.00">
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center mb-3 px-1">
+        <span class="text-muted" style="font-size:.85rem">Line total</span>
+        <span class="fw-bold" id="wd-amount">$0.00</span>
+      </div>
+
+      <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="no_charge" id="wd-nocharge" value="1">
+        <label class="form-check-label" for="wd-nocharge">
+          No charge <span class="text-muted" style="font-size:.85rem">— log the work but don't bill it</span>
+        </label>
+      </div>
+
+      <div class="mb-1">
+        <label class="form-label" for="wd-note">Internal note</label>
+        <textarea name="internal_note" id="wd-note" class="form-control" rows="2"
+                  style="font-size:.875rem;resize:vertical"
+                  placeholder="Private — never appears on an invoice"></textarea>
+      </div>
+
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline-secondary" id="work-dialog-cancel">Cancel</button>
+      <button type="submit" class="btn btn-primary" id="work-dialog-submit">Log Work</button>
+    </div>
+  </form>
+</dialog>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+{% if can_add or can_edit %}
+<script>
+(function () {
+  "use strict";
+
+  var dialog     = document.getElementById("work-dialog");
+  if (!dialog) return;
+
+  var form       = document.getElementById("work-dialog-form");
+  var titleEl    = document.getElementById("work-dialog-title");
+  var submitBtn  = document.getElementById("work-dialog-submit");
+  var modeInput  = form.querySelector('input[name="mode"]');
+
+  var descEl     = document.getElementById("wd-description");
+  var labelEl    = document.getElementById("wd-label");
+  var typeEl     = document.getElementById("wd-type");
+  var dateEl     = document.getElementById("wd-date");
+  var dateHint   = document.getElementById("wd-date-hint");
+  var qtyEl      = document.getElementById("wd-qty");
+  var qtyLabel   = document.getElementById("wd-qty-label");
+  var rateEl     = document.getElementById("wd-rate");
+  var rateLabel  = document.getElementById("wd-rate-label");
+  var amountEl   = document.getElementById("wd-amount");
+  var noChargeEl = document.getElementById("wd-nocharge");
+  var noteEl     = document.getElementById("wd-note");
+  var picker     = document.getElementById("wd-service-picker");
+
+  var ADD_ACTION    = "{{ url_for('work_orders.add_line', wo_id=work_order.id) }}";
+  var DEFAULT_RATE  = {{ default_hourly_rate|tojson }};
+  var TODAY         = {{ today.isoformat()|tojson }};
+
+  function fmt(n) {
+    return "$" + (parseFloat(n) || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+
+  function updateAmount() {
+    var qty  = parseFloat(qtyEl.value) || 0;
+    var rate = parseFloat(rateEl.value) || 0;
+    amountEl.textContent = fmt(qty * rate);
+    amountEl.classList.toggle("text-muted", noChargeEl.checked);
+    amountEl.classList.toggle("text-decoration-line-through", noChargeEl.checked);
+  }
+
+  function updateTypeLabels() {
+    var hourly = typeEl.value === "labor";
+    qtyLabel.textContent  = hourly ? "Hours" : "Quantity";
+    rateLabel.textContent = hourly ? "Rate ($/hr)" : "Unit Price ($)";
+  }
+
+  [qtyEl, rateEl].forEach(function (el) { el.addEventListener("input", updateAmount); });
+  noChargeEl.addEventListener("change", updateAmount);
+  typeEl.addEventListener("change", updateTypeLabels);
+
+  if (picker) {
+    picker.addEventListener("change", function () {
+      var opt = picker.options[picker.selectedIndex];
+      if (!opt.value) return;
+      descEl.value = opt.value;
+      typeEl.value = "service";
+      qtyEl.value  = 1;
+      rateEl.value = (parseFloat(opt.dataset.price) || 0).toFixed(2);
+      picker.selectedIndex = 0;
+      updateTypeLabels();
+      updateAmount();
+    });
+  }
+
+  function openDialog(opts) {
+    form.action        = opts.action;
+    modeInput.value    = opts.mode === "add" ? "work" : opts.mode;
+    titleEl.textContent   = opts.title;
+    submitBtn.textContent = opts.submit;
+
+    descEl.value     = opts.description || "";
+    labelEl.value    = opts.label || "";
+    typeEl.value     = opts.type || "labor";
+    dateEl.value     = opts.date || "";
+    qtyEl.value      = opts.qty !== undefined && opts.qty !== "" ? opts.qty : 1;
+    rateEl.value     = (parseFloat(opts.rate) || 0).toFixed(2);
+    noChargeEl.checked = !!opts.noCharge;
+    noteEl.value     = opts.note || "";
+
+    // Only when editing a still-pending to-do is a blank date meaningful.
+    var pendingEdit = opts.mode === "edit" && opts.status === "pending";
+    dateHint.style.display = pendingEdit ? "" : "none";
+
+    updateTypeLabels();
+    updateAmount();
+    dialog.showModal();
+    descEl.focus();
+    descEl.select();
+  }
+
+  // "Log Work…" — brand new completed entry
+  var logBtn = document.getElementById("log-work-btn");
+  if (logBtn) {
+    logBtn.addEventListener("click", function () {
+      openDialog({
+        action: ADD_ACTION,
+        mode: "add",
+        title: "Log Work",
+        submit: "Log Work",
+        // Carry over whatever is already typed in the quick-add bar
+        description: document.getElementById("quick-desc").value,
+        label: document.getElementById("quick-label").value,
+        type: "labor",
+        date: TODAY,
+        qty: 1,
+        rate: DEFAULT_RATE
+      });
+    });
+  }
+
+  // Per-row Complete / Edit buttons
+  document.querySelectorAll(".line-action-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var d = btn.dataset;
+      openDialog({
+        action: d.action,
+        mode: d.mode,
+        status: d.status,
+        title: d.title,
+        submit: d.submit,
+        description: d.description,
+        label: d.label,
+        type: d.type,
+        date: d.date,
+        qty: d.qty,
+        rate: d.rate,
+        noCharge: d.nocharge === "1",
+        note: d.note
+      });
+    });
+  });
+
+  // Close handlers
+  document.getElementById("work-dialog-close").addEventListener("click", function () { dialog.close(); });
+  document.getElementById("work-dialog-cancel").addEventListener("click", function () { dialog.close(); });
+  dialog.addEventListener("click", function (e) { if (e.target === dialog) dialog.close(); });
+
+})();
+</script>
+{% endif %}
+{% endblock %}

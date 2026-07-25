@@ -40,6 +40,7 @@ def create_app(config_name: str = "default") -> Flask:
     from app.blueprints.customers import customers_bp
     from app.blueprints.invoices import invoices_bp
     from app.blueprints.items import items_bp
+    from app.blueprints.work_orders import work_orders_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -48,6 +49,12 @@ def create_app(config_name: str = "default") -> Flask:
     app.register_blueprint(customers_bp)
     app.register_blueprint(invoices_bp)
     app.register_blueprint(items_bp)
+    app.register_blueprint(work_orders_bp)
+
+    # Work orders are built for rapid entry — logging a backlog of visits can
+    # easily exceed the global 50/hour default limit. The blueprint is fully
+    # login- and permission-gated, so exempt it.
+    limiter.exempt(work_orders_bp)
 
     # ── Context processors ───────────────────────────────────────────────────
     @app.context_processor
@@ -163,6 +170,10 @@ def _seed_database() -> None:
         ("items.create",       "Create service items"),
         ("items.edit",         "Edit service items"),
         ("items.delete",       "Delete service items"),
+        ("workorders.view",    "View work orders"),
+        ("workorders.create",  "Add work order lines"),
+        ("workorders.edit",    "Edit work order lines"),
+        ("workorders.delete",  "Delete work order lines"),
     ]
     perms: dict[str, Permission] = {}
     for name, desc in perm_defs:
@@ -234,6 +245,9 @@ def _ensure_invoice_settings() -> None:
         ("login_logo_layout",   "left",                                     "select", "Login page: logo/name/tagline position",         "login",    '["top", "left"]'),
         ("login_logo",          "login_logo.png",                           "text",   "Custom login logo filename (auto-managed)",      "login",    None),
         ("app_icon_img",        "app_icon.png",                             "text",   "Custom sidebar icon image (auto-managed)",       "appearance", None),
+        ("workorder_prefix",    "WO",                                       "text",   "Work order number prefix",                       "workorders", None),
+        ("workorder_next_number", "1001",                                   "number", "Next work order number sequence start",          "workorders", None),
+        ("default_hourly_rate", "0.00",                                     "number", "Default hourly labor rate for work order entries", "workorders", None),
     ]
 
     changed = False
@@ -305,6 +319,10 @@ def _ensure_permissions() -> None:
         ("items.create",     "Create service items"),
         ("items.edit",       "Edit service items"),
         ("items.delete",     "Delete service items"),
+        ("workorders.view",   "View work orders"),
+        ("workorders.create", "Add work order lines"),
+        ("workorders.edit",   "Edit work order lines"),
+        ("workorders.delete", "Delete work order lines"),
     ]
 
     changed = False

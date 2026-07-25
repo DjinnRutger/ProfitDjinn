@@ -29,6 +29,13 @@ class Customer(db.Model):
         back_populates="customer",
         lazy="dynamic",
     )
+    # One rolling work order tab per customer (created on demand).
+    work_order = db.relationship(
+        "WorkOrder",
+        back_populates="customer",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self):
         return f"<Customer {self.name}>"

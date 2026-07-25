@@ -21,6 +21,7 @@ def dashboard():
     from app.models.setting import Setting
     from app.models.customer import Customer
     from app.models.invoice import Invoice
+    from app.models.work_order import WorkOrderLine
 
     current_year = datetime.date.today().year
     all_invoices = Invoice.query.all()
@@ -31,7 +32,25 @@ def dashboard():
         if inv.date.year == current_year and inv.amount_paid > 0
     )
 
+    # Unbilled work sitting on work order tabs. `amount` is a real column, so
+    # this is two indexed aggregates rather than another full-table scan.
+    # "not billed" == no invoice link, whatever the status column says — that
+    # also catches lines orphaned by a deleted invoice.
+    unbilled_work = db.session.query(
+        db.func.coalesce(db.func.sum(WorkOrderLine.amount), 0.0)
+    ).filter(
+        WorkOrderLine.invoice_id.is_(None),
+        WorkOrderLine.status != "pending",
+        WorkOrderLine.no_charge.is_(False),
+    ).scalar() or 0.0
+
+    open_todos = WorkOrderLine.query.filter(
+        WorkOrderLine.status == "pending"
+    ).count()
+
     stats = {
+        "unbilled_work":    unbilled_work,
+        "open_todos":       open_todos,
         "total_users":      User.query.count(),
         "active_users":     User.query.filter_by(is_active=True).count(),
         "total_roles":      Role.query.count(),

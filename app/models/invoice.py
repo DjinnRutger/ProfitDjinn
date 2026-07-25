@@ -31,6 +31,14 @@ class Invoice(db.Model):
         cascade="all, delete-orphan",
         order_by="Payment.date",
     )
+    # Work order lines billed onto this invoice. Deliberately NO cascade:
+    # deleting an invoice must never delete the record that the work happened.
+    # SQLAlchemy's default nulls the child FK, which is the un-billing we want
+    # (invoices.delete() also resets their status explicitly).
+    work_order_lines = db.relationship(
+        "WorkOrderLine",
+        back_populates="invoice",
+    )
 
     def __repr__(self):
         return f"<Invoice {self.invoice_number}>"

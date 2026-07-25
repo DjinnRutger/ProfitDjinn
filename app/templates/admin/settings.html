@@ -24,8 +24,9 @@
         {% elif category == 'login' %}bi-box-arrow-in-right
         {% elif category == 'ui' %}bi-type
         {% elif category == 'invoices' %}bi-receipt
+        {% elif category == 'workorders' %}bi-clipboard-check
         {% else %}bi-gear{% endif %} me-2"></i>
-      {{ category | capitalize }}
+      {% if category == 'workorders' %}Work Orders{% else %}{{ category | capitalize }}{% endif %}
     </div>
 
     {# ── Special: App Icon upload widget ── #}

@@ -227,6 +227,22 @@ def edit(invoice_id):
                 invoice=invoice, title="Edit Invoice", active_page="invoices",
             )
 
+        # An invoice built from a work order belongs to that customer. Letting
+        # it be reassigned would leave one customer's tab pointing at another
+        # customer's invoice.
+        if invoice.work_order_lines and form.customer_id.data != invoice.customer_id:
+            flash(
+                f"This invoice was created from {invoice.customer.name}'s work order, "
+                "so it can't be reassigned to a different customer. Delete the invoice "
+                "instead — the work returns to the tab and you can re-bill it.",
+                "danger",
+            )
+            return render_template(
+                "invoices/form.html", form=form, customers=customers,
+                service_items=service_items,
+                invoice=invoice, title="Edit Invoice", active_page="invoices",
+            )
+
         invoice.invoice_number = form.invoice_number.data.strip().upper()
         invoice.customer_id = form.customer_id.data
         invoice.date = form.date.data
@@ -279,9 +295,28 @@ def edit(invoice_id):
 def delete(invoice_id):
     invoice = Invoice.query.get_or_404(invoice_id)
     num = invoice.invoice_number
+
+    # Return any work billed onto this invoice to the customer's work order tab
+    # instead of letting it vanish with the invoice.
+    restored = list(invoice.work_order_lines)
+    for line in restored:
+        line.status = "completed"
+        line.invoice_id = None
+        line.billed_at = None
+    if restored:
+        db.session.flush()
+
     db.session.delete(invoice)
     db.session.commit()
-    flash(f"Invoice {num} deleted.", "warning")
+
+    if restored:
+        flash(
+            f"Invoice {num} deleted. {len(restored)} work order "
+            f"line{'s' if len(restored) != 1 else ''} returned to the tab, ready to bill again.",
+            "warning",
+        )
+    else:
+        flash(f"Invoice {num} deleted.", "warning")
     return redirect(url_for("invoices.list_invoices"))
 
 

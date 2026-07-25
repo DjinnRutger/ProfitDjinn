@@ -15,7 +15,7 @@
 {# ── Business stat cards ── #}
 <div class="row g-3 mb-4">
 
-  <div class="col-6 col-xl-3">
+  <div class="col-6 col-xl">
     <div class="stat-card">
       <div class="d-flex align-items-start justify-content-between">
         <div>
@@ -29,7 +29,7 @@
     </div>
   </div>
 
-  <div class="col-6 col-xl-3">
+  <div class="col-6 col-xl">
     <div class="stat-card">
       <div class="d-flex align-items-start justify-content-between">
         <div>
@@ -43,7 +43,7 @@
     </div>
   </div>
 
-  <div class="col-6 col-xl-3">
+  <div class="col-6 col-xl">
     <a href="{{ url_for('invoices.list_invoices', status='unpaid') }}" class="text-decoration-none">
     <div class="stat-card {% if stats.unpaid_invoices > 0 %}border-warning border-opacity-50{% endif %}">
       <div class="d-flex align-items-start justify-content-between">
@@ -66,7 +66,32 @@
     </a>
   </div>
 
-  <div class="col-6 col-xl-3">
+  {% if current_user.has_permission('workorders.view') %}
+  <div class="col-6 col-xl">
+    <a href="{{ url_for('work_orders.index') }}" class="text-decoration-none">
+    <div class="stat-card {% if stats.unbilled_work > 0 %}border-danger border-opacity-50{% endif %}">
+      <div class="d-flex align-items-start justify-content-between">
+        <div>
+          <div class="stat-value {% if stats.unbilled_work > 0 %}text-danger{% else %}text-muted{% endif %}">
+            ${{ "%.2f"|format(stats.unbilled_work) }}
+          </div>
+          <div class="stat-label">
+            Unbilled Work
+            {% if stats.open_todos > 0 %}
+            <span class="badge bg-secondary ms-1">{{ stats.open_todos }} to-do</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="stat-icon bg-danger bg-opacity-10 text-danger">
+          <i class="bi bi-clipboard-check"></i>
+        </div>
+      </div>
+    </div>
+    </a>
+  </div>
+  {% endif %}
+
+  <div class="col-6 col-xl">
     <a href="{{ url_for('main.revenue') }}" class="text-decoration-none">
     <div class="stat-card" style="border-bottom:3px solid var(--bs-success)">
       <div class="d-flex align-items-start justify-content-between">
