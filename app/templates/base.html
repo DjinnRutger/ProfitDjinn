@@ -7,7 +7,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>{% block title %}{{ get_setting('app_name', 'LocalVibe') }}{% endblock %}</title>
+  <title>{% block title %}{{ get_setting('app_name', 'ProfitDjinn') }}{% endblock %}</title>
 
   {# ── Anti-FOUC: apply theme before CSS loads ── #}
   <script>
@@ -75,12 +75,12 @@
     {% set _icon_img = get_setting('app_icon_img', '') %}
     {% if _icon_img and _icon_img != '' %}
     <img src="{{ url_for('static', filename='img/app_icon.png') }}"
-         alt="{{ get_setting('app_name', 'LocalVibe') }}"
+         alt="{{ get_setting('app_name', 'ProfitDjinn') }}"
          style="height:1.6rem;width:auto;object-fit:contain;flex-shrink:0">
     {% else %}
     <i class="bi {{ get_setting('app_icon', 'bi-lightning-charge-fill') }}"></i>
     {% endif %}
-    <span>{{ get_setting('app_name', 'LocalVibe') }}</span>
+    <span>{{ get_setting('app_name', 'ProfitDjinn') }}</span>
   </a>
 
   <div class="sidebar-nav">
@@ -239,7 +239,7 @@
 
   {# Footer #}
   <footer class="main-footer">
-    {{ get_setting('footer_text', 'LocalVibe — Built with Flask') }}
+    {{ get_setting('footer_text', 'ProfitDjinn — Built with Flask') }}
   </footer>
 
 </div>{# /main-wrapper #}

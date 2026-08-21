@@ -1,138 +1,115 @@
-# claude.md – Project Guidelines for Vibe-Coding the Local Flask + SQLAlchemy Web App
+# ProfitDjinn
 
-**Project Name:** LocalVibe (change this in `config.py` / admin settings whenever you want)  
-**Goal:** Build a clean, professional, fully configurable internal web app that runs on my local network (Columbus, NE LAN).  
-**Your Role:** You are my senior full-stack Flask architect. Be proactive, opinionated, and obsessed with consistency, security, and delightful UX. Never wait for me to ask for obvious improvements.
+Jon's invoicing and customer management app. Flask + SQLAlchemy, SQLite, runs as a
+local desktop app (FlaskWebGUI window) or as a plain dev server.
 
-## Core Philosophy (NEVER VIOLATE)
+General rules load from `Software Dev/CLAUDE.md` and the `~DjinnStudios` root
+`CLAUDE.md`. This file is project facts only.
 
-1. **Everything configurable from Admin Panel**  
-   - No magic numbers, no hardcoded strings for menus, features, colors, titles, etc.  
-   - All settings live in the `settings` table (key-value + type + description).  
-   - Admin can toggle features, change app name, logo text, colors, menu items, etc. on the fly.
+**Name check:** folder `ProfitDjinn`, repo `DjinnRutger/ProfitDjinn`, app display name
+`ProfitDjinn` (the `app_name` setting), README `ProfitDjinn`. All four agree. It grew out
+of a scaffold called **LocalVibe** — that name still appears in a few docstrings and in
+`_apply_brand_defaults()`, which migrates old LocalVibe setting values forward. Don't
+delete that function; existing databases depend on it.
 
-2. **Security First, Always**  
-   - Flask-Login + argon2-cffi (or bcrypt) for passwords.  
-   - CSRF everywhere (Flask-WTF).  
-   - Flask-Talisman for secure headers.  
-   - Rate limiting on login/auth (Flask-Limiter).  
-   - All user input sanitized/validated.  
-   - Session cookies: `Secure=True`, `HttpOnly=True`, `SameSite=Lax`.  
-   - Even though it’s LAN-only, treat it like it might be exposed one day.
+## What it does
 
-3. **UI/UX Rules (Consistency is King)**  
-   - **Left sidebar menu** – fixed on desktop, collapsible on mobile (Bootstrap 5 + custom JS).  
-   - Top navbar: app logo/name (editable in settings), user avatar + dropdown (profile, settings, logout).  
-   - Modern, clean, professional look (soft shadows, nice spacing, subtle animations).  
-   - Dark mode support from day one (stored in user prefs + global setting).  
-   - Every page uses the same `base.html` layout.  
-   - All buttons, cards, tables follow the same design language.
+- **Customers** — contact record, address, notes, and derived totals (invoiced,
+  outstanding, paid, account credit).
+- **Work orders** — one open work order per customer. Lines are logged as work happens
+  (labor with hours x rate, or flat-rate items), grouped by `project_label`, and marked
+  pending / completed. Completed lines get pulled onto an invoice and stamped billed.
+- **Invoices** — line items, partial payments, and account credit applied against the
+  balance. PDF output via `fpdf2`.
+- **Service items** — a reusable price list for common line descriptions.
+- **Admin** — users, roles, permissions, dynamic settings, audit log, database
+  backup/restore.
 
-4. **Admin Panel**  
-   - Accessible at `/admin` (or configurable route).  
-   - Only users with `is_admin = True` or permission `admin.full_access`.  
-   - Sections:  
-     - **Dashboard** (stats, recent activity)  
-     - **Users** – CRUD users, reset passwords, toggle active, assign roles  
-     - **Roles & Permissions** – create/edit roles, checkbox matrix for permissions  
-     - **Global Settings** – dynamic form that reads `settings` table and renders appropriate inputs (text, number, boolean, select, JSON, color picker, etc.)  
-     - **Menu Editor** – drag-and-drop or simple list to reorder left sidebar items (stored as JSON in settings)  
-     - **Audit Log** (optional but encouraged)
+## Run it
 
-5. **Permissions System (RBAC + fine-grained)**  
-   - `User` has `role_id`  
-   - `Role` has many-to-many `Permission`s  
-   - Permissions stored as strings like `users.create`, `settings.edit`, `reports.view`, etc.  
-   - Decorator: `@permission_required('users.create')`  
-   - Menu items and routes automatically hidden/disabled based on permissions.
+There is no venv in the project folder — per `Software Dev/CLAUDE.md` it belongs at
+`C:\Dev\venvs\ProfitDjinn\`. Create it once per machine:
 
-## Recommended Project Structure
+```
+python -m venv C:\Dev\venvs\ProfitDjinn
+C:\Dev\venvs\ProfitDjinn\Scripts\pip install -r requirements.txt
+```
 
+Then:
 
-localvibe/
-├── app/
-│   ├── __init__.py
-│   ├── config.py
-│   ├── models/
-│   │   ├── __init__.py
-│   │   ├── user.py
-│   │   ├── role.py
-│   │   ├── permission.py
-│   │   ├── setting.py
-│   │   └── audit.py
-│   ├── blueprints/
-│   │   ├── __init__.py
-│   │   ├── main.py
-│   │   ├── auth.py
-│   │   ├── admin.py
-│   │   └── api.py          # if you add REST later
-│   ├── forms/
-│   ├── templates/
-│   │   ├── base.html
-│   │   ├── admin/
-│   │   └── components/
-│   ├── static/
-│   │   ├── css/custom.css
-│   │   └── js/sidebar.js
-│   ├── utils/
-│   │   ├── decorators.py
-│   │   ├── settings.py
-│   │   └── helpers.py
-│   └── extensions.py       # db, login, limiter, talisman
-├── migrations/
-├── instance/
-├── tests/
-├── .env
-├── .flaskenv
-├── run.py
-├── requirements.txt
-└── claude.md               # ← you are here
+```
+C:\Dev\venvs\ProfitDjinn\Scripts\python run.py        # dev server, http://localhost:5000
+C:\Dev\venvs\ProfitDjinn\Scripts\python run_gui.py    # desktop window (Edge/Chrome app mode)
+```
 
+`.env` (gitignored) supplies `SECRET_KEY`, `DATABASE_URI`, and `FLASK_ENV`. Without it
+`app/config.py` falls back to `instance/app.db` and a dev secret key.
 
-## Initial Setup You Should Always Start With
+First run seeds an admin account. Credentials are in the seed block in
+`app/__init__.py` — change the password before anyone else touches this.
 
-When I say “start the project” or “new feature”, first ensure:
+## Architecture
 
+Application factory in `app/__init__.py`, four config classes in `app/config.py`
+(`development` / `production` / `testing` / `gui`), extensions in `app/extensions.py`.
 
-# requirements.txt (you will maintain this)
-Flask==3.0.*
-Flask-SQLAlchemy==3.1.*
-Flask-Login==0.6.*
-Flask-WTF==1.2.*
-Flask-Migrate==4.0.*
-Flask-Limiter==3.0.*
-argon2-cffi==23.*
-Flask-Talisman==1.0.*
-python-dotenv==1.0.*
-Werkzeug==3.0.*
+Blueprints: `auth`, `main`, `admin`, `database_mgr`, `customers`, `invoices`, `items`,
+`work_orders`. Every route is login-gated; most are permission-gated with
+`@permission_required('...')` from `app/utils/decorators.py`.
 
+`work_orders_bp` is exempted from Flask-Limiter — rapid line entry blows past the
+global 50/hour default. It is still login- and permission-gated.
 
-- `.env` with `SECRET_KEY`, `DATABASE_URI=sqlite:///instance/app.db`
-- `config.py` class that loads from env + falls back to DB settings
-- `app/extensions.py` for db, login_manager, limiter, talisman
-- `base.html` with Bootstrap 5.3 + left sidebar + dark mode toggle
+### Settings, not constants
 
-## How to Work With Me (Vibe Coding Style)
+Anything a user might want to change lives in the `settings` table and is read with
+`get_setting()` (`app/utils/settings.py`), which is injected into every template.
+Company name and address on invoices, invoice/work-order number prefixes and next
+number, theme, font scale, login layout, hourly rate default — all settings. Don't
+hardcode any of them.
 
-- Be conversational and enthusiastic.
-- When I ask for a feature:
-  1. Summarize understanding
-  2. Propose DB changes (if any)
-  3. Show folder/file structure impact
-  4. Give complete, ready-to-paste code
-  5. Explain security/UX considerations
-  6. Suggest next logical steps proactively
-- Always use blueprints.
-- Never hardcode anything that belongs in admin settings.
-- If something can be prettier or more secure, say it.
-- After implementing, ask: “Want me to add dark mode polish, audit logging, or export to CSV next?”
+Three bootstrap functions run inside the app context on every start and are all
+idempotent: `_ensure_invoice_settings()`, `_ensure_permissions()`,
+`_apply_brand_defaults()`. Add new settings and permissions there so existing
+databases pick them up.
 
-## Menu Example (will be dynamic later)
+### Migrations — read this before changing a model
 
-Left sidebar (collapsed on mobile):
-- Dashboard
-- [Your future modules]
-- Users (admin only)
-- Settings (admin only)
-- Audit Log (admin only)
-- Logout
+`migrations/` is **empty**. Flask-Migrate is installed and initialized, but
+`flask db init` was never run. Schema changes are handled two ways instead:
+
+1. `db.create_all()` on startup creates any missing table.
+2. `_run_migrations()` in `app/__init__.py` hand-writes `ALTER TABLE` for new columns
+   on existing tables, guarded by an inspector check.
+
+`create_all()` will not add a column to a table that already exists. If you add a
+column to a model, you must also add a guarded `ALTER TABLE` to `_run_migrations()`
+or it will silently fail against Jon's live database.
+
+## Data
+
+`instance/app.db` is the live SQLite database with real customer and invoice data. It
+also holds a dated backup file. Back it up before any schema work.
+
+Both are gitignored, along with `password.txt`, `Images-Org/` (source artwork) and
+`Old-Database-TV2/` (the legacy data that `scripts/import_old_data.py` reads).
+
+## Building the EXE
+
+`build.bat` drives PyInstaller through `profitdjinn.spec` and writes
+`dist\ProfitDjinn\ProfitDjinn.exe`.
+
+**`build.bat` currently expects `.venv\` inside the project folder**, which conflicts
+with the `C:\Dev\venvs\` rule. It will fail as written. Unresolved — see README.
+
+When frozen, `run_gui.py` redirects the instance folder to a writable directory next
+to the EXE and generates a persistent `.secret_key` there on first launch. The
+`instance\` folder must ship and stay with the EXE or the database is lost.
+
+## Known gaps
+
+- **No tests.** Zero test files, no pytest. The auto-push rule assumes a smoke test
+  exists; here there is nothing to run. Say so rather than pushing untested.
+- `migrations/` empty (above).
+- `dist/` is ~74 MB of build output sitting inside OneDrive.
+- The invoice PDF has only been checked by eye, not asserted against a fixture.

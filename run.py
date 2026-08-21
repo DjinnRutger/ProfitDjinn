@@ -1,5 +1,5 @@
 """
-LocalVibe – entry point.
+ProfitDjinn – entry point.
 Run with:  flask run   (or python run.py for direct execution)
 """
 import os

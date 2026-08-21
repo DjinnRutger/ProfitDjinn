@@ -5,7 +5,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sign In — {{ get_setting('app_name', 'LocalVibe') }}</title>
+  <title>Sign In — {{ get_setting('app_name', 'ProfitDjinn') }}</title>
 
   {# Anti-FOUC: read theme key, fall back to migrating old darkMode key #}
   <script>
@@ -171,12 +171,12 @@
     <div class="auth-brand-panel">
       {% if _has_logo %}
       <img src="{{ url_for('static', filename='img/login_logo.png') }}"
-           alt="{{ get_setting('app_name', 'LocalVibe') }} logo"
+           alt="{{ get_setting('app_name', 'ProfitDjinn') }} logo"
            class="auth-logo-img">
       {% else %}
       <i class="bi {{ get_setting('app_icon', 'bi-lightning-charge-fill') }} auth-logo"></i>
       {% endif %}
-      <h1 class="auth-title">{{ get_setting('app_name', 'LocalVibe') }}</h1>
+      <h1 class="auth-title">{{ get_setting('app_name', 'ProfitDjinn') }}</h1>
       <p class="auth-tagline">{{ get_setting('app_tagline', 'Your Local Network Hub') }}</p>
     </div>
 
@@ -255,12 +255,12 @@
     {# Logo & title #}
     {% if _has_logo %}
     <img src="{{ url_for('static', filename='img/login_logo.png') }}"
-         alt="{{ get_setting('app_name', 'LocalVibe') }} logo"
+         alt="{{ get_setting('app_name', 'ProfitDjinn') }} logo"
          class="auth-logo-img">
     {% else %}
     <i class="bi {{ get_setting('app_icon', 'bi-lightning-charge-fill') }} auth-logo"></i>
     {% endif %}
-    <h1 class="auth-title">{{ get_setting('app_name', 'LocalVibe') }}</h1>
+    <h1 class="auth-title">{{ get_setting('app_name', 'ProfitDjinn') }}</h1>
     <p class="auth-tagline">{{ get_setting('app_tagline', 'Your Local Network Hub') }}</p>
 
     {# Flash messages #}
