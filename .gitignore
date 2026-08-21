@@ -31,6 +31,10 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+#  ...but profitdjinn.spec is hand-maintained, not generated. It carries the
+#  hidden imports and data files the build cannot work without, so it has to
+#  be in the repo or a fresh clone cannot produce an EXE.
+!profitdjinn.spec
 
 # Installer logs
 pip-log.txt

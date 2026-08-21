@@ -1,16 +1,16 @@
 # ProfitDjinn
 
-Jon's invoicing and customer management app. Flask + SQLAlchemy, SQLite, runs as a
-local desktop app (FlaskWebGUI window) or as a plain dev server.
+Jon's invoicing and customer management app. Flask + SQLAlchemy, SQLite, running in an
+Edge WebView2 desktop window — or as a plain dev server in a browser.
 
 General rules load from `Software Dev/CLAUDE.md` and the `~DjinnStudios` root
 `CLAUDE.md`. This file is project facts only.
 
 **Name check:** folder `ProfitDjinn`, repo `DjinnRutger/ProfitDjinn`, app display name
 `ProfitDjinn` (the `app_name` setting), README `ProfitDjinn`. All four agree. It grew out
-of a scaffold called **LocalVibe** — that name still appears in a few docstrings and in
+of a scaffold called **LocalVibe**; that name now survives only inside
 `_apply_brand_defaults()`, which migrates old LocalVibe setting values forward. Don't
-delete that function; existing databases depend on it.
+delete that function — existing databases depend on it.
 
 ## What it does
 
@@ -27,26 +27,59 @@ delete that function; existing databases depend on it.
 
 ## Run it
 
-There is no venv in the project folder — per `Software Dev/CLAUDE.md` it belongs at
-`C:\Dev\venvs\ProfitDjinn\`. Create it once per machine:
+Venv lives outside the project so OneDrive never syncs it. Once per machine:
 
 ```
 python -m venv C:\Dev\venvs\ProfitDjinn
-C:\Dev\venvs\ProfitDjinn\Scripts\pip install -r requirements.txt
+C:\Dev\venvs\ProfitDjinn\Scripts\pip install -r requirements-dev.txt
 ```
 
-Then:
-
 ```
+C:\Dev\venvs\ProfitDjinn\Scripts\python run_gui.py    # desktop window
 C:\Dev\venvs\ProfitDjinn\Scripts\python run.py        # dev server, http://localhost:5000
-C:\Dev\venvs\ProfitDjinn\Scripts\python run_gui.py    # desktop window (Edge/Chrome app mode)
+C:\Dev\venvs\ProfitDjinn\Scripts\python -m pytest     # 16 tests, must be green before pushing
 ```
 
-`.env` (gitignored) supplies `SECRET_KEY`, `DATABASE_URI`, and `FLASK_ENV`. Without it
-`app/config.py` falls back to `instance/app.db` and a dev secret key.
+## Where the data lives — read before touching paths
 
-First run seeds an admin account. Credentials are in the seed block in
-`app/__init__.py` — change the password before anyone else touches this.
+`paths.py` at the project root is the single source of truth. Two modes:
+
+| | Frozen EXE | From source |
+| --- | --- | --- |
+| data dir | `%LOCALAPPDATA%\ProfitDjinn` | `<project>\instance` |
+| holds | `app.db`, `.secret_key`, `webview\`, backups | same |
+
+**`paths.py` is deliberately at the project root, not in `app/`.** `run_gui.py` must know
+these paths *before* it imports the app package, because `app/config.py` reads
+`SECRET_KEY` and `DATABASE_URI` out of `os.environ` while its class bodies are being
+evaluated at import time. Importing `app.paths` would trigger `app/__init__.py` and lose
+that race. Keep `paths.py` free of app imports, and keep the environment assignments at
+the top of `run_gui.py` above the `from app import create_app` line.
+
+`.secret_key` must stay stable. Flask-Login signs the "remember me" cookie with it, so
+regenerating it silently signs Jon out of every session.
+
+## The desktop shell
+
+`run_gui.py` uses **pywebview**, which hosts the Flask app in an Edge WebView2 window.
+There is no Chrome process and no browser chrome. WebView2 ships with Windows 10/11, so
+there is nothing for a user to install.
+
+Two settings carry the whole "stay signed in" feature; do not change them casually:
+
+- `webview.start(private_mode=False, storage_path=...)` in `run_gui.py`. `private_mode`
+  **defaults to `True`**, which discards cookies when the window closes.
+- `REMEMBER_COOKIE_DURATION` on `GUIConfig` in `app/config.py`, set to 3650 days.
+  `SESSION_COOKIE_SECURE` and `REMEMBER_COOKIE_SECURE` must stay `False` there — the
+  window talks plain HTTP to `127.0.0.1`, so a Secure cookie would never come back.
+
+### The bug this replaced
+
+The old shell was `flaskwebgui`, which launched Chrome with
+`--user-data-dir=<temp>/flaskwebgui<random-uuid>` and `rmtree`d it on exit. The remember
+cookie was written correctly every time and then deleted, so sign-in never persisted and
+Chrome's password manager started empty on every launch. `tests/test_stays_signed_in.py`
+guards the server half of the fix. The browser half can only be verified by hand.
 
 ## Architecture
 
@@ -66,7 +99,7 @@ Anything a user might want to change lives in the `settings` table and is read w
 `get_setting()` (`app/utils/settings.py`), which is injected into every template.
 Company name and address on invoices, invoice/work-order number prefixes and next
 number, theme, font scale, login layout, hourly rate default — all settings. Don't
-hardcode any of them.
+hardcode any of them. The desktop window title comes from `app_name` for the same reason.
 
 Three bootstrap functions run inside the app context on every start and are all
 idempotent: `_ensure_invoice_settings()`, `_ensure_permissions()`,
@@ -75,8 +108,8 @@ databases pick them up.
 
 ### Migrations — read this before changing a model
 
-`migrations/` is **empty**. Flask-Migrate is installed and initialized, but
-`flask db init` was never run. Schema changes are handled two ways instead:
+`migrations/` is **empty**. Flask-Migrate is installed but `flask db init` was never run.
+Schema changes are handled two ways instead:
 
 1. `db.create_all()` on startup creates any missing table.
 2. `_run_migrations()` in `app/__init__.py` hand-writes `ALTER TABLE` for new columns
@@ -84,32 +117,41 @@ databases pick them up.
 
 `create_all()` will not add a column to a table that already exists. If you add a
 column to a model, you must also add a guarded `ALTER TABLE` to `_run_migrations()`
-or it will silently fail against Jon's live database.
+or it will silently fail against the live database.
 
-## Data
+### The login page is duplicated
 
-`instance/app.db` is the live SQLite database with real customer and invoice data. It
-also holds a dated backup file. Back it up before any schema work.
-
-Both are gitignored, along with `password.txt`, `Images-Org/` (source artwork) and
-`Old-Database-TV2/` (the legacy data that `scripts/import_old_data.py` reads).
+`app/templates/auth/login.html` contains the form twice — once for the `left` layout and
+once for `top`, chosen by the `login_logo_layout` setting. Both copies share the same
+element ids because only one renders at a time. **Any change to the login form has to be
+made in both blocks.**
 
 ## Building the EXE
 
-`build.bat` drives PyInstaller through `profitdjinn.spec` and writes
-`dist\ProfitDjinn\ProfitDjinn.exe`.
+```
+build.bat
+```
 
-**`build.bat` currently expects `.venv\` inside the project folder**, which conflicts
-with the `C:\Dev\venvs\` rule. It will fail as written. Unresolved — see README.
+Output goes to `C:\Dev\ProfitDjinn\dist\ProfitDjinn\`, outside OneDrive, because it is
+50+ MB of regenerable files. The EXE is standalone — the database is in
+`%LOCALAPPDATA%`, so the build folder can be deleted and rebuilt at will.
 
-When frozen, `run_gui.py` redirects the instance folder to a writable directory next
-to the EXE and generates a persistent `.secret_key` there on first launch. The
-`instance\` folder must ship and stay with the EXE or the database is lost.
+`profitdjinn.spec` notes:
+
+- pywebview reaches WebView2 through .NET, so `webview`, `webview.platforms.winforms`,
+  `webview.platforms.edgechromium`, `clr`, `clr_loader`, and `pythonnet` are all explicit
+  hidden imports. PyInstaller finds none of them on its own: the platform backend is
+  chosen at runtime.
+- `collect_data_files("webview")` is required for `webview/js/` and the WebView2 interop
+  DLLs in `webview/lib/`. Without it the window opens blank.
+- **UPX is off on purpose.** It can corrupt .NET assemblies, and the failure shows up
+  when the window opens rather than when the build runs.
 
 ## Known gaps
 
-- **No tests.** Zero test files, no pytest. The auto-push rule assumes a smoke test
-  exists; here there is nothing to run. Say so rather than pushing untested.
 - `migrations/` empty (above).
-- `dist/` is ~74 MB of build output sitting inside OneDrive.
 - The invoice PDF has only been checked by eye, not asserted against a fixture.
+- `scripts/import_old_data.py` reads `Old-Database-TV2/`, which is gitignored, so the
+  importer is not runnable from a fresh clone.
+- No version stamp in the UI. Fine while Jon is the only user; needed the moment anyone
+  else runs a copy (see `Software Dev/CLAUDE.md`).

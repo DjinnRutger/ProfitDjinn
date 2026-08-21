@@ -3,10 +3,16 @@ App configuration classes.
 Load from .env → fall back to safe defaults.
 """
 import os
+import sys
 from datetime import timedelta
 from dotenv import load_dotenv
 
-load_dotenv()
+# A frozen EXE gets its configuration from run_gui.py, which sets the
+# environment before this module is imported. Reading a .env that happens to
+# sit in whatever directory the EXE was launched from would let a stale file
+# override the real database path.
+if not getattr(sys, "frozen", False):
+    load_dotenv()
 
 # Compute absolute path to the project-root instance/ folder so SQLite always works
 _HERE         = os.path.dirname(os.path.abspath(__file__))   # …/app/
@@ -78,7 +84,17 @@ class GUIConfig(Config):
     """Standalone desktop app — no console, no browser, local HTTP only."""
     DEBUG = False
     TALISMAN_ENABLED = False        # Not needed for a local desktop window
-    SESSION_COOKIE_SECURE = False   # Local HTTP, not HTTPS
+
+    # The window talks plain HTTP to 127.0.0.1, so a Secure-only cookie would
+    # never be sent back and the user could never stay signed in.
+    SESSION_COOKIE_SECURE = False
+    REMEMBER_COOKIE_SECURE = False
+
+    # "Keep me signed in" should mean exactly that on a personal desktop app:
+    # signed in until Sign Out is clicked. The session cookie dies when the
+    # window closes; the remember cookie is what brings the user back.
+    REMEMBER_COOKIE_DURATION = timedelta(days=3650)
+    PERMANENT_SESSION_LIFETIME = timedelta(days=30)
 
 
 config: dict = {

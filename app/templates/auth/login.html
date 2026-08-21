@@ -207,7 +207,8 @@
           <div class="input-group">
             <span class="input-group-text"><i class="bi bi-person"></i></span>
             {{ form.username(class="form-control" + (" is-invalid" if form.username.errors else ""),
-                            id="username", placeholder="Enter your username", autofocus=true) }}
+                            id="username", placeholder="Enter your username", autofocus=true,
+                            autocomplete="username") }}
             {% for error in form.username.errors %}
             <div class="invalid-feedback">{{ error }}</div>
             {% endfor %}
@@ -219,7 +220,8 @@
           <div class="input-group">
             <span class="input-group-text"><i class="bi bi-lock"></i></span>
             {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""),
-                            id="password", placeholder="Enter your password") }}
+                            id="password", placeholder="Enter your password",
+                            autocomplete="current-password") }}
             <button class="btn btn-outline-secondary" type="button" id="toggle-pw" tabindex="-1" title="Show/hide password">
               <i class="bi bi-eye" id="pw-eye"></i>
             </button>
@@ -284,7 +286,8 @@
         <div class="input-group">
           <span class="input-group-text"><i class="bi bi-person"></i></span>
           {{ form.username(class="form-control" + (" is-invalid" if form.username.errors else ""),
-                          id="username", placeholder="Enter your username", autofocus=true) }}
+                          id="username", placeholder="Enter your username", autofocus=true,
+                            autocomplete="username") }}
           {% for error in form.username.errors %}
           <div class="invalid-feedback">{{ error }}</div>
           {% endfor %}
@@ -296,7 +299,8 @@
         <div class="input-group">
           <span class="input-group-text"><i class="bi bi-lock"></i></span>
           {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""),
-                          id="password", placeholder="Enter your password") }}
+                          id="password", placeholder="Enter your password",
+                            autocomplete="current-password") }}
           <button class="btn btn-outline-secondary" type="button" id="toggle-pw" tabindex="-1" title="Show/hide password">
             <i class="bi bi-eye" id="pw-eye"></i>
           </button>

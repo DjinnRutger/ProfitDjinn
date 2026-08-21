@@ -11,5 +11,7 @@ Werkzeug==3.1.*
 email-validator==2.*
 fpdf2==2.*
 
-# Desktop GUI packaging
-flaskwebgui>=1.0.3
+# Desktop app shell — hosts the Flask app in an Edge WebView2 window.
+# pywebview pulls in pythonnet on Windows; the WebView2 runtime ships with
+# Windows 10/11 so there is nothing for the user to install.
+pywebview>=6.0
