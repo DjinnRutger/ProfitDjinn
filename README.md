@@ -86,6 +86,25 @@ Running from source instead uses the project's `instance\` folder for all three.
 Deleting the `webview\` folder signs you out and loses nothing else. Deleting `app.db`
 loses everything — take a backup from Admin → Database first.
 
+## Restoring a backup
+
+A backup downloaded from Admin → Database is a complete SQLite database, not a partial
+dump. The fastest way to restore one is to put it in place directly:
+
+1. Close ProfitDjinn.
+2. Copy your backup over `%LOCALAPPDATA%\ProfitDjinn\app.db`.
+3. Start ProfitDjinn. Sign in with the account from the backup — your own username and
+   password, not the seeded one. Missing columns and new settings are added on startup.
+
+Leave `.secret_key` alone. Replacing it signs you out but costs nothing else; the
+database does not depend on it.
+
+**Do not rely on Admin → Database → Restore to recover from an empty database.** That
+page is behind the login, so on a fresh install you would have to sign in as the seeded
+`admin` account first (credentials are in the seed block in `app/__init__.py`) just to
+reach it. Copying the file is the reliable path. The in-app Restore is for swapping data
+while you are already signed in.
+
 ## Staying signed in
 
 Tick "Keep me signed in" (it is on by default) and the app will not ask again until you
