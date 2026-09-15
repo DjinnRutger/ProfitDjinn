@@ -155,3 +155,38 @@ Output goes to `C:\Dev\ProfitDjinn\dist\ProfitDjinn\`, outside OneDrive, because
   importer is not runnable from a fresh clone.
 - No version stamp in the UI. Fine while Jon is the only user; needed the moment anyone
   else runs a copy (see `Software Dev/CLAUDE.md`).
+
+## History and decisions (moved from MEMORY.md, 2026-09-15)
+
+MEMORY.md loads into every session in every folder, and this project's entry had
+grown past the point where that was reasonable. The entry is reproduced below,
+verbatim, because it is the record of what was decided and why. The sections
+above remain the primary architecture reference; where the two overlap, trust the
+sections above -- they are maintained with the code.
+
+**ProfitDjinn** (`Software Dev\ProfitDjinn\`) — Jon's personal invoicing and customer
+management app. Flask + SQLAlchemy + SQLite in an **Edge WebView2 desktop window via
+pywebview**; PyInstaller builds a Windows EXE. Repo
+`github.com/DjinnRutger/ProfitDjinn`. Copied into `Software Dev/` 2026-08-21. It bills
+Jon's own side work — the seeded company settings are his personal name, address, and
+outlook.com email, not Strobel's. Domain: customers, one open work order per customer
+whose completed lines get pulled onto invoices, payments with account credit, a
+reusable service-item price list. Project facts live in its `CLAUDE.md`; open items in
+its `README.md`.
+
+**Data lives in `%LOCALAPPDATA%\ProfitDjinn\`** (database, `.secret_key`, and the
+`webview\` cookie store), not beside the EXE and not in OneDrive. Build output goes to
+`C:\Dev\ProfitDjinn\dist\`. Venv at `C:\Dev\venvs\ProfitDjinn\`.
+
+**The gotcha:** `migrations/` is empty and Flask-Migrate was never initialized. New
+columns only reach the live database through the hand-written `ALTER TABLE` block in
+`_run_migrations()` in `app/__init__.py`. `db.create_all()` will not add them.
+
+**Second gotcha:** `app/templates/auth/login.html` contains the login form **twice**,
+one copy per `login_logo_layout` setting. Any change to it has to be made in both.
+
+**Lesson worth keeping — `.bat` files must be pure ASCII with CRLF endings.**
+`build.bat` carried UTF-8 box-drawing characters in its comments; cmd.exe reads batch
+files in the console's OEM codepage, mangled them, and broke parsing of the following
+lines so a `set` never ran and a variable came out empty. It failed quietly with
+garbage warnings. Applies to any batch file in this folder.
