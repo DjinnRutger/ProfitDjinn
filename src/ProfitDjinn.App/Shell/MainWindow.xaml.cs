@@ -142,6 +142,7 @@ public partial class MainWindow : Window
     {
         Alerts.Children.Clear();
         PageHost.Content = page;
+        PinnedBar.Content = page.PinnedBar;
         if (notice is not null) ShowNotice(notice);
         BuildBreadcrumb(page.Crumbs);
         foreach (var (key, button) in _navButtons) button.Uid = key == page.NavKey ? "active" : "";
@@ -261,6 +262,7 @@ public partial class MainWindow : Window
         FontScale.ScaleX = FontScale.ScaleY = scale;
 
         LockButton.Visibility = Store.Password.IsSet ? Visibility.Visible : Visibility.Collapsed;
+        ShowUpdateBadge();
         var expenses = Store.Expenses.Enabled ? Visibility.Visible : Visibility.Collapsed;
         foreach (string key in ExpenseNav) if (_navButtons.TryGetValue(key, out var b)) b.Visibility = expenses;
         SidebarFooter.Visibility = LockButton.Visibility;
@@ -513,6 +515,47 @@ public partial class MainWindow : Window
     {
         RunRecurringOnce();
         RemindBackupIfDue();
+        CheckForUpdateOnce();
+    }
+
+    // ------------------------------------------------------------------ updates (2.3)
+
+    private bool _updateChecked;
+
+    /// <summary>Once per start, at most once a day, in the background: ask GitHub for a newer release.</summary>
+    private async void CheckForUpdateOnce()
+    {
+        if (_updateChecked || !Store.Updates.DueToday) return;
+        _updateChecked = true;
+        try { await Store.Updates.CheckAsync(); }
+        catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or IOException) { return; }   // tries again next start
+        ShowUpdateBadge();
+    }
+
+    /// <summary>The footer badge: "Update available: v2.4.0" when a newer release is known.</summary>
+    public void ShowUpdateBadge()
+    {
+        var update = Store.Updates.Enabled ? Store.Updates.Known : null;
+        UpdateBadge.Visibility = update is null ? Visibility.Collapsed : Visibility.Visible;
+        if (update is null) return;
+        UpdateBadge.Content = Ui.Row(4, new Controls.Icon { Glyph = "arrow-up-circle-fill", Size = 12 }.WithResource(Controls.Icon.ForegroundProperty, "SuccessText"),
+            Ui.Badge($"Update available: v{update.Version}", "success"));
+        UpdateBadge.ToolTip = "Open the release page on GitHub to see what's new and download it";
+        UpdateBadge.Tag = update.Url;
+    }
+
+    private void OnUpdateBadge(object sender, RoutedEventArgs e) => OpenLink((UpdateBadge.Tag as string) ?? UpdateService.ReleasesPage);
+
+    /// <summary>Opens a web page in the default browser. Only https links are opened.</summary>
+    public void OpenLink(string url)
+    {
+        if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return;
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            Clipboard.SetText(url);
+            ShowError($"No web browser could be opened, so the link was copied instead:\n{url}");
+        }
     }
 
     private bool _recurringChecked;

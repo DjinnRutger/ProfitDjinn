@@ -30,6 +30,9 @@ public abstract class AppPage : UserControl
     /// <summary>Breadcrumb after "Home". The last one is the current page.</summary>
     public abstract IReadOnlyList<Crumb> Crumbs { get; }
 
+    /// <summary>2.3: shown pinned above the footer, outside the scrolling content, while this page is open.</summary>
+    public virtual UIElement? PinnedBar => null;
+
     /// <summary>Called once the page is in the window. Put focus on the first field here.</summary>
     public virtual void OnShown() { }
 

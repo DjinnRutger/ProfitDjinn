@@ -46,6 +46,12 @@ public static class SettingKeys
     public const string ExpensesEnabled = "expenses_enabled";
     public const string ReceiptsFolder = "receipts_folder";
 
+    /// <summary>2.3. Daily check for a newer release on GitHub (on by default), and what it last found.</summary>
+    public const string UpdateCheckEnabled = "update_check_enabled";
+    public const string UpdateLastCheck = "update_last_check";
+    public const string UpdateLatestVersion = "update_latest_version";
+    public const string UpdateLatestUrl = "update_latest_url";
+
     /// <summary>2.1. The app version that last opened this database. A different version
     /// saves an upgrade backup before touching the file.</summary>
     public const string DatabaseAppVersion = "db_app_version";

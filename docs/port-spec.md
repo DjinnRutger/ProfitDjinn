@@ -426,3 +426,19 @@ new tables follow the 1.x conventions (no AUTOINCREMENT, money FLOAT, DATE text,
   the page; the six tiles sit in two rows of three.
 - Not the Revenue page's "collected" figure, which keeps 1.x's rule (AmountPaid by invoice
   date).
+
+## New in 2.3
+
+- **Settings** is one section at a time (Business, Invoices, Work Orders, Expenses,
+  Appearance, Security & Lock Screen, Backup, Updates & About, and Advanced for any setting
+  no section claims), with plain labels. Edits are held until **Save Changes** on a bar pinned
+  above the footer; **Discard** drops them; leaving with unsaved edits asks first. Save checks:
+  accent colour is a hex colour, backup days 1-365, starting numbers are whole numbers, the
+  hourly rate is an amount of 0 or more, and the business name is not empty. Theme is now
+  also chosen here. Image uploads and the app password still act at once.
+- **Update check:** settings `update_check_enabled` (default true), `update_last_check`,
+  `update_latest_version`, `update_latest_url` (the last three hidden). At start, at most once
+  a day, an anonymous GET to the GitHub API for the latest release of the public repo; a
+  failure is silent and retried next start. When the stored version is newer than the
+  running one (semantic order; 2.3.0 is newer than 2.3.0-beta), the footer shows
+  "Update available: vX" opening the release page. Settings > Updates & About has Check Now.

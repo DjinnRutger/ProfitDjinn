@@ -27,6 +27,7 @@ public sealed class Store
     public ReceiptStore Receipts { get; }
     public RecurringService Recurring { get; }
     public ProfitService Profit { get; }
+    public UpdateService Updates { get; }
 
     /// <param name="today">The clock. Tests pass a fixed date; the app passes the local date.</param>
     /// <param name="appVersion">The running version. Tests pass one to simulate an upgrade.</param>
@@ -60,5 +61,6 @@ public sealed class Store
         // Recurring expenses are created by the app at start (RecurringService.GenerateDue), not here.
         Recurring = new RecurringService(Database, Settings, today);
         Profit = new ProfitService(Database, today);
+        Updates = new UpdateService(Settings, today, appVersion);
     }
 }
