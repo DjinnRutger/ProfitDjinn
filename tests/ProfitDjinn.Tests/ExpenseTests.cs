@@ -272,4 +272,99 @@ public class ExpenseTests
         Assert.Contains("was not found", Assert.Throws<UserFacingException>(() => s.Expenses.ReceiptPath(oldR.Id)).Message);
         Assert.Equal(1, s.Expenses.MoveReceipts(s.Paths.ReceiptsFolder).Missing);
     }
+
+    // ------------------------------------------------------------------ recurring
+
+    private static RecurringExpense Template(string freq, DateOnly start, int day, DateOnly? end = null) =>
+        new() { Frequency = freq, StartDate = start, DayOfMonth = day, EndDate = end };
+
+    [Fact]
+    public void Day_31_lands_on_the_last_day_of_short_months_and_yearly_Feb_29_on_Feb_28()
+    {
+        var monthly = Template(RecurringFrequency.Monthly, new DateOnly(2027, 1, 31), 31);
+        Assert.Equal(new[] { new DateOnly(2027, 1, 31), new DateOnly(2027, 2, 28), new DateOnly(2027, 3, 31), new DateOnly(2027, 4, 30) },
+            RecurringService.Occurrences(monthly, monthly.StartDate, new DateOnly(2027, 4, 30)));
+        Assert.Contains(new DateOnly(2028, 2, 29), RecurringService.Occurrences(monthly, new DateOnly(2028, 2, 1), new DateOnly(2028, 2, 29)));
+
+        var yearly = Template(RecurringFrequency.Yearly, new DateOnly(2028, 2, 29), 29);
+        Assert.Equal(new[] { new DateOnly(2028, 2, 29), new DateOnly(2029, 2, 28), new DateOnly(2032, 2, 29) },
+            RecurringService.Occurrences(yearly, yearly.StartDate, new DateOnly(2032, 12, 31)).Where(d => d.Year is 2028 or 2029 or 2032));
+
+        // Starting on the 20th with day 5: the first one is next month's 5th. The end date stops it.
+        var late = Template(RecurringFrequency.Monthly, new DateOnly(2026, 1, 20), 5, end: new DateOnly(2026, 4, 5));
+        Assert.Equal(new[] { new DateOnly(2026, 2, 5), new DateOnly(2026, 3, 5), new DateOnly(2026, 4, 5) },
+            RecurringService.Occurrences(late, late.StartDate, new DateOnly(2027, 1, 1)));
+    }
+
+    private static RecurringDraft Rent(Store s, DateOnly start, string mode = RecurringMode.Paid, bool active = true, int day = 1) =>
+        new(null, Cat(s, "Rent/Lease"), "Office rent", 1200, RecurringFrequency.Monthly, start, day, null, mode,
+            mode == RecurringMode.Paid ? "ach" : null, "", active);
+
+    [Fact]
+    public void Generation_creates_each_due_expense_once_and_never_recreates_a_deleted_one()
+    {
+        var day = new DateOnly(2026, 10, 2);
+        var s = new Store(Fixture.TempPaths(), () => day);
+        long id = s.Recurring.Create(Rent(s, new DateOnly(2026, 8, 1))).Id;
+        Assert.Equal(3, s.Recurring.PreviewCount(Rent(s, new DateOnly(2026, 8, 1))));
+        Assert.Empty(s.Recurring.GenerateDue());                 // Expenses is off
+
+        s.Settings.Set(SettingKeys.ExpensesEnabled, "true");
+        var made = s.Recurring.GenerateDue();
+        Assert.Equal(new[] { new DateOnly(2026, 8, 1), new DateOnly(2026, 9, 1), new DateOnly(2026, 10, 1) }, made.Select(g => g.Date));
+        Assert.All(s.Expenses.List(), e => { Assert.Equal(InvoiceStatus.Paid, e.Status); Assert.Equal("ACH", e.PaidVia); Assert.Null(e.DueDate); });
+        Assert.Equal("3 recurring expenses added: Office rent (Aug 01), Office rent (Sep 01), Office rent (Oct 01).", RecurringService.Summarize(made)!.Message);
+        Assert.Empty(s.Recurring.GenerateDue());                 // twice: nothing new
+        Assert.Equal(new DateOnly(2026, 11, 1), s.Recurring.NextDate(s.Recurring.Get(id)));
+        Assert.Equal(0, s.Recurring.PreviewCount(Rent(s, new DateOnly(2026, 8, 1)), id));
+
+        s.Expenses.Delete(made[1].ExpenseId);                    // deleted by hand: stays deleted
+        day = new DateOnly(2026, 11, 3);
+        Assert.Equal(new[] { new DateOnly(2026, 11, 1) }, s.Recurring.GenerateDue().Select(g => g.Date));
+        Assert.Equal(3, s.Expenses.List().Count);
+
+        Assert.Contains("are kept", s.Recurring.Delete(id).Message);
+        Assert.Equal(3, s.Expenses.List().Count);
+        Assert.All(s.Expenses.List(), e => Assert.Null(e.RecurringId));
+    }
+
+    [Fact]
+    public void Bills_are_created_unpaid_paused_templates_create_nothing_and_resuming_skips_the_gap()
+    {
+        var day = new DateOnly(2026, 10, 2);
+        var s = new Store(Fixture.TempPaths(), () => day);
+        s.Settings.Set(SettingKeys.ExpensesEnabled, "true");
+        long bill = s.Recurring.Create(Rent(s, new DateOnly(2026, 10, 1), RecurringMode.Bill)).Id;
+        var e = s.Expenses.Get(s.Recurring.GenerateDue().Single().ExpenseId);
+        Assert.Equal(InvoiceStatus.Unpaid, e.Status);
+        Assert.Equal(new DateOnly(2026, 10, 1), e.DueDate);
+        Assert.Equal(bill, e.RecurringId);
+
+        s.Recurring.ToggleActive(bill);                          // paused through Nov and Dec
+        day = new DateOnly(2027, 1, 15);
+        Assert.Empty(s.Recurring.GenerateDue());
+        s.Recurring.ToggleActive(bill);                          // back on: Nov/Dec/Jan 1 skipped
+        Assert.Empty(s.Recurring.GenerateDue());
+        Assert.Equal(new DateOnly(2027, 2, 1), s.Recurring.NextDate(s.Recurring.Get(bill)));
+        day = new DateOnly(2027, 2, 1);
+        Assert.Single(s.Recurring.GenerateDue());
+
+        long paused = s.Recurring.Create(Rent(s, new DateOnly(2026, 1, 1), active: false)).Id;
+        Assert.Equal(0, s.Recurring.PreviewCount(Rent(s, new DateOnly(2026, 1, 1), active: false)));
+        Assert.Empty(s.Recurring.GenerateDue());
+        Assert.Null(s.Recurring.Get(paused).GeneratedThrough);
+    }
+
+    [Fact]
+    public void A_recurring_expense_validates_its_fields()
+    {
+        var s = Fixture.FreshStore(Today);
+        var e = Assert.Throws<ValidationException>(() => s.Recurring.Create(
+            new RecurringDraft(null, null, "", -1, "weekly", null, 32, null, "paid", "barter", "", true)));
+        Assert.Equal(new[] { "amount", "category_id", "day_of_month", "description", "frequency", "method", "start_date" }, e.Fields.Keys.OrderBy(k => k));
+        Assert.Contains("end_date", Assert.Throws<ValidationException>(() => s.Recurring.Create(
+            Rent(s, Today) with { EndDate = Today.AddDays(-1) })).Fields.Keys);
+        Assert.Null(s.Recurring.Get(s.Recurring.Create(Rent(s, Today, RecurringMode.Bill) with { Method = "ach" }).Id).Method);
+        Assert.Equal("Monthly on day 1", s.Recurring.List().Single().ScheduleLabel);
+    }
 }
