@@ -131,6 +131,23 @@ public static class Ui
         return dock;
     }
 
+    /// <summary>Recolours a page header's title icon (Revenue's is green, not blue).</summary>
+    public static T WithGlyphBrush<T>(this T header, string brushKey) where T : FrameworkElement
+    {
+        if (FindFirst<Icon>(header) is { } icon) icon.SetResourceReference(Icon.ForegroundProperty, brushKey);
+        return header;
+    }
+
+    private static TChild? FindFirst<TChild>(DependencyObject root) where TChild : DependencyObject
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+        {
+            if (child is TChild found) return found;
+            if (FindFirst<TChild>(child) is { } deeper) return deeper;
+        }
+        return null;
+    }
+
     public static Card Card(object content, string? title = null, string? glyph = null, string? glyphBrush = null,
         object? headerRight = null, Thickness? bodyPadding = null)
     {

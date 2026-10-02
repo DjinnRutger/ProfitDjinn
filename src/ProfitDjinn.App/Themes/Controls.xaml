@@ -787,6 +787,31 @@
             <Trigger Property="Accent" Value="leftwarning">
               <Setter TargetName="LeftBar" Property="Visibility" Value="Visible" />
             </Trigger>
+            <Trigger Property="Accent" Value="left-success">
+              <Setter TargetName="LeftBar" Property="Visibility" Value="Visible" />
+              <Setter TargetName="LeftBar" Property="Width" Value="4" />
+              <Setter TargetName="LeftBar" Property="Background" Value="{DynamicResource Success}" />
+            </Trigger>
+            <Trigger Property="Accent" Value="left-primary">
+              <Setter TargetName="LeftBar" Property="Visibility" Value="Visible" />
+              <Setter TargetName="LeftBar" Property="Width" Value="4" />
+              <Setter TargetName="LeftBar" Property="Background" Value="{DynamicResource BsPrimary}" />
+            </Trigger>
+            <Trigger Property="Accent" Value="left-warning">
+              <Setter TargetName="LeftBar" Property="Visibility" Value="Visible" />
+              <Setter TargetName="LeftBar" Property="Width" Value="4" />
+              <Setter TargetName="LeftBar" Property="Background" Value="{DynamicResource Warning}" />
+            </Trigger>
+            <Trigger Property="Accent" Value="left-info">
+              <Setter TargetName="LeftBar" Property="Visibility" Value="Visible" />
+              <Setter TargetName="LeftBar" Property="Width" Value="4" />
+              <Setter TargetName="LeftBar" Property="Background" Value="{DynamicResource Info}" />
+            </Trigger>
+            <Trigger Property="Accent" Value="left-danger">
+              <Setter TargetName="LeftBar" Property="Visibility" Value="Visible" />
+              <Setter TargetName="LeftBar" Property="Width" Value="4" />
+              <Setter TargetName="LeftBar" Property="Background" Value="{DynamicResource Danger}" />
+            </Trigger>
             <Trigger Property="Accent" Value="bottom">
               <Setter TargetName="BottomBar" Property="Visibility" Value="Visible" />
             </Trigger>

@@ -31,9 +31,10 @@ public static class Routes
     /// <summary>The customer's work order tab (created on first visit, as in 1.x).</summary>
     public static Func<AppPage> WorkOrder(MainWindow s, long customerId) => () => new WorkOrderPage(s, customerId);
 
-    public static Func<AppPage> Revenue(MainWindow s, int? year = null, bool all = false) => () => new PlaceholderPage(s, "revenue");
+    public static Func<AppPage> Revenue(MainWindow s, int? year = null, bool all = false) => () => new RevenuePage(s, year, all);
     /// <summary>Settings, scrolled to a category (e.g. "workorders").</summary>
-    public static Func<AppPage> Settings(MainWindow s, string? category = null) => () => new PlaceholderPage(s, "settings");
+    public static Func<AppPage> Settings(MainWindow s, string? category = null) => () => new SettingsPage(s, category);
+    public static Func<AppPage> Backup(MainWindow s) => () => new BackupPage(s);
 
     /// <summary>
     /// A sidebar key, or "name:id" for one record (customer:3, invoice:7, workorder:3 by customer,
@@ -69,7 +70,9 @@ public static class Routes
         "workorders" => WorkOrders(s),
         "revenue" => Revenue(s),
         "items" => Items(s),
+        "settings" => Settings(s),
+        "backup" => Backup(s),
         "gallery" => Gallery(s),
-        _ => () => new PlaceholderPage(s, key),
+        _ => Dashboard(s),
     };
 }
