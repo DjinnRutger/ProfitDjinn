@@ -202,4 +202,74 @@ public class ExpenseTests
         Assert.Equal(50, sum.OverdueTotal);
         Assert.False(s.Expenses.Enabled);
     }
+
+    // ------------------------------------------------------------------ receipts
+
+    private static string TempFile(string name, int bytes = 64)
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "profitdjinn-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        string path = Path.Combine(dir, name);
+        File.WriteAllBytes(path, Enumerable.Repeat((byte)7, bytes).ToArray());
+        return path;
+    }
+
+    [Fact]
+    public void Receipts_are_copied_into_the_data_folder_by_year_and_open_from_there()
+    {
+        var s = Fixture.FreshStore(Today);
+        long id = s.Expenses.Create(Draft(s)).Id;
+        string pdf = TempFile("Office Depot #12.pdf");
+        s.Expenses.AddReceipts(id, new[] { pdf, TempFile("Office Depot #12.pdf") });
+
+        var r = s.Expenses.Get(id).Receipts;
+        Assert.Equal(2, r.Count);
+        Assert.Equal(Path.Combine("2026", "E1-Office Depot #12.pdf"), r[0].RelPath);
+        Assert.Equal(Path.Combine("2026", "E1-Office Depot #12-2.pdf"), r[1].RelPath);
+        Assert.Equal(s.Paths.ReceiptsFolder, r[0].Folder);
+        Assert.Equal(64, r[0].SizeBytes);
+        string opened = s.Expenses.ReceiptPath(r[0].Id);
+        Assert.StartsWith(s.Paths.ReceiptsFolder, opened);
+        Assert.True(File.Exists(pdf));                          // the original is left where it was
+
+        Assert.Contains("Nothing was attached", Assert.Throws<UserFacingException>(() =>
+            s.Expenses.AddReceipts(id, new[] { TempFile("ok.png"), TempFile("notes.docx") })).Message);
+        Assert.Throws<UserFacingException>(() => s.Expenses.AddReceipts(id, new[] { TempFile("empty.jpg", 0) }));
+        Assert.Equal(2, s.Expenses.ReceiptCount());
+
+        s.Expenses.RemoveReceipt(r[1].Id);
+        Assert.False(File.Exists(Path.Combine(s.Paths.ReceiptsFolder, r[1].RelPath)));
+        Assert.Equal("Expense 'Printer paper' and 1 receipt deleted.", s.Expenses.Delete(id).Message);
+        Assert.False(File.Exists(opened));
+    }
+
+    [Fact]
+    public void Changing_the_folder_without_moving_keeps_old_receipts_openable_and_moving_updates_files_and_rows()
+    {
+        var s = Fixture.FreshStore(Today);
+        long id = s.Expenses.Create(Draft(s)).Id;
+        s.Expenses.AddReceipts(id, new[] { TempFile("a.jpg") });
+        var oldR = s.Expenses.Get(id).Receipts.Single();
+
+        string cloud = Path.Combine(Path.GetTempPath(), "profitdjinn-tests", Guid.NewGuid().ToString("N"), "Receipts");
+        Assert.Null(ReceiptStore.ValidateFolder(cloud));
+        s.Settings.Set(SettingKeys.ReceiptsFolder, cloud);      // "Leave them"
+        Assert.Equal(cloud, s.Receipts.CurrentFolder);
+        Assert.StartsWith(s.Paths.ReceiptsFolder, s.Expenses.ReceiptPath(oldR.Id));
+
+        s.Expenses.AddReceipts(id, new[] { TempFile("b.png") });
+        Assert.Equal(cloud, s.Expenses.Get(id).Receipts[1].Folder);
+
+        var result = s.Expenses.MoveReceipts(cloud);            // "Move them"
+        Assert.Equal(2, result.Moved);
+        Assert.Equal(0, result.Missing);
+        Assert.Empty(result.Failed);
+        Assert.All(s.Expenses.Get(id).Receipts, r => Assert.Equal(cloud, r.Folder));
+        Assert.StartsWith(cloud, s.Expenses.ReceiptPath(oldR.Id));
+        Assert.False(File.Exists(Path.Combine(s.Paths.ReceiptsFolder, oldR.RelPath)));
+
+        File.Delete(s.Expenses.ReceiptPath(oldR.Id));           // gone outside the app
+        Assert.Contains("was not found", Assert.Throws<UserFacingException>(() => s.Expenses.ReceiptPath(oldR.Id)).Message);
+        Assert.Equal(1, s.Expenses.MoveReceipts(s.Paths.ReceiptsFolder).Missing);
+    }
 }

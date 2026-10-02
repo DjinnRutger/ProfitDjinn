@@ -24,6 +24,7 @@ public sealed class Store
     public VendorService Vendors { get; }
     public ExpenseCategoryService Categories { get; }
     public ExpenseService Expenses { get; }
+    public ReceiptStore Receipts { get; }
 
     /// <param name="today">The clock. Tests pass a fixed date; the app passes the local date.</param>
     /// <param name="appVersion">The running version. Tests pass one to simulate an upgrade.</param>
@@ -52,6 +53,7 @@ public sealed class Store
         BackupReminder = new BackupReminder(Settings, today);
         Vendors = new VendorService(Database);
         Categories = new ExpenseCategoryService(Database);
-        Expenses = new ExpenseService(Database, Settings, today);
+        Receipts = new ReceiptStore(Settings, paths);
+        Expenses = new ExpenseService(Database, Settings, Receipts, today);
     }
 }

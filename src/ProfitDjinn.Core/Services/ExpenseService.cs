@@ -36,11 +36,13 @@ public sealed class ExpenseService
     private readonly Database _db;
     private readonly SettingsService _settings;
     private readonly Func<DateOnly> _today;
+    private readonly ReceiptStore _receipts;
 
-    public ExpenseService(Database db, SettingsService settings, Func<DateOnly> today)
+    public ExpenseService(Database db, SettingsService settings, ReceiptStore receipts, Func<DateOnly> today)
     {
         _db = db;
         _settings = settings;
+        _receipts = receipts;
         _today = today;
     }
 
@@ -123,15 +125,82 @@ public sealed class ExpenseService
         return Notice.Success($"Expense '{e.Description}' updated.");
     });
 
-    /// <summary>Deletes the expense with its payments and receipt records.</summary>
-    public Notice Delete(long id) => _db.InTransaction((db, tx) =>
+    /// <summary>
+    /// Deletes the expense with its payments and receipts. The receipt files are ProfitDjinn's
+    /// own copies, so they go too, once the database change has been saved.
+    /// </summary>
+    public Notice Delete(long id)
     {
-        string desc = db.ExecuteScalar<string?>("SELECT description FROM expenses WHERE id = @id", new { id }, tx) ?? throw NotFound();
-        db.Execute("DELETE FROM expense_payments WHERE expense_id = @id", new { id }, tx);
-        db.Execute("DELETE FROM expense_receipts WHERE expense_id = @id", new { id }, tx);
-        db.Execute("DELETE FROM expenses WHERE id = @id", new { id }, tx);
-        return Notice.Warning($"Expense '{desc}' deleted.");
-    });
+        var (desc, receipts) = _db.InTransaction((db, tx) =>
+        {
+            string d = db.ExecuteScalar<string?>("SELECT description FROM expenses WHERE id = @id", new { id }, tx) ?? throw NotFound();
+            var r = db.Query<ExpenseReceipt>("SELECT * FROM expense_receipts WHERE expense_id = @id", new { id }, tx).ToList();
+            db.Execute("DELETE FROM expense_payments WHERE expense_id = @id", new { id }, tx);
+            db.Execute("DELETE FROM expense_receipts WHERE expense_id = @id", new { id }, tx);
+            db.Execute("DELETE FROM expenses WHERE id = @id", new { id }, tx);
+            return (d, r);
+        });
+        foreach (var r in receipts) _receipts.TryDelete(r);
+        return Notice.Warning(receipts.Count == 0
+            ? $"Expense '{desc}' deleted."
+            : $"Expense '{desc}' and {receipts.Count} {Fmt.Plural(receipts.Count, "receipt")} deleted.");
+    }
+
+    // ------------------------------------------------------------------ receipts
+
+    /// <summary>Copies the files into the receipts folder and attaches them. All are checked before any is copied.</summary>
+    public Notice AddReceipts(long expenseId, IReadOnlyList<string> files)
+    {
+        if (files.Count == 0) throw new UserFacingException("Choose at least one file.");
+        var problems = files.Select(ReceiptStore.Check).Where(p => p is not null).ToList();
+        if (problems.Count > 0) throw new UserFacingException(string.Join("\n", problems) + "\n\nNothing was attached.");
+        var e = Get(expenseId);
+        var saved = new List<SavedReceipt>();
+        try
+        {
+            foreach (string f in files) saved.Add(_receipts.Save(expenseId, f, e.Date));
+            _db.InTransaction((db, tx) =>
+            {
+                foreach (var r in saved)
+                    db.Execute("""
+                        INSERT INTO expense_receipts (expense_id, file_name, rel_path, folder, size_bytes, created_at)
+                        VALUES (@expenseId, @FileName, @RelPath, @Folder, @SizeBytes, @now)
+                        """, new { expenseId, r.FileName, r.RelPath, r.Folder, r.SizeBytes, now = SqlFormat.NowUtc() }, tx);
+            });
+        }
+        catch
+        {
+            foreach (var r in saved) _receipts.TryDelete(new ExpenseReceipt { RelPath = r.RelPath, Folder = r.Folder });
+            throw;
+        }
+        return Notice.Success(saved.Count == 1 ? $"Receipt '{saved[0].FileName}' attached." : $"{saved.Count} receipts attached.");
+    }
+
+    public Notice RemoveReceipt(long receiptId)
+    {
+        var r = Receipt(receiptId);
+        _db.Run(db => db.Execute("DELETE FROM expense_receipts WHERE id = @receiptId", new { receiptId }));
+        _receipts.TryDelete(r);
+        return Notice.Warning($"Receipt '{r.FileName}' removed.");
+    }
+
+    /// <summary>The file to open. Throws a message saying where it looked when the file is gone.</summary>
+    public string ReceiptPath(long receiptId) => _receipts.PathFor(Receipt(receiptId));
+
+    public int ReceiptCount() => _db.Run(db => db.ExecuteScalar<int>("SELECT COUNT(*) FROM expense_receipts"));
+
+    /// <summary>Moves every receipt file into <paramref name="newFolder"/>, updating each row as its file moves.</summary>
+    public MoveResult MoveReceipts(string newFolder)
+    {
+        string target = Path.GetFullPath(newFolder);
+        var all = _db.Run(db => db.Query<ExpenseReceipt>("SELECT * FROM expense_receipts ORDER BY id").ToList());
+        return _receipts.MoveAll(all, target, r =>
+            _db.Run(db => db.Execute("UPDATE expense_receipts SET folder = @target WHERE id = @Id", new { target, r.Id })));
+    }
+
+    private ExpenseReceipt Receipt(long receiptId) =>
+        _db.Run(db => db.QuerySingleOrDefault<ExpenseReceipt>("SELECT * FROM expense_receipts WHERE id = @receiptId", new { receiptId }))
+        ?? throw new UserFacingException("That receipt is no longer attached. It may have been removed.");
 
     // ------------------------------------------------------------------ payments
 
