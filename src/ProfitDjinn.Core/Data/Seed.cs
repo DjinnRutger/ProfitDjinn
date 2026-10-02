@@ -95,6 +95,10 @@ internal static class Seed
         new(SettingKeys.BackupReminderLast, "", "text", "When the reminder countdown last restarted (auto-managed)", "backup", null),
         new(SettingKeys.ExpensesEnabled, "false", "boolean", "Track vendors, expenses and recurring costs", "expenses", null),
         new(SettingKeys.ReceiptsFolder, "", "text", "Folder for receipt files (empty = the data folder's receipts folder)", "expenses", null),
+        new(SettingKeys.UpdateCheckEnabled, "true", "boolean", "Check GitHub once a day for a newer version", "updates", null),
+        new(SettingKeys.UpdateLastCheck, "", "text", "Date of the last update check (auto-managed)", "updates", null),
+        new(SettingKeys.UpdateLatestVersion, "", "text", "Latest version found on GitHub (auto-managed)", "updates", null),
+        new(SettingKeys.UpdateLatestUrl, "", "text", "Release page of the latest version (auto-managed)", "updates", null),
         new(SettingKeys.DatabaseAppVersion, "", "text", "App version that last opened this database (auto-managed)", "backup", null),
     };
 
