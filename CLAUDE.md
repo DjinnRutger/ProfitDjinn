@@ -94,6 +94,10 @@ Tools (`tools/Smoke/`), all on throwaway data folders:
 - Shadows sit on a separate layer behind cards so the card text keeps ClearType.
 - A page whose constructor throws `UserFacingException` (nothing to bill, deleted record)
   is not added to history; the shell shows the message instead.
+- `Store` saves an upgrade backup (`Services/UpgradeBackup.cs`) before `Schema.Ensure` whenever
+  `db_app_version` differs from the running version. Keep it ahead of every write. A new column
+  still needs its own guarded `ALTER TABLE` in `Schema.RunMigrations`; `create table if not
+  exists` will not add it.
 - Uploaded logo and sidebar icon live in `%LOCALAPPDATA%\ProfitDjinn\branding\`. A
   non-empty `login_logo` / `app_icon_img` setting with no file shows the built-in genie.
 

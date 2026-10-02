@@ -48,5 +48,8 @@ public sealed class AppPaths
     /// <summary>Per-user window state (sidebar collapsed, window size). Not in the database.</summary>
     public string UiStatePath => Path.Combine(DataFolder, "ui.json");
 
+    /// <summary>Copies saved automatically before a new version upgrades the database.</summary>
+    public string UpgradeBackupFolder => Path.Combine(DataFolder, "backups");
+
     public void EnsureExists() => Directory.CreateDirectory(DataFolder);
 }

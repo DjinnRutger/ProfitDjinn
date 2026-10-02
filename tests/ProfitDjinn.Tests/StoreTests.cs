@@ -86,6 +86,52 @@ public class StoreTests
     }
 
     [Fact]
+    public void A_new_version_saves_a_copy_before_upgrading_and_keeps_the_newest_five()
+    {
+        string[] Copies(AppPaths p) => Directory.Exists(p.UpgradeBackupFolder)
+            ? Directory.GetFiles(p.UpgradeBackupFolder, "pre-upgrade_*.db").Select(Path.GetFileName).OrderBy(f => f, StringComparer.Ordinal).ToArray()!
+            : Array.Empty<string>();
+
+        // Brand-new install: nothing to save.
+        var fresh = Fixture.TempPaths();
+        _ = new Store(fresh, appVersion: "2.1.0");
+        Assert.Empty(Copies(fresh));
+        _ = new Store(fresh, appVersion: "2.1.0");             // same version again: still nothing
+        Assert.Empty(Copies(fresh));
+
+        // A 1.x database has never recorded a version: it is copied, untouched, before the upgrade.
+        var paths = Fixture.CopyOf("parity.db");
+        var store = new Store(paths, appVersion: "2.1.0");
+        var first = Assert.Single(Copies(paths));
+        Assert.Contains("_from-older_to-2.1.0.db", first);
+        Assert.Equal("2.1.0", store.Settings.Get(SettingKeys.DatabaseAppVersion));
+        long InvoiceCount(string file)
+        {
+            using var c = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={file};Mode=ReadOnly;Pooling=False");
+            c.Open();
+            return c.ExecuteScalar<long>("SELECT COUNT(*) FROM invoices");
+        }
+        string firstPath = Path.Combine(paths.UpgradeBackupFolder, first);
+        Assert.Equal(InvoiceCount(Fixture.PathOf("parity.db")), InvoiceCount(firstPath));
+        using (var c = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={firstPath};Mode=ReadOnly;Pooling=False"))
+        {
+            c.Open();                                           // taken before the upgrade: none of the 2.x settings rows yet
+            Assert.Equal(0L, c.ExecuteScalar<long>("SELECT COUNT(*) FROM settings WHERE \"key\" IN ('db_app_version', 'backup_reminder_enabled')"));
+        }
+
+        _ = new Store(paths, appVersion: "2.1.0");             // reopening the same version saves nothing
+        Assert.Single(Copies(paths));
+
+        var at = DateTime.Now.AddMinutes(1);                    // six more upgrades: only the newest five stay
+        for (int i = 2; i <= 7; i++)
+            Assert.NotNull(UpgradeBackup.SaveIfVersionChanged(store.Database, paths, $"2.{i}.0", at.AddMinutes(i)));
+        var kept = Copies(paths);
+        Assert.Equal(UpgradeBackup.Keep, kept.Length);
+        Assert.Contains("_from-2.1.0_to-2.7.0.db", kept[^1]);
+        Assert.DoesNotContain(kept, f => f.Contains("from-older"));
+    }
+
+    [Fact]
     public void Invoice_numbers_are_highest_plus_one_by_value()
     {
         Assert.Equal("JQ1000", Numbering.Next("JQ", new[] { "JQ998", "JQ999", "XX5000" }, "1001"));

@@ -307,6 +307,12 @@ work lines went back to the tab.
   is at least the interval. A missing or unreadable `last` starts the countdown instead of
   asking. Either answer to the popup, or any saved backup, sets `last` to today. Shown once
   per start, after unlock when there is an app password.
+- New in 2.1: the upgrade backup, `Services/UpgradeBackup.cs`, run by `Store` before
+  `Schema.Ensure`. `db_app_version` records the version that last opened the file; when it
+  differs from the running version (blank counts, so 1.x and 2.0 files qualify), the file is
+  copied to `backups\pre-upgrade_<yyyyMMdd_HHmmss>_from-<old|older>_to-<new>.db` first. A
+  new, empty file is not copied. The newest five are kept. If the copy fails, the app stops
+  with a message and the database is not touched.
 - Analyze a chosen file:
   - It must start with `SQLite format 3`.
   - List tables both sides; missing and extra tables; missing columns per shared table;

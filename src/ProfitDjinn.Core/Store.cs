@@ -23,16 +23,21 @@ public sealed class Store
     public BackupReminder BackupReminder { get; }
 
     /// <param name="today">The clock. Tests pass a fixed date; the app passes the local date.</param>
-    public Store(AppPaths paths, Func<DateOnly>? today = null)
+    /// <param name="appVersion">The running version. Tests pass one to simulate an upgrade.</param>
+    public Store(AppPaths paths, Func<DateOnly>? today = null, string? appVersion = null)
     {
         DapperSetup.Ensure();
         today ??= () => DateOnly.FromDateTime(DateTime.Now);
         Paths = paths;
         paths.EnsureExists();
         Database = new Database(paths.DatabasePath);
+        appVersion ??= AppInfo.Version;
+        // Before anything writes to an existing file: a new version keeps a copy of it first.
+        UpgradeBackup.SaveIfVersionChanged(Database, paths, appVersion, DateTime.Now);
         Schema.Ensure(Database);
 
         Settings = new SettingsService(Database);
+        Settings.Set(SettingKeys.DatabaseAppVersion, appVersion);
         Customers = new CustomerService(Database);
         Invoices = new InvoiceService(Database, Settings, today);
         Items = new ItemService(Database);

@@ -93,6 +93,7 @@ internal static class Seed
         new(SettingKeys.BackupReminderEnabled, "true", "boolean", "Remind me at start to back up my data", "backup", null),
         new(SettingKeys.BackupReminderDays, "7", "number", "Days between backup reminders", "backup", null),
         new(SettingKeys.BackupReminderLast, "", "text", "When the reminder countdown last restarted (auto-managed)", "backup", null),
+        new(SettingKeys.DatabaseAppVersion, "", "text", "App version that last opened this database (auto-managed)", "backup", null),
     };
 
     internal static void FirstRun(SqliteConnection db, SqliteTransaction tx)

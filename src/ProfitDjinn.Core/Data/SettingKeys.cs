@@ -41,4 +41,8 @@ public static class SettingKeys
     public const string BackupReminderEnabled = "backup_reminder_enabled";
     public const string BackupReminderDays = "backup_reminder_days";
     public const string BackupReminderLast = "backup_reminder_last";
+
+    /// <summary>2.1. The app version that last opened this database. A different version
+    /// saves an upgrade backup before touching the file.</summary>
+    public const string DatabaseAppVersion = "db_app_version";
 }
