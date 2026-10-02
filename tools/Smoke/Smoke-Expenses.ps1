@@ -111,6 +111,9 @@ $madeNotice = "3 recurring expenses added: " + (($dates | ForEach-Object { "Smok
 try {
   Write-Host "Smoke test on $DataDir"
   Step "Expenses starts off" {
+    # Wait for the page first, so "no Vendors button" means hidden, not "not drawn yet".
+    Wait-For "Save All Settings" -type $CT::Button | Out-Null
+    Start-Sleep -Milliseconds 500
     if ((Find-All "Vendors" $CT::Button).Count -ne 0) { throw "Vendors is in the sidebar before Expenses is turned on." }
   }
   Step "turn Expenses on" {

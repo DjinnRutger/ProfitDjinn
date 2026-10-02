@@ -85,6 +85,9 @@ function Save-Screenshot([string] $path) {
 try {
   Write-Host "Smoke test on $DataDir"
   Step "create a customer" {
+    # The window can exist before the form is in it; typing then lands nowhere. Wait for it.
+    Wait-For "Save Customer" -type ([System.Windows.Automation.ControlType]::Button) | Out-Null
+    Start-Sleep -Milliseconds 500
     Type-Into "Company / Name" "Smoke Test Co"
     Type-Into "Email" "billing@smoke.example"
     Click "Save Customer"
