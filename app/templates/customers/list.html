@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Customers — {{ get_setting('app_name', 'ProfitDjinn') }}{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb mb-0">
+  <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+  <li class="breadcrumb-item active">Customers</li>
+</ol>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <h1>Customers</h1>
+    <p class="lead">{{ customers|length }} customer{% if customers|length != 1 %}s{% endif %}{% if search %} matching "{{ search }}"{% endif %}</p>
+  </div>
+  {% if current_user.has_permission('customers.create') %}
+  <a href="{{ url_for('customers.create') }}" class="btn btn-primary">
+    <i class="bi bi-plus-lg me-1"></i>New Customer
+  </a>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+
+{# Search + filters #}
+<div class="card mb-4">
+  <div class="card-body py-3">
+    <form method="get" class="d-flex gap-2 flex-wrap align-items-center">
+      <div class="input-group" style="max-width:360px">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="text" name="q" value="{{ search }}" class="form-control"
+               placeholder="Search by name…" autocomplete="off">
+        {% if search %}
+        <a href="{{ url_for('customers.list_customers') }}" class="btn btn-outline-secondary">
+          <i class="bi bi-x-lg"></i>
+        </a>
+        {% endif %}
+      </div>
+      <div class="form-check ms-2 mb-0">
+        <input class="form-check-input" type="checkbox" id="inactive-toggle" name="inactive"
+               value="1" {% if show_inactive %}checked{% endif %}
+               onchange="this.form.submit()">
+        <label class="form-check-label" for="inactive-toggle">Show inactive</label>
+      </div>
+      <button type="submit" class="btn btn-secondary btn-sm">Search</button>
+    </form>
+  </div>
+</div>
+
+{# Customer table #}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Contact</th>
+          <th>Phone</th>
+          <th>Email</th>
+          <th class="text-end">Outstanding</th>
+          <th class="text-center">Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in customers %}
+        <tr>
+          <td>
+            <a href="{{ url_for('customers.detail', customer_id=c.id) }}" class="fw-semibold text-decoration-none">
+              {{ c.name }}
+            </a>
+            {% if c.attn %}
+            <div class="text-muted" style="font-size:.8rem">{{ c.attn }}</div>
+            {% endif %}
+          </td>
+          <td class="text-muted" style="font-size:.85rem">
+            {% if c.city %}{{ c.city }}{% if c.state %}, {{ c.state }}{% endif %}{% else %}—{% endif %}
+          </td>
+          <td style="font-size:.85rem">{{ c.phone or '—' }}</td>
+          <td style="font-size:.85rem">
+            {% if c.email %}
+            <a href="mailto:{{ c.email }}">{{ c.email }}</a>
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-end">
+            {% set outstanding = c.total_outstanding %}
+            {% if outstanding > 0 %}
+            <span class="text-danger fw-semibold">${{ "%.2f"|format(outstanding) }}</span>
+            {% else %}
+            <span class="text-muted">$0.00</span>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            {% if c.is_active %}
+            <span class="badge bg-success bg-opacity-75">Active</span>
+            {% else %}
+            <span class="badge bg-secondary">Inactive</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <div class="d-flex gap-1 justify-content-end">
+              <a href="{{ url_for('customers.detail', customer_id=c.id) }}"
+                 class="btn btn-sm btn-outline-secondary" title="View">
+                <i class="bi bi-eye"></i>
+              </a>
+              {% if current_user.has_permission('customers.edit') %}
+              <a href="{{ url_for('customers.edit', customer_id=c.id) }}"
+                 class="btn btn-sm btn-outline-primary" title="Edit">
+                <i class="bi bi-pencil"></i>
+              </a>
+              {% endif %}
+              {% if current_user.has_permission('invoices.create') %}
+              <a href="{{ url_for('invoices.create', customer_id=c.id) }}"
+                 class="btn btn-sm btn-outline-success" title="New Invoice">
+                <i class="bi bi-receipt"></i>
+              </a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="empty-state">
+            <i class="bi bi-people"></i>
+            No customers found.
+            {% if current_user.has_permission('customers.create') %}
+            <a href="{{ url_for('customers.create') }}">Add one now.</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

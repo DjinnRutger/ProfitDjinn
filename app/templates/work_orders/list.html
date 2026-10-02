@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}Work Orders — {{ get_setting('app_name', 'ProfitDjinn') }}{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb mb-0">
+  <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+  <li class="breadcrumb-item active">Work Orders</li>
+</ol>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <h1>Open Work</h1>
+    <p class="lead">
+      {% if work_orders %}
+        {{ work_orders|length }} customer{% if work_orders|length != 1 %}s{% endif %} with activity
+        {% if grand_ready > 0 %}
+        &nbsp;·&nbsp;<span class="text-success fw-semibold">${{ "%.2f"|format(grand_ready) }} ready to bill</span>
+        {% endif %}
+        {% if grand_pending > 0 %}
+        &nbsp;·&nbsp;<span class="text-muted">{{ grand_pending }} to-do{% if grand_pending != 1 %}s{% endif %}</span>
+        {% endif %}
+      {% else %}
+        Nothing waiting to be billed.
+      {% endif %}
+    </p>
+  </div>
+  {% if current_user.has_permission('customers.view') %}
+  <a href="{{ url_for('customers.list_customers') }}" class="btn btn-outline-secondary">
+    <i class="bi bi-building me-1"></i>Customers
+  </a>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+
+{# Filters + search #}
+<div class="card mb-4">
+  <div class="card-body py-3">
+    <div class="d-flex flex-wrap gap-3 align-items-center">
+
+      <div class="btn-group btn-group-sm" role="group" aria-label="Filter">
+        <a href="{{ url_for('work_orders.index', q=q, show='open') }}"
+           class="btn btn-outline-warning {% if show != 'all' %}active{% endif %}">
+          <i class="bi bi-clipboard-check me-1"></i>Open Work
+        </a>
+        <a href="{{ url_for('work_orders.index', q=q, show='all') }}"
+           class="btn btn-outline-secondary {% if show == 'all' %}active{% endif %}">
+          All Tabs
+        </a>
+      </div>
+
+      <form method="get" class="d-flex gap-2">
+        <input type="hidden" name="show" value="{{ show }}">
+        <div class="input-group input-group-sm" style="min-width:280px">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="text" name="q" value="{{ q }}" class="form-control"
+                 placeholder="Search customer, project or work…" autocomplete="off">
+          {% if q %}
+          <a href="{{ url_for('work_orders.index', show=show) }}" class="btn btn-outline-secondary">
+            <i class="bi bi-x-lg"></i>
+          </a>
+          {% endif %}
+        </div>
+        <button type="submit" class="btn btn-secondary btn-sm">Search</button>
+      </form>
+
+    </div>
+  </div>
+</div>
+
+{% for wo in work_orders %}
+{% set ready = wo.ready_to_bill_total %}
+<div class="card mb-3">
+  <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <a class="d-flex align-items-center gap-2 text-decoration-none flex-grow-1"
+       data-bs-toggle="collapse" href="#wo-{{ wo.id }}" role="button"
+       aria-expanded="true" aria-controls="wo-{{ wo.id }}">
+      <i class="bi bi-chevron-down text-muted"></i>
+      <span class="fw-semibold">{{ wo.customer.name }}</span>
+      <span class="text-muted font-monospace" style="font-size:.78rem">{{ wo.number }}</span>
+    </a>
+    <div class="d-flex align-items-center gap-2">
+      {% if ready > 0 %}
+      <span class="badge bg-warning text-dark">${{ "%.2f"|format(ready) }} ready</span>
+      {% endif %}
+      {% if wo.pending_count %}
+      <span class="badge bg-secondary">{{ wo.pending_count }} to-do{% if wo.pending_count != 1 %}s{% endif %}</span>
+      {% endif %}
+      <a href="{{ url_for('work_orders.detail', customer_id=wo.customer_id) }}"
+         class="btn btn-sm btn-outline-secondary" title="Open tab">
+        <i class="bi bi-box-arrow-up-right"></i>
+      </a>
+      {% if ready > 0 and current_user.has_permission('invoices.create') %}
+      <a href="{{ url_for('work_orders.bill', wo_id=wo.id) }}" class="btn btn-sm btn-success">
+        <i class="bi bi-receipt me-1"></i>Bill ${{ "%.2f"|format(ready) }}
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="collapse show" id="wo-{{ wo.id }}">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:130px">Project</th>
+            <th>Description</th>
+            <th style="width:110px">Date</th>
+            <th style="width:110px" class="text-end">Qty</th>
+            <th style="width:110px" class="text-end">Amount</th>
+            <th style="width:120px" class="text-center">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in wo.completed_lines + wo.pending_lines %}
+          <tr>
+            <td>
+              {% if line.project_label %}
+              <span class="badge bg-secondary bg-opacity-50">{{ line.project_label }}</span>
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {{ line.description }}
+              {% if line.internal_note %}
+              <i class="bi bi-sticky text-warning ms-1" title="{{ line.internal_note }}"></i>
+              {% endif %}
+            </td>
+            <td class="text-muted" style="font-size:.85rem">
+              {% if line.date_performed %}{{ line.date_performed.strftime('%b %d, %Y') }}
+              {% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-end text-muted" style="font-size:.85rem">
+              {% if line.status == 'completed' %}{{ line.quantity_label }}{% else %}—{% endif %}
+            </td>
+            <td class="text-end fw-semibold">
+              {% if line.status != 'completed' %}<span class="text-muted">—</span>
+              {% elif line.no_charge %}<span class="text-muted">$0.00</span>
+              {% else %}${{ "%.2f"|format(line.amount) }}{% endif %}
+            </td>
+            <td class="text-center">
+              <span class="badge bg-{{ line.status_badge_class }} bg-opacity-85">{{ line.status_label }}</span>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="empty-state">
+              <i class="bi bi-check2-circle"></i>
+              Nothing open on this tab.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <i class="bi bi-clipboard-check"></i>
+    {% if q %}
+      No work orders match “{{ q }}”.
+    {% else %}
+      No open work. Open a customer and start logging work so it doesn't get forgotten.
+    {% endif %}
+    {% if current_user.has_permission('customers.view') %}
+    <div class="mt-2">
+      <a href="{{ url_for('customers.list_customers') }}">Browse customers</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+{% endblock %}

@@ -1,0 +1,482 @@
+{% extends "base.html" %}
+{% block title %}Revenue — {{ get_setting('app_name', 'ProfitDjinn') }}{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb mb-0">
+  <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+  <li class="breadcrumb-item active">Revenue</li>
+</ol>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-graph-up-arrow me-2 text-success"></i>Revenue</h1>
+    <p class="lead mb-0">
+      {% if selected_year == "all" %}All-time revenue overview
+      {% else %}{{ selected_year }} fiscal year overview{% endif %}
+    </p>
+  </div>
+
+  {# ── Year selector ── #}
+  <div class="d-flex flex-wrap gap-1 align-items-center">
+    <a href="{{ url_for('main.revenue', year='all') }}"
+       class="btn btn-sm {% if selected_year == 'all' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+      All Years
+    </a>
+    {% for yr in invoice_years %}
+    <a href="{{ url_for('main.revenue', year=yr) }}"
+       class="btn btn-sm {% if selected_year == yr|string %}btn-primary{% elif yr == current_year %}btn-outline-primary{% else %}btn-outline-secondary{% endif %}">
+      {{ yr }}{% if yr == current_year %} <span class="badge bg-white text-primary ms-1" style="font-size:.65rem">YTD</span>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+
+{# ── Summary stat cards ── #}
+<div class="row g-3 mb-4">
+
+  <div class="col-6 col-xl-3">
+    <div class="stat-card" style="border-left:4px solid var(--bs-success)">
+      <div class="d-flex align-items-start justify-content-between">
+        <div>
+          <div class="stat-value text-success">${{ "%.2f"|format(total_revenue) }}</div>
+          <div class="stat-label">Revenue Collected</div>
+        </div>
+        <div class="stat-icon bg-success bg-opacity-10 text-success">
+          <i class="bi bi-cash-stack"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-xl-3">
+    <div class="stat-card" style="border-left:4px solid var(--bs-primary)">
+      <div class="d-flex align-items-start justify-content-between">
+        <div>
+          <div class="stat-value text-primary">{{ invoice_count }}</div>
+          <div class="stat-label">
+            Invoices
+            {% if paid_count > 0 %}
+            <span class="badge bg-success bg-opacity-75 ms-1">{{ paid_count }} paid</span>
+            {% endif %}
+            {% if partial_count > 0 %}
+            <span class="badge bg-info bg-opacity-75 ms-1">{{ partial_count }} partial</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="stat-icon bg-primary bg-opacity-10 text-primary">
+          <i class="bi bi-receipt"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if total_outstanding > 0 %}
+  <div class="col-6 col-xl-3">
+    <div class="stat-card" style="border-left:4px solid var(--bs-warning)">
+      <div class="d-flex align-items-start justify-content-between">
+        <div>
+          <div class="stat-value text-warning">${{ "%.2f"|format(total_outstanding) }}</div>
+          <div class="stat-label">Still Outstanding</div>
+        </div>
+        <div class="stat-icon bg-warning bg-opacity-10 text-warning">
+          <i class="bi bi-hourglass-split"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if avg_monthly is not none %}
+  <div class="col-6 col-xl-3">
+    <div class="stat-card" style="border-left:4px solid var(--bs-info)">
+      <div class="d-flex align-items-start justify-content-between">
+        <div>
+          <div class="stat-value text-info">${{ "%.2f"|format(avg_monthly) }}</div>
+          <div class="stat-label">Avg / Active Month</div>
+        </div>
+        <div class="stat-icon bg-info bg-opacity-10 text-info">
+          <i class="bi bi-calendar3"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if prev_year_revenue is not none %}
+  <div class="col-6 col-xl-3">
+    <div class="stat-card" style="border-left:4px solid {% if total_revenue >= prev_year_revenue %}var(--bs-success){% else %}var(--bs-danger){% endif %}">
+      <div class="d-flex align-items-start justify-content-between">
+        <div>
+          {% set diff = total_revenue - prev_year_revenue %}
+          <div class="stat-value {% if diff >= 0 %}text-success{% else %}text-danger{% endif %}">
+            {% if diff >= 0 %}+{% endif %}${{ "%.2f"|format(diff) }}
+          </div>
+          <div class="stat-label">
+            vs {{ (selected_year|int - 1) }}
+            {% if prev_year_revenue > 0 and ytd_pct %}
+            <span class="text-muted ms-1" style="font-size:.75rem">({{ ytd_pct }}%)</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="stat-icon {% if diff >= 0 %}bg-success bg-opacity-10 text-success{% else %}bg-danger bg-opacity-10 text-danger{% endif %}">
+          <i class="bi bi-{% if diff >= 0 %}arrow-up{% else %}arrow-down{% endif %}-circle"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+{# ── Charts row ── #}
+<div class="row g-4 mb-4">
+
+  {# Monthly / Yearly bar chart #}
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span>
+          <i class="bi bi-bar-chart-fill me-2 text-primary"></i>
+          {% if selected_year == "all" %}Revenue by Year{% else %}Monthly Revenue — {{ selected_year }}{% endif %}
+        </span>
+        <span class="text-muted" style="font-size:.8rem">collected</span>
+      </div>
+      <div class="card-body">
+        <canvas id="barChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  {# Customer donut chart #}
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header">
+        <i class="bi bi-pie-chart-fill me-2 text-primary"></i>Revenue by Customer
+      </div>
+      <div class="card-body d-flex flex-column align-items-center justify-content-center">
+        {% if customer_revenue %}
+        <canvas id="donutChart" style="max-height:400px"></canvas>
+        {% else %}
+        <div class="empty-state"><i class="bi bi-pie-chart"></i>No data for this period.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{# ── Tables row ── #}
+<div class="row g-4">
+
+  {# Monthly breakdown table (only for single-year view) #}
+  {% if selected_year != "all" %}
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-table me-2 text-primary"></i>Monthly Breakdown
+      </div>
+      <div class="table-responsive">
+        <table class="table mb-0" style="font-size:.9rem">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th class="text-center">Invoices</th>
+              <th class="text-end">Invoiced</th>
+              <th class="text-end">Collected</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set ns = namespace(has_data=false) %}
+            {% for m in range(1, 13) %}
+            {% if monthly_count[m] > 0 %}
+            {% set ns.has_data = true %}
+            <tr>
+              <td class="fw-semibold">{{ month_names[m-1] }}</td>
+              <td class="text-center text-muted">{{ monthly_count[m] }}</td>
+              <td class="text-end text-muted">${{ "%.2f"|format(monthly_invoiced[m]) }}</td>
+              <td class="text-end fw-semibold text-success">${{ "%.2f"|format(monthly_revenue[m]) }}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+            {% if not ns.has_data %}
+            <tr>
+              <td colspan="4" class="empty-state">
+                <i class="bi bi-calendar-x"></i>No invoices for this year.
+              </td>
+            </tr>
+            {% endif %}
+          </tbody>
+          {% if total_revenue > 0 %}
+          <tfoot>
+            <tr class="table-active">
+              <td class="fw-bold">Total</td>
+              <td class="text-center fw-bold">{{ invoice_count }}</td>
+              <td class="text-end fw-bold">${{ "%.2f"|format(total_invoiced) }}</td>
+              <td class="text-end fw-bold text-success">${{ "%.2f"|format(total_revenue) }}</td>
+            </tr>
+          </tfoot>
+          {% endif %}
+        </table>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  {# Year-by-year table for "All Years" view #}
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-table me-2 text-primary"></i>Year by Year
+      </div>
+      <div class="table-responsive">
+        <table class="table mb-0" style="font-size:.9rem">
+          <thead>
+            <tr>
+              <th>Year</th>
+              <th class="text-end">Collected</th>
+              <th class="text-end">Change</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set prev_total = namespace(val=0) %}
+            {% for yr in invoice_years|reverse %}
+            <tr {% if yr == current_year %}class="table-primary bg-opacity-25"{% endif %}>
+              <td class="fw-semibold">
+                <a href="{{ url_for('main.revenue', year=yr) }}" class="text-decoration-none">{{ yr }}</a>
+                {% if yr == current_year %}<span class="badge bg-primary ms-1" style="font-size:.65rem">YTD</span>{% endif %}
+              </td>
+              <td class="text-end fw-semibold text-success">${{ "%.2f"|format(yearly_totals[yr]) }}</td>
+              <td class="text-end">
+                {% if prev_total.val > 0 and yearly_totals[yr] > 0 %}
+                  {% set chg = yearly_totals[yr] - prev_total.val %}
+                  <span class="{% if chg >= 0 %}text-success{% else %}text-danger{% endif %}">
+                    {% if chg >= 0 %}+{% endif %}${{ "%.2f"|format(chg) }}
+                  </span>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% set prev_total.val = yearly_totals[yr] %}
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr class="table-active">
+              <td class="fw-bold">All Time</td>
+              <td class="text-end fw-bold text-success">${{ "%.2f"|format(total_revenue) }}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# Top Customers table #}
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-trophy me-2 text-warning"></i>Top Customers
+        <span class="text-muted ms-1" style="font-size:.8rem">by revenue collected</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table mb-0" style="font-size:.9rem">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Customer</th>
+              <th class="text-end">Collected</th>
+              <th class="text-end">Share</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if customer_revenue %}
+            {% for name, amt in customer_revenue %}
+            <tr>
+              <td class="text-muted">{{ loop.index }}</td>
+              <td class="fw-semibold">{{ name }}</td>
+              <td class="text-end text-success">${{ "%.2f"|format(amt) }}</td>
+              <td class="text-end text-muted">
+                {% if total_revenue > 0 %}
+                {{ "%.1f"|format((amt / total_revenue) * 100) }}%
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+            {% else %}
+            <tr>
+              <td colspan="4" class="empty-state">
+                <i class="bi bi-building-x"></i>No customer revenue data.
+              </td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ── Detect dark mode ──────────────────────────────────────────────────────
+  const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark'
+              || document.body.classList.contains('theme-dark');
+  const gridColor  = isDark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.07)';
+  const labelColor = isDark ? '#adb5bd' : '#6b7280';
+  const tooltipBg  = isDark ? '#1e2937' : '#fff';
+  const tooltipTxt = isDark ? '#f8f9fa' : '#111';
+
+  Chart.defaults.font.family = "'Helvetica Neue', Arial, sans-serif";
+  Chart.defaults.font.size = 12;
+
+  // ── Colour palette ────────────────────────────────────────────────────────
+  const NAVY   = 'rgba(28, 52, 88, 0.85)';
+  const NAVY_H = 'rgba(28, 52, 88, 1)';
+  const PALETTE = [
+    '#1c3458','#2563eb','#0891b2','#059669','#d97706',
+    '#dc2626','#7c3aed','#db2777','#65a30d','#0f766e',
+    '#9333ea','#f59e0b','#10b981','#3b82f6','#ef4444',
+  ];
+
+  // ── Bar chart data ────────────────────────────────────────────────────────
+  {% if selected_year == "all" %}
+  const barLabels = {{ invoice_years | reverse | list | tojson }};
+  const barData   = barLabels.map(yr => {
+    const map = {{ yearly_totals | tojson }};
+    return map[yr] || 0;
+  });
+  const barLabel  = 'Revenue by Year';
+  {% else %}
+  const barLabels = {{ month_names | tojson }};
+  const barData   = [
+    {% for m in range(1, 13) %}{{ monthly_revenue[m] }}{% if not loop.last %},{% endif %}{% endfor %}
+  ];
+  const barLabel  = 'Monthly Revenue ({{ selected_year }})';
+  {% endif %}
+
+  const barCtx = document.getElementById('barChart');
+  if (barCtx) {
+    new Chart(barCtx, {
+      type: 'bar',
+      data: {
+        labels: barLabels,
+        datasets: [{
+          label: barLabel,
+          data: barData,
+          backgroundColor: NAVY,
+          hoverBackgroundColor: NAVY_H,
+          borderRadius: 4,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        aspectRatio: 3.5,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: tooltipBg,
+            titleColor: tooltipTxt,
+            bodyColor: tooltipTxt,
+            borderColor: gridColor,
+            borderWidth: 1,
+            callbacks: {
+              label: ctx => ' $' + ctx.parsed.y.toFixed(2)
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: gridColor },
+            ticks: { color: labelColor }
+          },
+          y: {
+            grid: { color: gridColor },
+            ticks: {
+              color: labelColor,
+              callback: v => '$' + v.toLocaleString()
+            },
+            beginAtZero: true
+          }
+        }
+      }
+    });
+  }
+
+  // ── Donut chart data ──────────────────────────────────────────────────────
+  {% set cust_names = customer_revenue | map(attribute=0) | list %}
+  {% set cust_vals  = customer_revenue | map(attribute=1) | list %}
+  const donutCtx = document.getElementById('donutChart');
+  if (donutCtx) {
+    const names  = {{ cust_names | tojson }};
+    const values = {{ cust_vals  | tojson }};
+    // Collapse small slices into "Other" if > 8 customers
+    let labels = names, data = values;
+    if (names.length > 8) {
+      const top = names.slice(0, 7);
+      const topVals = values.slice(0, 7);
+      const otherVal = values.slice(7).reduce((a, b) => a + b, 0);
+      labels = [...top, 'Other'];
+      data   = [...topVals, otherVal];
+    }
+
+    new Chart(donutCtx, {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: data,
+          backgroundColor: PALETTE.slice(0, labels.length),
+          borderWidth: 2,
+          borderColor: isDark ? '#1a2535' : '#fff',
+          hoverOffset: 8,
+        }]
+      },
+      options: {
+        responsive: true,
+        cutout: '62%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              color: labelColor,
+              padding: 12,
+              boxWidth: 12,
+              font: { size: 11 }
+            }
+          },
+          tooltip: {
+            backgroundColor: tooltipBg,
+            titleColor: tooltipTxt,
+            bodyColor: tooltipTxt,
+            borderColor: gridColor,
+            borderWidth: 1,
+            callbacks: {
+              label: ctx => {
+                const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                const pct = total > 0 ? ((ctx.parsed / total) * 100).toFixed(1) : 0;
+                return ` $${ctx.parsed.toFixed(2)}  (${pct}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}

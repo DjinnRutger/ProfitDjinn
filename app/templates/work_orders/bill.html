@@ -1,0 +1,569 @@
+{% extends "base.html" %}
+{% block title %}Bill Work Order — {{ customer.name }} — {{ get_setting('app_name', 'ProfitDjinn') }}{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb mb-0">
+  <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+  <li class="breadcrumb-item"><a href="{{ url_for('work_orders.index') }}">Work Orders</a></li>
+  <li class="breadcrumb-item">
+    <a href="{{ url_for('work_orders.detail', customer_id=customer.id) }}">{{ customer.name }}</a>
+  </li>
+  <li class="breadcrumb-item active">Bill</li>
+</ol>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <h1>Bill Work Order</h1>
+    <p class="lead mb-0">
+      {{ customer.name }}
+      {% if label_filter %}&nbsp;·&nbsp;<span class="badge bg-secondary bg-opacity-50">{{ label_filter }}</span>{% endif %}
+    </p>
+  </div>
+  <a href="{{ url_for('work_orders.detail', customer_id=customer.id) }}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>Back to Tab
+  </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" id="bill-form" novalidate
+      action="{{ url_for('work_orders.bill_submit', wo_id=work_order.id) }}">
+  {{ form.hidden_tag() }}
+
+  <div class="row g-4">
+    <div class="col-lg-8">
+
+      {# ── 1. Pick the work ──────────────────────────────────────────── #}
+      <div class="card mb-4">
+        <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <span><i class="bi bi-check2-square me-2 text-primary"></i>Work to Bill</span>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="select-all-btn">All</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="select-none-btn">None</button>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th style="width:42px"></th>
+                <th>Description</th>
+                <th style="width:105px">Date</th>
+                <th style="width:140px" class="text-end">Qty × Rate</th>
+                <th style="width:100px" class="text-end">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% set ns = namespace(current='') %}
+              {% for line in billable_lines %}
+                {% if line.label_or_general != ns.current %}
+                {% set ns.current = line.label_or_general %}
+                <tr class="table-active">
+                  <td class="text-center">
+                    <input type="checkbox" class="form-check-input label-toggle"
+                           data-label="{{ line.label_or_general }}" title="Toggle this project">
+                  </td>
+                  <td colspan="4" class="fw-semibold" style="font-size:.8rem">{{ line.label_or_general }}</td>
+                </tr>
+                {% endif %}
+              <tr>
+                <td class="text-center">
+                  <input type="checkbox" class="form-check-input wo-pick"
+                         value="{{ line.id }}"
+                         data-label="{{ line.label_or_general }}"
+                         {% if line.id in selected_ids %}checked{% endif %}>
+                </td>
+                <td>
+                  {{ line.description }}
+                  {% if line.no_charge %}<span class="badge bg-info bg-opacity-75 ms-1">No Charge</span>{% endif %}
+                  {% if line.line_type != 'labor' %}
+                  <span class="badge bg-secondary bg-opacity-50 ms-1">{{ line.type_label }}</span>
+                  {% endif %}
+                </td>
+                <td class="text-muted" style="font-size:.85rem">
+                  {% if line.date_performed %}{{ line.date_performed.strftime('%b %d, %Y') }}{% else %}—{% endif %}
+                </td>
+                <td class="text-end text-muted" style="font-size:.85rem">
+                  {{ line.quantity_label }} × ${{ "%.2f"|format(line.rate) }}
+                </td>
+                <td class="text-end fw-semibold">
+                  {% if line.no_charge %}
+                  <span class="text-muted text-decoration-line-through">${{ "%.2f"|format(line.amount) }}</span>
+                  {% else %}${{ "%.2f"|format(line.amount) }}{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr class="table-active">
+                <td colspan="4" class="text-end fw-semibold">Selected</td>
+                <td class="text-end fw-bold" id="selected-total">$0.00</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div class="card-body py-2 border-top">
+          <span class="text-muted" style="font-size:.8rem">
+            <i class="bi bi-info-circle me-1"></i>
+            Anything you leave unchecked stays on the tab for next time.
+          </span>
+        </div>
+      </div>
+
+      {# ── 2. Roll-up style ──────────────────────────────────────────── #}
+      <div class="card mb-4">
+        <div class="card-header">
+          <i class="bi bi-arrows-collapse me-2 text-primary"></i>How should this appear on the invoice?
+        </div>
+        <div class="card-body py-3">
+          <div class="btn-group w-100" role="group" aria-label="Roll-up style">
+            <input type="radio" class="btn-check" name="rollup_style" id="rollup-one" value="one" checked>
+            <label class="btn btn-outline-primary" for="rollup-one">
+              One summary line
+            </label>
+            <input type="radio" class="btn-check" name="rollup_style" id="rollup-type" value="type">
+            <label class="btn btn-outline-primary" for="rollup-type">
+              Grouped by type
+            </label>
+            <input type="radio" class="btn-check" name="rollup_style" id="rollup-detailed" value="detailed">
+            <label class="btn btn-outline-primary" for="rollup-detailed">
+              Every line
+            </label>
+          </div>
+          <div class="text-muted mt-2" style="font-size:.8rem" id="rollup-hint"></div>
+        </div>
+      </div>
+
+      {# ── 3. The resulting invoice lines (editable) ─────────────────── #}
+      <div class="card mb-4">
+        <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <span><i class="bi bi-list-ul me-2 text-primary"></i>Invoice Lines</span>
+          <div class="d-flex gap-2">
+            <button type="button" id="regenerate-btn" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-arrow-clockwise me-1"></i>Rebuild
+            </button>
+            <button type="button" id="add-line-btn" class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-plus-lg me-1"></i>Add Line
+            </button>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <table class="table mb-0" id="line-items-table">
+            <thead>
+              <tr>
+                <th style="min-width:260px">Description</th>
+                <th style="width:90px" class="text-center">Qty</th>
+                <th style="width:130px" class="text-end">Unit Price ($)</th>
+                <th style="width:48px"></th>
+              </tr>
+            </thead>
+            <tbody id="line-items-body"></tbody>
+            <tfoot>
+              <tr class="table-active">
+                <td colspan="2" class="text-end fw-semibold">Total</td>
+                <td class="text-end fw-bold" id="line-total">$0.00</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+          <div id="no-lines-msg" class="text-center text-muted py-3" style="font-size:.9rem">
+            Select some work above to build the invoice.
+          </div>
+        </div>
+      </div>
+
+      {# Notes + terms #}
+      <div class="card">
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label" for="notes">Notes</label>
+              {{ form.notes(class="form-control", id="notes", rows=2) }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="term1">{{ form.term1.label.text }}</label>
+              {{ form.term1(class="form-control form-control-sm", id="term1") }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="term2">{{ form.term2.label.text }}</label>
+              {{ form.term2(class="form-control form-control-sm", id="term2") }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    {# ── Sidebar: invoice header + submit ────────────────────────────── #}
+    <div class="col-lg-4">
+      <div class="card sticky-top" style="top:80px">
+        <div class="card-header">New Invoice</div>
+        <div class="card-body">
+
+          <div class="mb-3">
+            <label class="form-label" for="invoice_number">{{ form.invoice_number.label.text }}</label>
+            {{ form.invoice_number(class="form-control font-monospace", id="invoice_number") }}
+            {% for e in form.invoice_number.errors %}
+            <div class="text-danger" style="font-size:.8rem">{{ e }}</div>
+            {% endfor %}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label" for="date">{{ form.date.label.text }}</label>
+            {{ form.date(class="form-control", id="date", type="date") }}
+            {% for e in form.date.errors %}
+            <div class="text-danger" style="font-size:.8rem">{{ e }}</div>
+            {% endfor %}
+          </div>
+
+          <dl class="row mb-3" style="font-size:.9rem">
+            <dt class="col-6 text-muted">Customer</dt>
+            <dd class="col-6 text-end fw-semibold">{{ customer.name }}</dd>
+            <dt class="col-6 text-muted">Work lines</dt>
+            <dd class="col-6 text-end fw-semibold" id="summary-count">0</dd>
+          </dl>
+
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="text-muted">Invoice Total</span>
+            <span class="fw-bold fs-4" id="summary-total">$0.00</span>
+          </div>
+
+          <div class="alert alert-info py-2 px-3 mb-3" id="mismatch-warning"
+               style="font-size:.8rem;display:none">
+            <i class="bi bi-info-circle me-1"></i>
+            The invoice total differs from the selected work
+            (<span id="mismatch-amount"></span>). That's fine if you meant to
+            adjust it.
+          </div>
+
+          <hr>
+          <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-primary btn-lg">
+              <i class="bi bi-receipt me-1"></i>Create Invoice
+            </button>
+            <a href="{{ url_for('work_orders.detail', customer_id=customer.id) }}"
+               class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+
+  /* ── Work order lines, seeded from the server ─────────────────────── */
+  var woLines = [];
+  {% for line in billable_lines %}
+  woLines.push({
+    id: {{ line.id }},
+    label: {{ line.label_or_general|tojson }},
+    type: {{ line.line_type|tojson }},
+    typeLabel: {{ line.type_label|tojson }},
+    description: {{ line.description|tojson }},
+    date: {{ (line.date_performed.strftime('%b %d') if line.date_performed else '')|tojson }},
+    iso: {{ (line.date_performed.isoformat() if line.date_performed else '')|tojson }},
+    qty: {{ line.quantity }},
+    rate: {{ line.rate }},
+    amount: {{ line.amount }},
+    noCharge: {{ line.no_charge|tojson }}
+  });
+  {% endfor %}
+
+  var tbody        = document.getElementById("line-items-body");
+  var noLinesMsg   = document.getElementById("no-lines-msg");
+  var lineTotal    = document.getElementById("line-total");
+  var summaryTotal = document.getElementById("summary-total");
+  var summaryCount = document.getElementById("summary-count");
+  var selectedTot  = document.getElementById("selected-total");
+  var rollupHint   = document.getElementById("rollup-hint");
+  var mismatchBox  = document.getElementById("mismatch-warning");
+  var mismatchAmt  = document.getElementById("mismatch-amount");
+  var hiddenItems  = document.getElementById("line_items_json");
+  var hiddenIds    = document.getElementById("selected_line_ids");
+  var hiddenRollup = document.getElementById("rollup");
+
+  var dirty = false;   // has the user hand-edited the generated lines?
+
+  var TYPE_ORDER = ["labor", "part", "service", "other"];
+  var TYPE_DESC  = {
+    labor:   "Labor",
+    part:    "Parts & materials",
+    service: "Services",
+    other:   "Other work"
+  };
+
+  var HINTS = {
+    one:      "One line on the invoice. Cleanest for the customer.",
+    type:     "One line per Labor / Parts / Services. Labor shows total hours.",
+    detailed: "Every selected line appears on the invoice, dated."
+  };
+
+  function fmt(n) {
+    return "$" + (parseFloat(n) || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  }
+
+  /* ── Selection ────────────────────────────────────────────────────── */
+
+  function pickBoxes() {
+    return Array.prototype.slice.call(document.querySelectorAll(".wo-pick"));
+  }
+
+  function selectedLines() {
+    var ids = {};
+    pickBoxes().forEach(function (cb) { if (cb.checked) { ids[cb.value] = true; } });
+    return woLines.filter(function (l) { return ids[String(l.id)]; });
+  }
+
+  function selectedTotal() {
+    return selectedLines().reduce(function (s, l) {
+      return s + (l.noCharge ? 0 : l.amount);
+    }, 0);
+  }
+
+  function syncSelection() {
+    var sel = selectedLines();
+    hiddenIds.value = sel.map(function (l) { return l.id; }).join(",");
+    selectedTot.textContent = fmt(selectedTotal());
+    summaryCount.textContent = sel.length;
+    syncLabelToggles();
+  }
+
+  function syncLabelToggles() {
+    document.querySelectorAll(".label-toggle").forEach(function (toggle) {
+      var boxes = pickBoxes().filter(function (cb) {
+        return cb.dataset.label === toggle.dataset.label;
+      });
+      var checked = boxes.filter(function (cb) { return cb.checked; }).length;
+      toggle.checked = boxes.length > 0 && checked === boxes.length;
+      toggle.indeterminate = checked > 0 && checked < boxes.length;
+    });
+  }
+
+  /* ── Date range helper ────────────────────────────────────────────── */
+
+  // ASCII only: these strings become invoice line descriptions, and the PDF
+  // generator's built-in font is latin-1.
+  function dateRange(lines) {
+    var dated = lines.filter(function (l) { return l.date; });
+    if (!dated.length) return "";
+    var sorted = dated.slice().sort(function (a, b) { return a.iso < b.iso ? -1 : 1; });
+    var first = sorted[0].date, last = sorted[sorted.length - 1].date;
+    return first === last ? " (" + first + ")" : " (" + first + " - " + last + ")";
+  }
+
+  /* ── Roll-up generators ───────────────────────────────────────────── */
+
+  function currentMode() {
+    var checked = document.querySelector('input[name="rollup_style"]:checked');
+    return checked ? checked.value : "one";
+  }
+
+  function buildRollup(mode, sel) {
+    if (!sel.length) return [];
+    // No-charge lines ride along at $0 so they clear off the tab.
+    var billable = sel.filter(function (l) { return !l.noCharge; });
+
+    if (mode === "detailed") {
+      return sel.map(function (l) {
+        var d = (l.date ? l.date + " - " : "") + l.description;
+        if (l.noCharge) d += " (no charge)";
+        return { desc: d, qty: l.qty || 1, unit: l.noCharge ? 0 : l.rate };
+      });
+    }
+
+    if (mode === "type") {
+      var out = [];
+      TYPE_ORDER.forEach(function (t) {
+        var group = billable.filter(function (l) { return l.type === t; });
+        if (!group.length) return;
+        var amt = group.reduce(function (s, l) { return s + l.amount; }, 0);
+        // Labor rolls up as total hours; for parts, summing "3 cables + 1
+        // switch = qty 4" would be meaningless, so collapse to a single line.
+        var qty = (t === "labor")
+          ? group.reduce(function (s, l) { return s + l.qty; }, 0)
+          : 1;
+        if (!qty) qty = 1;
+        out.push({
+          desc: TYPE_DESC[t] + dateRange(group),
+          qty: Math.round(qty * 100) / 100,
+          unit: amt / qty
+        });
+      });
+      return out;
+    }
+
+    // "one" — a single summary line
+    var total = billable.reduce(function (s, l) { return s + l.amount; }, 0);
+    var labels = [];
+    sel.forEach(function (l) {
+      if (l.label && labels.indexOf(l.label) === -1) labels.push(l.label);
+    });
+    var base = (labels.length === 1) ? labels[0] : "Service work";
+    return [{ desc: base + dateRange(sel), qty: 1, unit: total }];
+  }
+
+  /* ── Invoice line rows (same contract as invoices/form.html) ──────── */
+
+  function currentTotal() {
+    var total = 0;
+    tbody.querySelectorAll("tr").forEach(function (row) {
+      var qty   = parseFloat(row.querySelector(".line-qty").value) || 1;
+      var price = parseFloat(row.querySelector(".line-amount").value) || 0;
+      total += qty * price;
+    });
+    return total;
+  }
+
+  function syncHidden() {
+    var items = [];
+    tbody.querySelectorAll("tr").forEach(function (row) {
+      var qty   = parseFloat(row.querySelector(".line-qty").value) || 1;
+      var price = parseFloat(row.querySelector(".line-amount").value) || 0;
+      items.push({
+        description: row.querySelector(".line-desc").value.trim(),
+        quantity: qty,
+        amount: qty * price          // extended total, matching InvoiceLine
+      });
+    });
+    hiddenItems.value = JSON.stringify(items);
+  }
+
+  function updateTotal() {
+    var total = currentTotal();
+    lineTotal.textContent = fmt(total);
+    summaryTotal.textContent = fmt(total);
+    syncHidden();
+    noLinesMsg.style.display = tbody.children.length ? "none" : "block";
+
+    var diff = total - selectedTotal();
+    if (Math.abs(diff) >= 0.01 && tbody.children.length) {
+      mismatchAmt.textContent = (diff > 0 ? "+" : "−") + fmt(Math.abs(diff));
+      mismatchBox.style.display = "";
+    } else {
+      mismatchBox.style.display = "none";
+    }
+  }
+
+  function addRow(desc, qty, unit) {
+    var tr = document.createElement("tr");
+    tr.innerHTML =
+      '<td><input type="text" class="form-control form-control-sm line-desc" value="' +
+        esc(desc || "") + '" placeholder="Description" required></td>' +
+      '<td><input type="number" class="form-control form-control-sm text-center line-qty" value="' +
+        (qty !== undefined ? qty : 1) + '" min="0.01" step="any" style="max-width:80px"></td>' +
+      '<td><input type="number" class="form-control form-control-sm text-end line-amount" value="' +
+        (parseFloat(unit) || 0).toFixed(2) + '" min="0" step="0.01" placeholder="0.00" required></td>' +
+      '<td><button type="button" class="btn btn-sm btn-ghost text-danger remove-line" title="Remove">' +
+        '<i class="bi bi-trash3"></i></button></td>';
+
+    tr.querySelector(".remove-line").addEventListener("click", function () {
+      tr.remove();
+      dirty = true;
+      updateTotal();
+    });
+    tr.querySelectorAll("input").forEach(function (inp) {
+      inp.addEventListener("input", function () { dirty = true; updateTotal(); });
+    });
+
+    tbody.appendChild(tr);
+  }
+
+  function regenerate(force) {
+    if (dirty && !force &&
+        !confirm("Rebuild the invoice lines from your selection? Your edits will be lost.")) {
+      return;
+    }
+    tbody.innerHTML = "";
+    buildRollup(currentMode(), selectedLines()).forEach(function (r) {
+      addRow(r.desc, r.qty, r.unit);
+    });
+    dirty = false;
+    updateTotal();
+  }
+
+  /* ── Wiring ───────────────────────────────────────────────────────── */
+
+  pickBoxes().forEach(function (cb) {
+    cb.addEventListener("change", function () {
+      syncSelection();
+      regenerate(false);
+    });
+  });
+
+  document.querySelectorAll(".label-toggle").forEach(function (toggle) {
+    toggle.addEventListener("change", function () {
+      pickBoxes().forEach(function (cb) {
+        if (cb.dataset.label === toggle.dataset.label) cb.checked = toggle.checked;
+      });
+      syncSelection();
+      regenerate(false);
+    });
+  });
+
+  document.getElementById("select-all-btn").addEventListener("click", function () {
+    pickBoxes().forEach(function (cb) { cb.checked = true; });
+    syncSelection();
+    regenerate(false);
+  });
+
+  document.getElementById("select-none-btn").addEventListener("click", function () {
+    pickBoxes().forEach(function (cb) { cb.checked = false; });
+    syncSelection();
+    regenerate(false);
+  });
+
+  document.querySelectorAll('input[name="rollup_style"]').forEach(function (radio) {
+    radio.addEventListener("change", function () {
+      hiddenRollup.value = currentMode();
+      rollupHint.textContent = HINTS[currentMode()] || "";
+      regenerate(false);
+    });
+  });
+
+  document.getElementById("regenerate-btn").addEventListener("click", function () {
+    regenerate(false);
+  });
+
+  document.getElementById("add-line-btn").addEventListener("click", function () {
+    addRow("", 1, 0);
+    dirty = true;
+    updateTotal();
+    tbody.lastChild.querySelector(".line-desc").focus();
+  });
+
+  document.getElementById("bill-form").addEventListener("submit", function (e) {
+    syncSelection();
+    syncHidden();
+    var items = JSON.parse(hiddenItems.value || "[]");
+    if (!hiddenIds.value) {
+      e.preventDefault();
+      alert("Select at least one piece of work to bill.");
+      return;
+    }
+    if (!items.length) {
+      e.preventDefault();
+      alert("The invoice needs at least one line item.");
+    }
+  });
+
+  /* ── Init ─────────────────────────────────────────────────────────── */
+  hiddenRollup.value = currentMode();
+  rollupHint.textContent = HINTS[currentMode()] || "";
+  syncSelection();
+  regenerate(true);
+
+})();
+</script>
+{% endblock %}

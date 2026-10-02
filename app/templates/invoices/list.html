@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+{% block title %}Invoices — {{ get_setting('app_name', 'ProfitDjinn') }}{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb mb-0">
+  <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+  <li class="breadcrumb-item active">Invoices</li>
+</ol>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <h1>Invoices</h1>
+    <p class="lead">
+      {{ invoices|length }} invoice{% if invoices|length != 1 %}s{% endif %} shown
+      {% if unpaid_count > 0 %}
+      &nbsp;·&nbsp;
+      <span class="text-danger fw-semibold">{{ unpaid_count }} with balance (${{ "%.2f"|format(unpaid_total) }})</span>
+      {% endif %}
+    </p>
+  </div>
+  {% if current_user.has_permission('invoices.create') %}
+  <a href="{{ url_for('invoices.create') }}" class="btn btn-primary">
+    <i class="bi bi-plus-lg me-1"></i>New Invoice
+  </a>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+
+{# Filters + search #}
+<div class="card mb-4">
+  <div class="card-body py-3">
+    <div class="d-flex flex-wrap gap-3 align-items-center">
+
+      {# Status tabs #}
+      <div class="btn-group btn-group-sm" role="group" aria-label="Filter by status">
+        <a href="{{ url_for('invoices.list_invoices', q=q, status='all') }}"
+           class="btn btn-outline-secondary {% if status == 'all' %}active{% endif %}">
+          All
+        </a>
+        <a href="{{ url_for('invoices.list_invoices', q=q, status='unpaid') }}"
+           class="btn btn-outline-warning {% if status == 'unpaid' %}active{% endif %}">
+          <i class="bi bi-exclamation-circle me-1"></i>Unpaid / Partial
+          {% if unpaid_count %}<span class="badge bg-warning text-dark ms-1">{{ unpaid_count }}</span>{% endif %}
+        </a>
+        <a href="{{ url_for('invoices.list_invoices', q=q, status='paid') }}"
+           class="btn btn-outline-success {% if status == 'paid' %}active{% endif %}">
+          <i class="bi bi-check-circle me-1"></i>Paid
+        </a>
+      </div>
+
+      {# Search #}
+      <form method="get" class="d-flex gap-2">
+        <input type="hidden" name="status" value="{{ status }}">
+        <div class="input-group input-group-sm" style="min-width:260px">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="text" name="q" value="{{ q }}" class="form-control"
+                 placeholder="Search invoice # or customer…" autocomplete="off">
+          {% if q %}
+          <a href="{{ url_for('invoices.list_invoices', status=status) }}" class="btn btn-outline-secondary">
+            <i class="bi bi-x-lg"></i>
+          </a>
+          {% endif %}
+        </div>
+        <button type="submit" class="btn btn-secondary btn-sm">Search</button>
+      </form>
+
+    </div>
+  </div>
+</div>
+
+{# Invoice table #}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Invoice #</th>
+          <th>Customer</th>
+          <th>Date</th>
+          <th class="text-end">Amount</th>
+          <th class="text-end">Balance</th>
+          <th class="text-center">Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inv in invoices %}
+        <tr>
+          <td>
+            <a href="{{ url_for('invoices.detail', invoice_id=inv.id) }}"
+               class="fw-semibold font-monospace text-decoration-none">
+              {{ inv.invoice_number }}
+            </a>
+          </td>
+          <td>
+            <a href="{{ url_for('customers.detail', customer_id=inv.customer.id) }}"
+               class="text-decoration-none">
+              {{ inv.customer.name }}
+            </a>
+          </td>
+          <td class="text-muted" style="font-size:.85rem">
+            {{ inv.date.strftime('%b %d, %Y') }}
+          </td>
+          <td class="text-end fw-semibold">${{ "%.2f"|format(inv.total) }}</td>
+          <td class="text-end">
+            {% if inv.balance_due > 0 %}
+            <span class="text-danger fw-semibold">${{ "%.2f"|format(inv.balance_due) }}</span>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            <span class="badge bg-{{ inv.status_badge_class }} bg-opacity-85">
+              {{ inv.status_label }}
+            </span>
+          </td>
+          <td class="text-end">
+            <div class="d-flex gap-1 justify-content-end">
+              <a href="{{ url_for('invoices.detail', invoice_id=inv.id) }}"
+                 class="btn btn-sm btn-outline-secondary" title="View">
+                <i class="bi bi-eye"></i>
+              </a>
+              {% if current_user.has_permission('invoices.edit') %}
+              <a href="{{ url_for('invoices.edit', invoice_id=inv.id) }}"
+                 class="btn btn-sm btn-outline-primary" title="Edit">
+                <i class="bi bi-pencil"></i>
+              </a>
+              {% if inv.balance_due > 0 %}
+              <button type="button"
+                      class="btn btn-sm btn-outline-success open-payment-btn"
+                      title="Record Payment"
+                      data-invoice-id="{{ inv.id }}"
+                      data-invoice-num="{{ inv.invoice_number }}"
+                      data-balance="{{ '%.2f'|format(inv.balance_due) }}"
+                      data-csrf="{{ csrf_token() }}">
+                <i class="bi bi-cash-coin"></i>
+              </button>
+              {% endif %}
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="empty-state">
+            <i class="bi bi-receipt"></i>
+            No invoices found.
+            {% if current_user.has_permission('invoices.create') %}
+            <a href="{{ url_for('invoices.create') }}">Create one now.</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      {% if invoices %}
+      <tfoot>
+        <tr class="table-active">
+          <td colspan="3" class="fw-semibold">Total shown</td>
+          <td class="text-end fw-bold">${{ "%.2f"|format(invoices|sum(attribute='total')) }}</td>
+          <td class="text-end fw-bold text-danger">
+            {% set total_balance = invoices|sum(attribute='balance_due') %}
+            {% if total_balance > 0 %}-${{ "%.2f"|format(total_balance) }}{% endif %}
+          </td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+
+{# Shared payment dialog for list page #}
+{% if current_user.has_permission('invoices.edit') %}
+<dialog id="list-payment-dialog" style="border:none;border-radius:.75rem;padding:0;max-width:480px;width:95%;box-shadow:0 8px 40px rgba(0,0,0,.25)">
+  <form method="post" id="list-payment-form">
+    <input type="hidden" name="csrf_token" id="list-csrf-token" value="">
+
+    <div class="modal-header px-4 py-3 border-bottom d-flex align-items-center justify-content-between">
+      <h5 class="mb-0">
+        <i class="bi bi-cash-coin me-2 text-success"></i>
+        Record Payment — <span class="font-monospace" id="list-dialog-inv-num"></span>
+      </h5>
+      <button type="button" class="btn-close" id="list-close-dialog" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body px-4 py-3">
+      <p class="text-muted mb-3" style="font-size:.9rem">
+        Balance due: <strong class="text-danger" id="list-dialog-balance-label"></strong>
+      </p>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Amount <span class="text-danger">*</span></label>
+        <div class="input-group">
+          <span class="input-group-text">$</span>
+          <input type="number" name="amount" id="list-payment-amount" class="form-control"
+                 step="0.01" min="0.01" required>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Payment Method <span class="text-danger">*</span></label>
+        <select name="method" id="list-payment-method" class="form-select" required>
+          <option value="cash">Cash</option>
+          <option value="check">Check</option>
+          <option value="credit_card">Credit Card</option>
+          <option value="ach">ACH</option>
+          <option value="venmo">Venmo</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div class="mb-3" id="list-check-group" style="display:none">
+        <label class="form-label fw-semibold">Check Number</label>
+        <input type="text" name="check_number" id="list-check-number" class="form-control font-monospace"
+               placeholder="e.g. 1042" maxlength="50">
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Date <span class="text-danger">*</span></label>
+        <input type="date" name="date" id="list-payment-date" class="form-control" required>
+      </div>
+
+      <div class="mb-1">
+        <label class="form-label fw-semibold">Notes</label>
+        <textarea name="notes" class="form-control" rows="2"
+                  placeholder="Optional notes about this payment…"></textarea>
+      </div>
+    </div>
+
+    <div class="modal-footer px-4 py-3 border-top d-flex justify-content-end gap-2">
+      <button type="button" class="btn btn-outline-secondary" id="list-cancel-dialog">Cancel</button>
+      <button type="submit" class="btn btn-success">
+        <i class="bi bi-check-circle me-1"></i>Record Payment
+      </button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(function () {
+  const dialog = document.getElementById('list-payment-dialog');
+  const form = document.getElementById('list-payment-form');
+  const closeBtn = document.getElementById('list-close-dialog');
+  const cancelBtn = document.getElementById('list-cancel-dialog');
+  const methodSel = document.getElementById('list-payment-method');
+  const checkGroup = document.getElementById('list-check-group');
+  const checkInput = document.getElementById('list-check-number');
+  const amountInput = document.getElementById('list-payment-amount');
+  const dateInput = document.getElementById('list-payment-date');
+  const invNumLabel = document.getElementById('list-dialog-inv-num');
+  const balanceLabel = document.getElementById('list-dialog-balance-label');
+  const csrfInput = document.getElementById('list-csrf-token');
+
+  // Set today's date as default
+  const today = new Date().toISOString().split('T')[0];
+  dateInput.value = today;
+
+  document.querySelectorAll('.open-payment-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const invoiceId = btn.dataset.invoiceId;
+      const invNum = btn.dataset.invoiceNum;
+      const balance = btn.dataset.balance;
+      const csrf = btn.dataset.csrf;
+
+      form.action = `/invoices/${invoiceId}/record-payment`;
+      csrfInput.value = csrf;
+      invNumLabel.textContent = invNum;
+      balanceLabel.textContent = '$' + balance;
+      amountInput.value = balance;
+      dateInput.value = today;
+      methodSel.value = 'cash';
+      checkGroup.style.display = 'none';
+      checkInput.required = false;
+      dialog.showModal();
+    });
+  });
+
+  if (closeBtn) closeBtn.addEventListener('click', () => dialog.close());
+  if (cancelBtn) cancelBtn.addEventListener('click', () => dialog.close());
+
+  // Backdrop click closes dialog (e.target === dialog when clicking outside content)
+  dialog.addEventListener('click', (e) => {
+    if (e.target === dialog) dialog.close();
+  });
+
+  function toggleCheckNumber() {
+    const isCheck = methodSel.value === 'check';
+    checkGroup.style.display = isCheck ? '' : 'none';
+    checkInput.required = isCheck;
+  }
+  methodSel.addEventListener('change', toggleCheckNumber);
+})();
+</script>
+{% endif %}
+
+{% endblock %}
