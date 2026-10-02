@@ -35,7 +35,14 @@ Windows SmartScreen may warn because the file is not code-signed; choose More in
   Dashboard shows this year's net profit.
 - **Settings > Security** sets an optional app password, asked for at start (and by **Lock**
   in the sidebar). It keeps casual eyes out on a shared PC; it does not encrypt the data.
-- **Themes**: Light, Dark and Terminal, from the button at the top right.
+- **Themes**: Light, Dark and Terminal, from the button at the top right or **Settings >
+  Appearance**.
+- **Settings** is grouped into sections (Business, Invoices, Work Orders, Expenses,
+  Appearance, Security, Backup, Updates). Changes are saved with the **Save Changes** bar that
+  appears at the bottom when you change something.
+- **Updates**: once a day ProfitDjinn checks GitHub for a newer version and, if there is one,
+  shows an "Update available" badge at the bottom of the window that opens the release page.
+  Nothing about you or your data is sent. Turn it off in **Settings > Updates & About**.
 
 ## Your data
 

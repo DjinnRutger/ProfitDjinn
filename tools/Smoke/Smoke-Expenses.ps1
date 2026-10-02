@@ -112,14 +112,14 @@ try {
   Write-Host "Smoke test on $DataDir"
   Step "Expenses starts off" {
     # Wait for the page first, so "no Vendors button" means hidden, not "not drawn yet".
-    Wait-For "Save All Settings" -type $CT::Button | Out-Null
+    Wait-For "Track expenses" -type $CT::CheckBox | Out-Null
     Start-Sleep -Milliseconds 500
     if ((Find-All "Vendors" $CT::Button).Count -ne 0) { throw "Vendors is in the sidebar before Expenses is turned on." }
   }
   Step "turn Expenses on" {
-    Toggle "Expenses feature"
-    Click "Save All Settings"
-    Wait-For "Settings saved successfully. Expenses is on: Vendors and Expenses are now in the sidebar." | Out-Null
+    Toggle "Track expenses"
+    Click "Save Changes"
+    Wait-For "Settings saved. Expenses is on: Vendors, Expenses and Profit & Loss are now in the sidebar." | Out-Null
   }
   Step "add a vendor" {
     Click "Vendors"
@@ -165,9 +165,10 @@ try {
   }
   Step "turn Expenses off" {
     Click "Settings"
-    Toggle "Expenses feature"
-    Click "Save All Settings"
-    Wait-For "Settings saved successfully." | Out-Null
+    Click "Expenses settings"
+    Toggle "Track expenses"
+    Click "Save Changes"
+    Wait-For "Settings saved." | Out-Null
     Start-Sleep -Milliseconds 500
     if ((Find-All "Vendors" $CT::Button).Count -ne 0) { throw "Vendors is still in the sidebar." }
     if ((Find-All "Expenses" $CT::Button).Count -ne 0) { throw "Expenses is still in the sidebar." }

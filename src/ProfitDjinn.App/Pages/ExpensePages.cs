@@ -204,7 +204,8 @@ public sealed class ExpenseFormPage : AppPage
                 paidRow.Visibility = _paid.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
                 checkField.Visibility = ExpenseUi.SelectedMethod(_method) == PaymentMethods.Check ? Visibility.Visible : Visibility.Hidden;
             }
-            _paid.Click += (_, _) => Sync();
+            _paid.Checked += (_, _) => Sync();
+            _paid.Unchecked += (_, _) => Sync();
             _method.SelectionChanged += (_, _) => Sync();
             Sync();
             form.Children.Add(_paid.Margin(0, 4, 0, 12));

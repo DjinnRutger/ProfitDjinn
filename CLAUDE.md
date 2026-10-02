@@ -134,6 +134,25 @@ tables (`vendors`, `expense_categories`, `expenses`, `expense_payments`, `expens
   and, with Expenses on, the tiles go to two rows of three.
 - `tools/Smoke/Smoke-Expenses.ps1` drives the whole feature through UI Automation.
 
+## Settings and updates (2.3)
+
+- **Settings page** (`Pages/SettingsPage.cs`): sections listed on the left, one shown at a
+  time, plain labels instead of setting keys. Every editable value registers a reader in
+  `_readers`; the snapshot `_initial` decides `Dirty`. A new setting must be placed in a
+  section (or it appears under "Advanced" by key) and its widget must call `Changed()`.
+  Switches use Checked/Unchecked, never Click: UI Automation and the keyboard do not raise
+  Click. Uploads and the app password still act at once.
+- **Pinned bar:** `AppPage.PinnedBar` is shown by the shell above the footer, outside the
+  scroll area. Settings uses it for "unsaved changes"; `CanLeaveAsync` asks before leaving.
+- **`Ui.Stack` overwrites each child's top margin with the gap.** Put spacing in a wrapper's
+  padding, not in the child's margin, or it disappears.
+- **Update check** (`Services/UpdateService.cs`): GitHub API `releases/latest` for the public
+  repo, once a day at start, only while `update_check_enabled` is on. The answer is stored in
+  settings; `MainWindow.ShowUpdateBadge` draws the footer badge from it, and only github.com
+  links are opened. "Latest" skips pre-releases, so **publish new versions as full releases**
+  with the asset named `ProfitDjinn.exe`, or the badge and the README download link never
+  move on.
+
 ## 1.x reference (Flask, in legacy/)
 
 Everything below describes the 1.x code in `legacy/`. It stays accurate for that code.

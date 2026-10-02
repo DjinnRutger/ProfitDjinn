@@ -137,8 +137,16 @@
 
       <!-- footer -->
       <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0" Padding="24,13.6">
-        <TextBlock x:Name="FooterText" FontSize="12.8" Foreground="{DynamicResource TextMuted}" />
+        <StackPanel Orientation="Horizontal">
+          <TextBlock x:Name="FooterText" FontSize="12.8" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" />
+          <!-- 2.3: shown when GitHub has a newer release; opens the release page -->
+          <Button x:Name="UpdateBadge" Style="{StaticResource Btn.Bare}" Margin="10,0,0,0" Padding="0" Visibility="Collapsed"
+                  Click="OnUpdateBadge" Cursor="Hand" />
+        </StackPanel>
       </Border>
+
+      <!-- 2.3: a bar a page can pin above the footer (Settings' "unsaved changes" bar) -->
+      <ContentControl x:Name="PinnedBar" DockPanel.Dock="Bottom" Focusable="False" />
 
       <!-- content -->
       <ScrollViewer x:Name="ContentScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
