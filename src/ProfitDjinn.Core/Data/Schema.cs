@@ -202,12 +202,122 @@ public static class Schema
         "CREATE INDEX IF NOT EXISTS ix_work_order_lines_status ON work_order_lines (status)",
     };
 
+    /// <summary>
+    /// 2.2 Expenses tables. They have no 1.x equivalent: the 1.x build ignores tables it does
+    /// not know, so adding them keeps the file openable by 1.x. Same conventions as the 1.x
+    /// tables (no AUTOINCREMENT, money FLOAT, DATE as YYYY-MM-DD text, BOOLEAN 0/1).
+    /// </summary>
+    private static readonly string[] ExpenseTables =
+    {
+        """
+        CREATE TABLE IF NOT EXISTS vendors (
+        	id INTEGER NOT NULL,
+        	name VARCHAR(200) NOT NULL,
+        	contact VARCHAR(200),
+        	address VARCHAR(300),
+        	city VARCHAR(100),
+        	state VARCHAR(50),
+        	zip_code VARCHAR(20),
+        	phone VARCHAR(50),
+        	email VARCHAR(200),
+        	default_category_id INTEGER,
+        	notes TEXT,
+        	is_active BOOLEAN NOT NULL,
+        	created_at DATETIME,
+        	PRIMARY KEY (id)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_vendors_name ON vendors (name)",
+        """
+        CREATE TABLE IF NOT EXISTS expense_categories (
+        	id INTEGER NOT NULL,
+        	name VARCHAR(100) NOT NULL,
+        	is_active BOOLEAN NOT NULL,
+        	sort_order INTEGER NOT NULL,
+        	created_at DATETIME,
+        	PRIMARY KEY (id)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS expenses (
+        	id INTEGER NOT NULL,
+        	vendor_id INTEGER,
+        	category_id INTEGER NOT NULL,
+        	date DATE NOT NULL,
+        	due_date DATE,
+        	description VARCHAR(500) NOT NULL,
+        	reference VARCHAR(100),
+        	amount FLOAT NOT NULL,
+        	notes TEXT,
+        	recurring_id INTEGER,
+        	created_at DATETIME,
+        	PRIMARY KEY (id)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_expenses_date ON expenses (date)",
+        "CREATE INDEX IF NOT EXISTS ix_expenses_vendor_id ON expenses (vendor_id)",
+        "CREATE INDEX IF NOT EXISTS ix_expenses_category_id ON expenses (category_id)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_expenses_recurring ON expenses (recurring_id, date) WHERE recurring_id IS NOT NULL",
+        """
+        CREATE TABLE IF NOT EXISTS expense_payments (
+        	id INTEGER NOT NULL,
+        	expense_id INTEGER NOT NULL,
+        	amount FLOAT NOT NULL,
+        	method VARCHAR(30) NOT NULL,
+        	check_number VARCHAR(50),
+        	date DATE NOT NULL,
+        	notes TEXT,
+        	created_at DATETIME,
+        	PRIMARY KEY (id)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_expense_payments_expense_id ON expense_payments (expense_id)",
+        """
+        CREATE TABLE IF NOT EXISTS expense_receipts (
+        	id INTEGER NOT NULL,
+        	expense_id INTEGER NOT NULL,
+        	file_name VARCHAR(255) NOT NULL,
+        	rel_path VARCHAR(500) NOT NULL,
+        	folder VARCHAR(500) NOT NULL,
+        	size_bytes INTEGER NOT NULL,
+        	created_at DATETIME,
+        	PRIMARY KEY (id)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_expense_receipts_expense_id ON expense_receipts (expense_id)",
+        """
+        CREATE TABLE IF NOT EXISTS recurring_expenses (
+        	id INTEGER NOT NULL,
+        	vendor_id INTEGER,
+        	category_id INTEGER NOT NULL,
+        	description VARCHAR(500) NOT NULL,
+        	amount FLOAT NOT NULL,
+        	frequency VARCHAR(10) NOT NULL,
+        	start_date DATE NOT NULL,
+        	day_of_month INTEGER NOT NULL,
+        	end_date DATE,
+        	mode VARCHAR(10) NOT NULL,
+        	method VARCHAR(30),
+        	notes TEXT,
+        	is_active BOOLEAN NOT NULL,
+        	generated_through DATE,
+        	created_at DATETIME,
+        	PRIMARY KEY (id)
+        )
+        """,
+    };
+
     /// <summary>Run at every start. Safe to run any number of times.</summary>
     public static void Ensure(Database database)
     {
         database.InTransaction((db, tx) =>
         {
             foreach (string sql in Tables) db.Execute(sql, transaction: tx);
+            // Seeded once, when the table is first created; never again, even if the user later
+            // deletes every starter category.
+            bool newCategories = !TableExists(db, tx, "expense_categories");
+            foreach (string sql in ExpenseTables) db.Execute(sql, transaction: tx);
+            if (newCategories) Seed.ExpenseCategories(db, tx);
             RunMigrations(db, tx);
             if (!db.ExecuteScalar<bool>("SELECT EXISTS (SELECT 1 FROM roles)", transaction: tx))
                 Seed.FirstRun(db, tx);
@@ -231,6 +341,9 @@ public static class Schema
         if (!Columns(db, tx, "invoices").Contains("credit_applied"))
             db.Execute("ALTER TABLE invoices ADD COLUMN credit_applied FLOAT NOT NULL DEFAULT 0", transaction: tx);
     }
+
+    private static bool TableExists(SqliteConnection db, SqliteTransaction tx, string table) =>
+        db.ExecuteScalar<bool>("SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = @table)", new { table }, tx);
 
     internal static HashSet<string> Columns(SqliteConnection db, SqliteTransaction? tx, string table) =>
         db.Query<string>($"SELECT name FROM pragma_table_info('{table}')", transaction: tx)

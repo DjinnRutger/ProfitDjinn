@@ -48,6 +48,9 @@ public sealed class AppPaths
     /// <summary>Per-user window state (sidebar collapsed, window size). Not in the database.</summary>
     public string UiStatePath => Path.Combine(DataFolder, "ui.json");
 
+    /// <summary>Default home of receipt files when the receipts_folder setting is empty.</summary>
+    public string ReceiptsFolder => Path.Combine(DataFolder, "receipts");
+
     /// <summary>Copies saved automatically before a new version upgrades the database.</summary>
     public string UpgradeBackupFolder => Path.Combine(DataFolder, "backups");
 

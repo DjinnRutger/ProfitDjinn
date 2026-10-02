@@ -79,6 +79,57 @@ internal static class Loader
         return orders;
     }
 
+    /// <summary>2.2. Expenses with payments (by date), receipts, vendor and category.</summary>
+    internal static List<Expense> Expenses(SqliteConnection db, string where = "1=1", object? args = null,
+        SqliteTransaction? tx = null, bool withVendors = true)
+    {
+        var expenses = db.Query<Expense>($"SELECT * FROM expenses WHERE {where} ORDER BY id", args, tx).ToList();
+        if (expenses.Count == 0) return expenses;
+        var ids = expenses.Select(e => e.Id).ToList();
+        var payments = db.Query<ExpensePayment>("SELECT * FROM expense_payments WHERE expense_id IN @ids ORDER BY date, id", new { ids }, tx)
+            .ToLookup(p => p.ExpenseId);
+        var receipts = db.Query<ExpenseReceipt>("SELECT * FROM expense_receipts WHERE expense_id IN @ids ORDER BY id", new { ids }, tx)
+            .ToLookup(r => r.ExpenseId);
+        var categories = db.Query<ExpenseCategory>("SELECT * FROM expense_categories", transaction: tx).ToDictionary(c => c.Id);
+        Dictionary<long, Vendor> vendors = new();
+        if (withVendors)
+        {
+            var vendorIds = expenses.Where(e => e.VendorId is not null).Select(e => e.VendorId!.Value).Distinct().ToList();
+            if (vendorIds.Count > 0)
+                vendors = db.Query<Vendor>("SELECT * FROM vendors WHERE id IN @vendorIds", new { vendorIds }, tx).ToDictionary(v => v.Id);
+        }
+        foreach (var e in expenses)
+        {
+            e.Payments = payments[e.Id].ToList();
+            e.Receipts = receipts[e.Id].ToList();
+            e.Category = categories.GetValueOrDefault(e.CategoryId);
+            if (e.VendorId is { } v) e.Vendor = vendors.GetValueOrDefault(v);
+        }
+        return expenses;
+    }
+
+    internal static Expense? Expense(SqliteConnection db, long id, SqliteTransaction? tx = null) =>
+        Expenses(db, "id = @id", new { id }, tx).SingleOrDefault();
+
+    /// <summary>2.2. Vendors with their expenses loaded, so the totals work.</summary>
+    internal static List<Vendor> Vendors(SqliteConnection db, string where = "1=1", object? args = null,
+        SqliteTransaction? tx = null)
+    {
+        var vendors = db.Query<Vendor>($"SELECT * FROM vendors WHERE {where} ORDER BY id", args, tx).ToList();
+        if (vendors.Count == 0) return vendors;
+        var ids = vendors.Select(v => v.Id).ToList();
+        var expenses = Expenses(db, "vendor_id IN @ids", new { ids }, tx, withVendors: false).ToLookup(e => e.VendorId);
+        foreach (var v in vendors)
+        {
+            v.Expenses = expenses[v.Id].ToList();
+            foreach (var e in v.Expenses) e.Vendor = v;
+        }
+        return vendors;
+    }
+
+    internal static Vendor? Vendor(SqliteConnection db, long id, SqliteTransaction? tx = null) =>
+        Vendors(db, "id = @id", new { id }, tx).SingleOrDefault();
+
     internal static WorkOrder? WorkOrder(SqliteConnection db, long id, SqliteTransaction? tx = null) =>
         WorkOrders(db, "id = @id", new { id }, tx).SingleOrDefault();
 }
