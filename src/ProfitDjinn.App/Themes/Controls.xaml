@@ -271,8 +271,13 @@
                 <Border x:Name="Prefix" Background="{DynamicResource TertiaryBg}" BorderBrush="{DynamicResource InputBorder}"
                         BorderThickness="0,0,1,0" Padding="11,0" CornerRadius="7,0,0,7"
                         Visibility="{Binding (c:Input.Prefix), RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource HasValue}}">
-                  <TextBlock Text="{Binding (c:Input.Prefix), RelativeSource={RelativeSource TemplatedParent}}"
-                             Foreground="{DynamicResource Text}" VerticalAlignment="Center" FontSize="14" />
+                  <StackPanel Orientation="Horizontal">
+                    <c:Icon Glyph="{Binding (c:Input.PrefixGlyph), RelativeSource={RelativeSource TemplatedParent}}" Size="14"
+                            Foreground="{DynamicResource Text}"
+                            Visibility="{Binding (c:Input.PrefixGlyph), RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource HasValue}}" />
+                    <TextBlock Text="{Binding (c:Input.Prefix), RelativeSource={RelativeSource TemplatedParent}}"
+                               Foreground="{DynamicResource Text}" VerticalAlignment="Center" FontSize="14" />
+                  </StackPanel>
                 </Border>
                 <TextBlock x:Name="Placeholder" Grid.Column="1" Margin="{TemplateBinding Padding}" Padding="3,0,0,0"
                            Text="{Binding (c:Input.Placeholder), RelativeSource={RelativeSource TemplatedParent}}"
@@ -734,6 +739,7 @@
                 </Border>
               </Grid>
             </Border>
+            <Border x:Name="LeftBar" Width="3" HorizontalAlignment="Left" CornerRadius="8,0,0,8" Background="{DynamicResource Warning}" Visibility="Collapsed" />
             <Border x:Name="BottomBar" Height="3" VerticalAlignment="Bottom" CornerRadius="0,0,8,8" Background="{DynamicResource Stat.Bar}" Visibility="Collapsed" />
           </Grid>
           <ControlTemplate.Triggers>
@@ -765,6 +771,12 @@
             </Trigger>
             <Trigger Property="Accent" Value="danger">
               <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource DangerBorder50}" />
+            </Trigger>
+            <Trigger Property="Glyph" Value="">
+              <Setter TargetName="IconBox" Property="Visibility" Value="Collapsed" />
+            </Trigger>
+            <Trigger Property="Accent" Value="leftwarning">
+              <Setter TargetName="LeftBar" Property="Visibility" Value="Visible" />
             </Trigger>
             <Trigger Property="Accent" Value="bottom">
               <Setter TargetName="BottomBar" Property="Visibility" Value="Visible" />

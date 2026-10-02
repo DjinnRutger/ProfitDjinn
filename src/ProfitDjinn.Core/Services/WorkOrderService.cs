@@ -76,6 +76,10 @@ public sealed class WorkOrderService
         return Loader.WorkOrder(db, id.Value, tx)!;
     });
 
+    /// <summary>The customer's tab if it exists, without creating one (the customer page only shows it).</summary>
+    public WorkOrder? FindForCustomer(long customerId) =>
+        _db.Run(db => Loader.WorkOrders(db, "customer_id = @customerId", new { customerId }).SingleOrDefault());
+
     public WorkOrder Get(long workOrderId) =>
         _db.Run(db => Loader.WorkOrder(db, workOrderId)) ?? throw new UserFacingException("That work order no longer exists.");
 

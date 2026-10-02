@@ -156,6 +156,12 @@ public static class Input
     public static void SetInvalid(DependencyObject o, bool v) => o.SetValue(InvalidProperty, v);
     public static string? GetPrefix(DependencyObject o) => (string?)o.GetValue(PrefixProperty);
     public static void SetPrefix(DependencyObject o, string? v) => o.SetValue(PrefixProperty, v);
+
+    /// <summary>An icon in the prefix addon (e.g. the search box's magnifier). The addon shows when Prefix is set, so this also sets Prefix to "".</summary>
+    public static readonly DependencyProperty PrefixGlyphProperty = DependencyProperty.RegisterAttached("PrefixGlyph", typeof(string), typeof(Input),
+        new PropertyMetadata(null, (d, e) => { if (e.NewValue is string g && g.Length > 0 && GetPrefix(d) is null or "") SetPrefix(d, "\u200B"); }));
+    public static string? GetPrefixGlyph(DependencyObject o) => (string?)o.GetValue(PrefixGlyphProperty);
+    public static void SetPrefixGlyph(DependencyObject o, string? v) => o.SetValue(PrefixGlyphProperty, v);
 }
 
 /// <summary>A text link (an invoice number, a customer name) that runs Click.</summary>

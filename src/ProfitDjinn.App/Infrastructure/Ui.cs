@@ -92,7 +92,8 @@ public static class Ui
             if (cols[i].Content is FrameworkElement fe)
             {
                 fe.Margin = new Thickness(i == 0 ? 0 : gap / 2, fe.Margin.Top, i == cols.Length - 1 ? 0 : gap / 2, fe.Margin.Bottom);
-                fe.VerticalAlignment = VerticalAlignment.Stretch;
+                // Bootstrap columns line up at the top; a card keeps its own height.
+                if (fe.VerticalAlignment == VerticalAlignment.Stretch) fe.VerticalAlignment = VerticalAlignment.Top;
             }
             Grid.SetColumn(cols[i].Content, i);
             g.Children.Add(cols[i].Content);
@@ -105,9 +106,15 @@ public static class Ui
     public static readonly GridLength Auto = GridLength.Auto;
 
     /// <summary>Title (with an optional big status pill), lead line, and the action buttons on the right.</summary>
-    public static FrameworkElement PageHeader(string title, string? lead = null, UIElement? pill = null, params UIElement[] actions)
+    public static FrameworkElement PageHeader(string title, string? lead = null, UIElement? pill = null, params UIElement[] actions) =>
+        PageHeaderWithGlyph(null, title, lead, pill, actions);
+
+    /// <summary>A page header whose title starts with a coloured icon, as Items and Work Orders had.</summary>
+    public static FrameworkElement PageHeaderWithGlyph(string? glyph, string title, string? lead = null, UIElement? pill = null, params UIElement[] actions)
     {
         var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
+        if (glyph is not null)
+            titleRow.Children.Add(new Icon { Glyph = glyph, Size = 21.6, Margin = new Thickness(0, 0, 8, 0) }.WithResource(Icon.ForegroundProperty, "BsPrimary"));
         titleRow.Children.Add(new TextBlock { Text = ThemeManager.Heading(title), Style = Style("H1"), VerticalAlignment = VerticalAlignment.Center });
         if (pill is FrameworkElement p) { p.Margin = new Thickness(12, 0, 0, 0); titleRow.Children.Add(p); }
 
