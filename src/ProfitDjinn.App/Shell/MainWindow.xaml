@@ -1,0 +1,191 @@
+<Window x:Class="ProfitDjinn.App.Shell.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="clr-namespace:ProfitDjinn.App.Controls"
+        Title="ProfitDjinn" Width="1440" Height="900" MinWidth="1024" MinHeight="680"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource PageBg}" Foreground="{DynamicResource Text}"
+        FontFamily="{DynamicResource BodyFont}" FontSize="15"
+        TextOptions.TextFormattingMode="Ideal" UseLayoutRounding="True"
+        Icon="/Assets/app.ico">
+
+  <Window.Resources>
+    <!-- Sidebar nav link (custom.css .nav-link). Tag = icon name; Uid = "active" when current. -->
+    <Style x:Key="NavLink" TargetType="Button">
+      <Setter Property="Foreground" Value="{DynamicResource SidebarText}" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="FontWeight" Value="Medium" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Grid x:Name="Root" Background="Transparent" Height="40">
+              <Border x:Name="Bar" Width="3" HorizontalAlignment="Left" Background="{DynamicResource NavActiveBar}"
+                      CornerRadius="{DynamicResource RadiusNavBar}" Visibility="Collapsed" />
+              <StackPanel Orientation="Horizontal" Margin="20,0,0,0" x:Name="Row" VerticalAlignment="Center">
+                <Border Width="19.2">
+                  <c:Icon x:Name="Ico" Glyph="{TemplateBinding Tag}" Size="16.8" HorizontalAlignment="Center"
+                          Foreground="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}" />
+                </Border>
+                <ContentPresenter x:Name="Label" Margin="11.2,0,0,0" VerticalAlignment="Center" />
+              </StackPanel>
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Root" Property="Background" Value="{DynamicResource SidebarHoverBg}" />
+                <Setter Property="Foreground" Value="{DynamicResource SidebarTextHover}" />
+              </Trigger>
+              <Trigger Property="Uid" Value="active">
+                <Setter TargetName="Root" Property="Background" Value="{DynamicResource NavActiveBg}" />
+                <Setter TargetName="Bar" Property="Visibility" Value="Visible" />
+                <Setter Property="Foreground" Value="{DynamicResource SidebarActiveText}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="LogoutLink" TargetType="Button" BasedOn="{StaticResource NavLink}">
+      <Setter Property="Foreground" Value="{DynamicResource LogoutText}" />
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Foreground" Value="{DynamicResource LogoutHoverText}" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+    <Style x:Key="CrumbLink" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource Link}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="FontSize" Value="15" />
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="TextDecorations" Value="Underline" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+    <!-- Terminal scanlines: 2px clear, 2px rgba(0,0,0,.07), repeating. -->
+    <DrawingBrush x:Key="Scanlines" TileMode="Tile" Viewport="0,0,4,4" ViewportUnits="Absolute">
+      <DrawingBrush.Drawing>
+        <GeometryDrawing Brush="#12000000">
+          <GeometryDrawing.Geometry>
+            <RectangleGeometry Rect="0,2,4,2" />
+          </GeometryDrawing.Geometry>
+        </GeometryDrawing>
+      </DrawingBrush.Drawing>
+    </DrawingBrush>
+  </Window.Resources>
+
+  <Grid x:Name="Root">
+    <Grid.LayoutTransform>
+      <ScaleTransform x:Name="FontScale" ScaleX="1" ScaleY="1" />
+    </Grid.LayoutTransform>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="Auto" />
+      <ColumnDefinition />
+    </Grid.ColumnDefinitions>
+
+    <!-- ============================================================ sidebar -->
+    <Border x:Name="Sidebar" Width="260" Background="{DynamicResource SidebarBg}"
+            BorderBrush="{DynamicResource SidebarBorder}" BorderThickness="0,0,1,0" ClipToBounds="True">
+      <DockPanel>
+        <Border DockPanel.Dock="Top" MinHeight="64" BorderBrush="{DynamicResource SidebarDivider}" BorderThickness="0,0,0,1">
+          <StackPanel x:Name="BrandRow" Orientation="Horizontal" Margin="20,0" VerticalAlignment="Center">
+            <c:Icon x:Name="BrandIcon" Glyph="lightning-charge-fill" Size="22.4" Foreground="{DynamicResource SidebarBrandIcon}" />
+            <Image x:Name="BrandImage" Height="25.6" Visibility="Collapsed" RenderOptions.BitmapScalingMode="HighQuality" />
+            <TextBlock x:Name="BrandText" Text="ProfitDjinn" Margin="12,0,0,0" FontSize="16.8" FontWeight="Bold"
+                       Foreground="{DynamicResource SidebarBrandText}" Effect="{DynamicResource HeadingGlow}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Border>
+        <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource SidebarDivider}" BorderThickness="0,1,0,0" Padding="0,8"
+                x:Name="SidebarFooter">
+          <Button x:Name="LockButton" Style="{StaticResource LogoutLink}" Tag="lock" Content="Lock" Click="OnLock" />
+        </Border>
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,12">
+          <StackPanel x:Name="NavPanel" />
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+
+    <!-- ============================================================ main -->
+    <DockPanel Grid.Column="1">
+      <!-- top bar -->
+      <Grid DockPanel.Dock="Top">
+        <Border Background="{DynamicResource Surface}" Effect="{DynamicResource ShadowXs}" />
+        <Border Height="64" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1" Padding="24,0">
+          <DockPanel VerticalAlignment="Center">
+            <Button DockPanel.Dock="Left" Style="{StaticResource Btn.Ghost}" Padding="8,4.8" c:Btn.Icon="list" FontSize="20"
+                    Click="OnToggleSidebar" ToolTip="Collapse or expand the sidebar" />
+            <Button x:Name="UserButton" DockPanel.Dock="Right" Style="{StaticResource Btn.Ghost}" Padding="8,4" Click="OnUserMenu"
+                    c:Btn.Small="True">
+              <StackPanel Orientation="Horizontal">
+                <Border x:Name="Avatar" Width="32" Height="32" CornerRadius="16" Background="{DynamicResource AvatarBg}"
+                        BorderBrush="{DynamicResource AvatarRing}" BorderThickness="2">
+                  <TextBlock x:Name="AvatarText" Text="PD" FontSize="11.2" FontWeight="Bold" Foreground="{DynamicResource AvatarFg}"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <TextBlock x:Name="UserName" Margin="8,0" FontSize="13.6" FontWeight="SemiBold" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Text}" />
+                <c:Icon Glyph="chevron-down" Size="10.4" Opacity="0.6" Foreground="{DynamicResource Text}" />
+              </StackPanel>
+            </Button>
+            <StackPanel x:Name="Breadcrumb" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center" />
+          </DockPanel>
+        </Border>
+      </Grid>
+
+      <!-- footer -->
+      <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0" Padding="24,13.6">
+        <TextBlock x:Name="FooterText" FontSize="12.8" Foreground="{DynamicResource TextMuted}" />
+      </Border>
+
+      <!-- content -->
+      <ScrollViewer x:Name="ContentScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <StackPanel Margin="24,28,24,28">
+          <StackPanel x:Name="Alerts" />
+          <ContentControl x:Name="PageHost" Focusable="False" RenderTransformOrigin="0.5,0">
+            <ContentControl.RenderTransform>
+              <TranslateTransform x:Name="PageShift" />
+            </ContentControl.RenderTransform>
+          </ContentControl>
+        </StackPanel>
+      </ScrollViewer>
+    </DockPanel>
+
+    <!-- ============================================================ overlays -->
+    <Grid x:Name="DialogLayer" Grid.ColumnSpan="2" Visibility="Collapsed" Background="{DynamicResource Backdrop}"
+          MouseLeftButtonDown="OnBackdropClick">
+      <Grid x:Name="DialogCard" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16" MaxWidth="480"
+            MouseLeftButtonDown="OnDialogClick">
+        <Border CornerRadius="{DynamicResource RadiusDialog}" Background="{DynamicResource Surface}" Effect="{DynamicResource ShadowDialog}" />
+        <Border CornerRadius="{DynamicResource RadiusDialog}" Background="{DynamicResource Surface}"
+                BorderBrush="{DynamicResource Border}" BorderThickness="1" ClipToBounds="True">
+          <DockPanel>
+            <Border DockPanel.Dock="Top" Padding="24,16" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1">
+              <DockPanel>
+                <Button DockPanel.Dock="Right" Style="{StaticResource Btn.Bare}" Padding="6,4" c:Btn.Icon="x-lg" Click="OnDialogCancel"
+                        Foreground="{DynamicResource TextMuted}" FontSize="12" />
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                  <c:Icon x:Name="DialogIcon" Size="18" Margin="0,0,8,0" Foreground="{DynamicResource BsPrimary}" />
+                  <TextBlock x:Name="DialogTitle" Style="{StaticResource H5}" VerticalAlignment="Center" />
+                </StackPanel>
+              </DockPanel>
+            </Border>
+            <Border DockPanel.Dock="Bottom" Padding="24,16" BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0">
+              <StackPanel x:Name="DialogButtons" Orientation="Horizontal" HorizontalAlignment="Right" />
+            </Border>
+            <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="620">
+              <ContentControl x:Name="DialogBody" Margin="24,16" Focusable="False" />
+            </ScrollViewer>
+          </DockPanel>
+        </Border>
+      </Grid>
+    </Grid>
+
+    <!-- Lock screen (app password). Covers everything until the password is entered. -->
+    <ContentControl x:Name="LockLayer" Grid.ColumnSpan="2" Visibility="Collapsed" Focusable="False" />
+
+    <Rectangle x:Name="ScanlineLayer" Grid.ColumnSpan="2" Fill="{StaticResource Scanlines}" IsHitTestVisible="False" Visibility="Collapsed" />
+  </Grid>
+</Window>

@@ -33,6 +33,22 @@ public class RollupTests
         var wantRows = want.GetProperty("rows").EnumerateArray()
             .Select(r => new InvoiceRowInput(r.GetProperty("description").GetString()!, r.GetProperty("quantity").GetString()!, r.GetProperty("unit_price").GetString()!))
             .ToList();
+
+        // Fixed in 2.0: 1.x billed a 0-hour line as one hour in "Every line" mode.
+        // Those rows keep quantity 0, so they bill $0; everything else must match 1.x exactly.
+        var zeroHour = lines.Select((l, i) => (l, i)).Where(x => x.l.Quantity == 0).Select(x => x.i).ToHashSet();
+        if (mode == "detailed" && zeroHour.Count > 0)
+        {
+            foreach (int i in zeroHour)
+            {
+                Assert.Equal("0", rows[i].Quantity);
+                Assert.Equal(0, InvoiceRows.ToDraft(rows[i]).Amount);
+                wantRows[i] = wantRows[i] with { Quantity = "0" };
+            }
+            Assert.Equal(wantRows, rows);
+            Assert.Null(Rollup.Mismatch(rows, lines));
+            return;
+        }
         Assert.Equal(wantRows, rows);
 
         Assert.Equal(expected.GetProperty("selected_total").GetDouble(), Rollup.SelectedTotal(lines));

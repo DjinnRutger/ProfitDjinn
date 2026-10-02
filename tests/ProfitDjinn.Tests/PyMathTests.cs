@@ -66,10 +66,11 @@ public class PyMathTests
         Assert.Equal(expected, InvoiceRows.JsParseFloat(text));
 
     [Fact]
-    public void Line_builder_treats_blank_or_zero_quantity_as_one()
+    public void Line_builder_treats_blank_quantity_as_one_and_zero_as_zero()
     {
         Assert.Equal(1, InvoiceRows.Quantity(""));
-        Assert.Equal(1, InvoiceRows.Quantity("0"));
+        Assert.Equal(1, InvoiceRows.Quantity("abc"));
+        Assert.Equal(0, InvoiceRows.Quantity("0"));   // 1.x: 1 (fixed in 2.0)
         Assert.Equal(0, InvoiceRows.Price(""));
         var draft = InvoiceRows.ToDraft(new InvoiceRowInput("  Setup ", "3", "33.33"));
         Assert.Equal("Setup", draft.Description);

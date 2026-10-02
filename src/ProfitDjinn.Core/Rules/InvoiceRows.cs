@@ -12,18 +12,20 @@ public sealed record InvoiceRowInput(string Description, string Quantity, string
 public sealed record InvoiceLineDraft(string Description, double Quantity, double Amount);
 
 /// <summary>
-/// How 1.x's JavaScript turned the line builder's text boxes into numbers. Kept exactly,
-/// because the saved amounts depend on it:
-///   qty    = parseFloat(text) || 1     (blank or 0 counts as 1)
+/// How 1.x's JavaScript turned the line builder's text boxes into numbers, because the
+/// saved amounts depend on it:
+///   qty    = parseFloat(text), or 1 when blank or unreadable
 ///   price  = parseFloat(text) || 0
 ///   amount = qty * price               (the extended total; not rounded on the invoice form)
+/// Fixed in 2.0: 1.x wrote parseFloat(text) || 1, so a quantity of 0 became 1. On the bill
+/// screen that billed a labor line logged at 0 hours as a full hour. A 0 now stays 0.
 /// </summary>
 public static class InvoiceRows
 {
     public static double Quantity(string? text)
     {
         double q = JsParseFloat(text);
-        return double.IsNaN(q) || q == 0 ? 1 : q;
+        return double.IsNaN(q) ? 1 : q;
     }
 
     public static double Price(string? text)

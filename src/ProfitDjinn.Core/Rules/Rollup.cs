@@ -47,7 +47,8 @@ public static class Rollup
                 {
                     string d = (l.DatePerformed is { } dt ? ShortDate(dt) + " - " : "") + l.Description;
                     if (l.NoCharge) d += " (no charge)";
-                    rows.Add((d, l.Quantity != 0 ? l.Quantity : 1, l.NoCharge ? 0 : l.Rate));
+                    // 1.x used qty || 1 here, billing a 0-hour line as one hour. Fixed in 2.0.
+                    rows.Add((d, l.Quantity, l.NoCharge ? 0 : l.Rate));
                 }
                 break;
 

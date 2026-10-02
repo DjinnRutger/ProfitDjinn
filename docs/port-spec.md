@@ -220,7 +220,7 @@ work lines went back to the tab.
 - Roll-up modes, built from the selected lines `sel`; `billable = sel` minus no-charge lines:
   - **detailed:** one row per selected line, **including no-charge lines**.
     - desc = `(date ? "Mon DD - " : "") + description + (noCharge ? " (no charge)" : "")`
-    - qty = `qty || 1`
+    - qty = the line's quantity (1.x: `qty || 1`; see "Fixed in 2.0")
     - unit = `noCharge ? 0 : rate`
   - **type:** for each type in order labor, part, service, other, over `billable`:
     - amt = Σ amount
@@ -354,6 +354,9 @@ work lines went back to the tab.
   lines. 1.x deleted and re-added lines without refreshing the loaded collection, so the
   cap never fired. Found by the parity test: $50 credit stayed on an invoice cut to $40,
   and the customer lost $10 of credit. 2.0 uses the new lines.
+- A line-builder quantity of 0 became 1 (`parseFloat(x) || 1`). On the bill screen's
+  "Every line" mode that billed a labor line logged at 0 hours as a full hour at the rate.
+  2.0 keeps 0 as 0; only a blank or unreadable quantity counts as 1 (Jon, 2026-10-02).
 - The Item form's Delete button submitted the edit form (nested `<form>`).
 - An Item price of $0 was rejected (`DataRequired` treats 0 as empty).
 - The payment dialog's default date was a UTC date (tomorrow, on US evenings).

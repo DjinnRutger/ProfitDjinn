@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>ProfitDjinn</AssemblyName>
+    <RootNamespace>ProfitDjinn.App</RootNamespace>
+    <Product>ProfitDjinn</Product>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <!-- Portable single exe, no .NET install needed on the user's PC. Used by build.ps1. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Inter and VT323 (OFL), the genie logo and the window icon, compiled into the exe. -->
+    <Resource Include="Assets\Fonts\*.ttf" />
+    <Resource Include="Assets\genie.png" />
+    <Resource Include="Assets\app.ico" />
+    <!-- Bootstrap Icons as path data; regenerate with tools/Icons/make_icons.py. -->
+    <EmbeddedResource Include="Assets\bootstrap-icons.txt" LogicalName="bootstrap-icons.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="bblanchon.PDFium.Win32" Version="155.0.8057" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ProfitDjinn.Core\ProfitDjinn.Core.csproj" />
+  </ItemGroup>
+
+</Project>
