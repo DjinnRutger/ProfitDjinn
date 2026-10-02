@@ -68,7 +68,13 @@ public static class PaymentDialog
             note.Inlines.Add(new System.Windows.Documents.Run(" in account credit. Choose "));
             note.Inlines.Add(new System.Windows.Documents.Bold(new System.Windows.Documents.Run("Account Credit")));
             note.Inlines.Add(new System.Windows.Documents.Run(" below to apply it."));
-            var alert = new Border { Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 0, 0, 16), BorderThickness = new Thickness(1), Child = Ui.Row(6, new Icon { Glyph = "wallet2", Size = 14 }.WithResource(Icon.ForegroundProperty, "Alert.Warning.Fg"), note) }
+            // Icon docked left so the note wraps; in a horizontal row it ran off the dialog's edge.
+            var icon = new Icon { Glyph = "wallet2", Size = 14, Margin = new Thickness(0, 2, 8, 0), VerticalAlignment = VerticalAlignment.Top }.WithResource(Icon.ForegroundProperty, "Alert.Warning.Fg");
+            DockPanel.SetDock(icon, Dock.Left);
+            var line = new DockPanel();
+            line.Children.Add(icon);
+            line.Children.Add(note);
+            var alert = new Border { Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 0, 0, 16), BorderThickness = new Thickness(1), Child = line }
                 .WithResource(Border.BackgroundProperty, "Alert.Warning.Bg").WithResource(Border.BorderBrushProperty, "Alert.Warning.Border").WithResource(Border.CornerRadiusProperty, "Radius");
             body.Children.Add(alert);
         }
