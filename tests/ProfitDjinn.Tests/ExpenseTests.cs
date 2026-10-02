@@ -2,6 +2,7 @@ using Dapper;
 using ProfitDjinn.Core;
 using ProfitDjinn.Core.Data;
 using ProfitDjinn.Core.Model;
+using ProfitDjinn.Core.Rules;
 using ProfitDjinn.Core.Services;
 
 namespace ProfitDjinn.Tests;
@@ -366,5 +367,84 @@ public class ExpenseTests
             Rent(s, Today) with { EndDate = Today.AddDays(-1) })).Fields.Keys);
         Assert.Null(s.Recurring.Get(s.Recurring.Create(Rent(s, Today, RecurringMode.Bill) with { Method = "ach" }).Id).Method);
         Assert.Equal("Monthly on day 1", s.Recurring.List().Single().ScheduleLabel);
+    }
+
+    // ------------------------------------------------------------------ profit and loss
+
+    /// <summary>A customer, a $500 invoice dated Sep 10 paid $300 on Sep 20 and $200 on Oct 1, and expenses.</summary>
+    private static Store ProfitStore()
+    {
+        var s = Fixture.FreshStore(Today);
+        long cust = s.Customers.Create(new CustomerDraft("Client", "", "", "", "", "", "", "", "", true)).Id;
+        long inv = s.Invoices.Create(new InvoiceDraft(cust, s.Invoices.NextNumber(), new DateOnly(2026, 9, 10), "", "", "", false,
+            new[] { new InvoiceLineDraft("Work", 1, 500) })).Id;
+        s.Invoices.RecordPayment(inv, 300, "cash", null, new DateOnly(2026, 9, 20), null);
+        s.Invoices.RecordPayment(inv, 200, "check", "7", new DateOnly(2026, 10, 1), null);
+        long acme = s.Vendors.Create(Vendor("Acme")).Id;
+        // $120 supplies dated Sep 5, paid $50 Sep 5 and $70 Oct 2; $80 software Oct 1 unpaid; $40 travel 2025 paid.
+        long sup = s.Expenses.Create(new ExpenseDraft(acme, Cat(s), new DateOnly(2026, 9, 5), null, "Paper", "", 120, "")).Id;
+        s.Expenses.RecordPayment(sup, 50, "cash", null, new DateOnly(2026, 9, 5), null);
+        s.Expenses.RecordPayment(sup, 70, "cash", null, new DateOnly(2026, 10, 2), null);
+        s.Expenses.Create(new ExpenseDraft(null, Cat(s, "Software & Subscriptions"), new DateOnly(2026, 10, 1), null, "Licence", "", 80, ""));
+        s.Expenses.Create(new ExpenseDraft(null, Cat(s, "Travel"), new DateOnly(2025, 12, 30), null, "Trip", "", 40, "",
+            new PaidNow("credit_card", new DateOnly(2025, 12, 30), null)));
+        return s;
+    }
+
+    [Fact]
+    public void Cash_basis_counts_money_on_the_day_it_moved()
+    {
+        var r = ProfitStore().Profit.Report(2026, ProfitBasis.Cash);
+        Assert.Equal(500, r.Income);
+        Assert.Equal(120, r.Expenses);                         // the unpaid licence is not cash out
+        Assert.Equal(380, r.Net);
+        Assert.Equal(76.0, r.Margin);
+        Assert.Equal((300.0, 50.0), (r.Months[8].Income, r.Months[8].Expenses));
+        Assert.Equal((200.0, 70.0), (r.Months[9].Income, r.Months[9].Expenses));
+        Assert.Equal(new[] { ("Supplies", 120.0) }, r.Categories.Select(c => (c.Name, c.Amount)));
+        Assert.Equal(new[] { ("Acme", 120.0, 2) }, r.Vendors.Select(v => (v.Name, v.Amount, v.Count)));
+        Assert.Equal(new[] { 2026, 2025 }, r.Years);
+        Assert.Equal(-40, r.PreviousNet);
+    }
+
+    [Fact]
+    public void Accrual_basis_counts_invoices_and_expenses_on_their_own_dates_paid_or_not()
+    {
+        var r = ProfitStore().Profit.Report(2026, ProfitBasis.Accrual);
+        Assert.Equal(500, r.Income);
+        Assert.Equal(500, r.Months[8].Income);
+        Assert.Equal(200, r.Expenses);
+        Assert.Equal((120.0, 80.0), (r.Months[8].Expenses, r.Months[9].Expenses));
+        Assert.Equal(new[] { "Supplies", "Software & Subscriptions" }, r.Categories.Select(c => c.Name));
+        Assert.Equal(60.0, r.Categories[0].Share);
+        Assert.Equal("(No vendor)", r.Vendors[1].Name);
+    }
+
+    [Fact]
+    public void An_invoice_marked_paid_without_payments_counts_on_its_paid_date_and_the_dashboard_net_is_cash()
+    {
+        var s = ProfitStore();
+        long cust = s.Customers.List().Single().Id;
+        long old = s.Invoices.Create(new InvoiceDraft(cust, s.Invoices.NextNumber(), new DateOnly(2026, 3, 1), "", "", "", false, new[] { new InvoiceLineDraft("Old", 1, 75) })).Id;
+        s.Database.Run(db => db.Execute("UPDATE invoices SET paid = 1, paid_date = '2026-04-15' WHERE id = @old", new { old }));
+        var r = s.Profit.Report(2026, ProfitBasis.Cash);
+        Assert.Equal(75, r.Months[3].Income);
+        Assert.Equal(575, r.Income);
+        Assert.Equal(455, s.Profit.YearNet(2026));
+    }
+
+    [Fact]
+    public void The_csv_exports_agree_with_the_report_and_quote_awkward_text()
+    {
+        var s = ProfitStore();
+        s.Expenses.Create(new ExpenseDraft(null, Cat(s), new DateOnly(2026, 11, 1), null, "Tape, \"heavy\" duty", "=SUM(A1)", 5, ""));
+        string summary = s.Profit.SummaryCsv(2026, ProfitBasis.Accrual);
+        Assert.Contains("Total,500.00,205.00,295.00", summary);
+        Assert.Contains("Sep,500.00,120.00,380.00", summary);
+        Assert.Contains("Supplies,125.00,61.0", summary);
+        string detail = s.Profit.ExpensesCsv(2026, ProfitBasis.Accrual);
+        Assert.StartsWith("Expense date,Vendor,Category,Description,Reference,Amount", detail);
+        Assert.Contains("2026-11-01,(No vendor),Supplies,\"Tape, \"\"heavy\"\" duty\",'=SUM(A1),5.00", detail);
+        Assert.Equal(4, detail.Split("\r\n", StringSplitOptions.RemoveEmptyEntries).Length);   // header + 3 in 2026
     }
 }
