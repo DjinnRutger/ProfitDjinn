@@ -171,6 +171,7 @@ public sealed class InvoiceService
         int restored = db.Execute(
             "UPDATE work_order_lines SET status = 'completed', invoice_id = NULL, billed_at = NULL WHERE invoice_id = @id",
             new { id }, tx);
+        RecurringInvoiceService.ForgetInvoices(db, tx, "id = @id", new { id });
         db.Execute("DELETE FROM invoice_lines WHERE invoice_id = @id", new { id }, tx);
         db.Execute("DELETE FROM payments WHERE invoice_id = @id", new { id }, tx);
         db.Execute("DELETE FROM invoices WHERE id = @id", new { id }, tx);

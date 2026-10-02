@@ -79,6 +79,7 @@ public sealed class CustomerService
         db.Execute("DELETE FROM work_order_lines WHERE work_order_id IN (SELECT id FROM work_orders WHERE customer_id = @id)", new { id }, tx);
         // Lines on another customer's tab that point at these invoices lose the link (SQLAlchemy nulled it).
         db.Execute("UPDATE work_order_lines SET invoice_id = NULL WHERE invoice_id IN (SELECT id FROM invoices WHERE customer_id = @id)", new { id }, tx);
+        RecurringInvoiceService.DeleteSchedules(db, tx, "customer_id = @id", new { id });
         db.Execute("DELETE FROM invoices WHERE customer_id = @id", new { id }, tx);
         db.Execute("DELETE FROM work_orders WHERE customer_id = @id", new { id }, tx);
         db.Execute("DELETE FROM customers WHERE id = @id", new { id }, tx);

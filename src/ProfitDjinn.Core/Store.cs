@@ -26,6 +26,7 @@ public sealed class Store
     public ExpenseService Expenses { get; }
     public ReceiptStore Receipts { get; }
     public RecurringService Recurring { get; }
+    public RecurringInvoiceService RecurringInvoices { get; }
     public ProfitService Profit { get; }
     public UpdateService Updates { get; }
 
@@ -60,6 +61,8 @@ public sealed class Store
         Expenses = new ExpenseService(Database, Settings, Receipts, today);
         // Recurring expenses are created by the app at start (RecurringService.GenerateDue), not here.
         Recurring = new RecurringService(Database, Settings, today);
+        // Recurring invoices too: the app calls RecurringInvoiceService.GenerateDue at start.
+        RecurringInvoices = new RecurringInvoiceService(Database, Settings, Invoices, today);
         Profit = new ProfitService(Database, today);
         Updates = new UpdateService(Settings, today, appVersion);
     }
