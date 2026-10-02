@@ -21,6 +21,18 @@ Windows SmartScreen may warn because the file is not code-signed; choose More in
   applying credit to another invoice, Print and PDF.
 - **Revenue**: collected revenue by month or year, by customer.
 - **Items**: a price list for quick-adding common lines.
+- **Expenses** (optional, off until you turn it on in **Settings > Expenses**): vendors, bills
+  and purchases with partial payments, due dates and overdue flags, receipts (PDFs or photos)
+  attached to each expense, and recurring expenses (rent, subscriptions, insurance) that add
+  themselves every month or year, either already paid or as a bill to pay. Categories start
+  from a common small-business tax list and can be renamed, added or hidden. Turning
+  Expenses off hides it again; nothing is deleted.
+- **Profit & Loss** (with Expenses on): income, expenses, net profit and margin for any year,
+  month by month, with expenses by category (the totals you need for a tax return) and by
+  vendor. **Cash** basis (money received and paid, on the day it moved; how most small
+  businesses file) or **Accrual** (invoice and expense dates, paid or not). Export the P&L or
+  every expense as CSV for a spreadsheet or your accountant, or save a one-page PDF. The
+  Dashboard shows this year's net profit.
 - **Settings > Security** sets an optional app password, asked for at start (and by **Lock**
   in the sidebar). It keeps casual eyes out on a shared PC; it does not encrypt the data.
 - **Themes**: Light, Dark and Terminal, from the button at the top right.

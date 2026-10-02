@@ -101,6 +101,39 @@ Tools (`tools/Smoke/`), all on throwaway data folders:
 - Uploaded logo and sidebar icon live in `%LOCALAPPDATA%\ProfitDjinn\branding\`. A
   non-empty `login_logo` / `app_icon_img` setting with no file shows the built-in genie.
 
+## Expenses (2.2, optional)
+
+Off by default (`expenses_enabled`). No 1.x equivalent and no 1.x table touched: six new
+tables (`vendors`, `expense_categories`, `expenses`, `expense_payments`, `expense_receipts`,
+`recurring_expenses`) that 1.x ignores. Phase 2 added the Profit & Loss page (below).
+
+- **Gating:** `MainWindow.ExpenseNav` items hide in `RefreshChrome`; every expense route in
+  `Routes.cs` is wrapped in `Exp(...)`, which opens the Dashboard while it is off. New expense
+  screens must go through `Exp` too.
+- **Status comes from payments only.** No paid flag, so a report can count by expense date
+  (accrual) or payment date (cash). Payments cannot exceed the balance; no vendor credit.
+- **Categories** are seeded once, when `expense_categories` is first created (checked in
+  `Schema.Ensure` before the DDL), so deleted starters never come back. In-use ones can only
+  be hidden.
+- **Recurring** (`RecurringService`): dates come from the start month (day 31 -> last day of
+  short months). `generated_through` means nothing on or before it is created again, so a
+  deleted occurrence stays deleted and edits never back-fill; resuming skips the paused gap.
+  `GenerateDue` runs once per start in the app (`MainWindow.RunRecurringOnce`), after saving
+  a template, and when Expenses is switched on; never in the `Store` constructor.
+- **Receipts** (`ReceiptStore`): copied to `<folder>\yyyy\E{id}-{name}`; rows keep the path
+  relative to the folder plus the folder used at save time. `Resolve` tries the current
+  folder, then that saved one, so "Leave Them" after a folder change still works. Not in the
+  .db backup; the Backup page says so.
+- **Profit & Loss** (`ProfitService`, `Pages/ProfitLossPage.cs`, `Pdf/ProfitPdf.cs`): every
+  figure is a sum of dated entries from `ProfitService.Entries(basis)`, so months, years, CSV
+  and PDF always agree. Cash = payments received and made on their dates; an invoice marked
+  paid with no payment rows (older data has these) counts its net total on `paid_date`.
+  Accrual = invoice total and expense amount on their own dates. Applied account credit is
+  never income twice. This is not the Revenue page's figure, which counts AmountPaid by
+  invoice date (the 1.x rule, kept for parity). The dashboard's Net Profit tile is cash basis
+  and, with Expenses on, the tiles go to two rows of three.
+- `tools/Smoke/Smoke-Expenses.ps1` drives the whole feature through UI Automation.
+
 ## 1.x reference (Flask, in legacy/)
 
 Everything below describes the 1.x code in `legacy/`. It stays accurate for that code.

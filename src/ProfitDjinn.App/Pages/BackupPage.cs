@@ -57,8 +57,37 @@ public sealed class BackupPage : AppPage
             _restoreArea);
         var restoreCard = Ui.Card(restoreIntro, "Restore", "upload", "Warning");
 
-        page.Children.Add(Ui.Columns(24, (Ui.Star(), Ui.Stack(24, backupCard, restoreCard)), (Ui.Star(), dbCard)));
+        // ---- 2.2 receipts: files beside the database, not inside it
+        var right = Ui.Stack(24, dbCard);
+        int receipts = Store.Expenses.ReceiptCount();
+        if (Store.Expenses.Enabled || receipts > 0)
+        {
+            string folder = Store.Receipts.CurrentFolder;
+            var receiptBody = Ui.Stack(12,
+                Ui.Text($"Receipt files are kept in a folder, not inside the database, so a backup above does not include them. Copy this folder too, or choose a OneDrive or network folder for receipts in Settings.", "Body", 14.4, wrap: true),
+                Fact("Folder", folder),
+                Fact("Receipts", $"{receipts:N0} attached"),
+                Ui.Row(8,
+                    Ui.Button("Open Folder", "Btn.OutlinePrimary", "folder2-open", () => OpenFolder(folder), small: true),
+                    Ui.Button("Change in Settings", "Btn.OutlineSecondary", "sliders", () => Shell.Navigate(Routes.Settings(Shell, "expenses")), small: true)));
+            right.Children.Add(Ui.Card(receiptBody, "Receipts", "paperclip", "Warning"));
+        }
+
+        page.Children.Add(Ui.Columns(24, (Ui.Star(), Ui.Stack(24, backupCard, restoreCard)), (Ui.Star(), right)));
         Content = page;
+    }
+
+    private void OpenFolder(string folder)
+    {
+        try
+        {
+            Directory.CreateDirectory(folder);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(folder) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            Shell.ShowError($"The receipts folder could not be opened:\n{folder}\n\n{ex.Message}");
+        }
     }
 
     private static FrameworkElement Fact(string label, string value)

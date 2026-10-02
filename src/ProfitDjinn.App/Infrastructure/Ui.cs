@@ -58,6 +58,18 @@ public static class Ui
 
     public static string Dash(string? s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
 
+    /// <summary>
+    /// A typed money amount: dollars and cents, at least $0.01, at most two decimals. A leading
+    /// "$" and thousands commas are allowed. The browser's number box in 1.x took the same.
+    /// </summary>
+    public static bool TryParseCents(string? text, out decimal value)
+    {
+        string t = (text ?? "").Trim().TrimStart('$').Replace(",", "");
+        return decimal.TryParse(t, NumberStyles.Number, Inv, out value) && value >= 0.01m && decimal.Round(value, 2) == value;
+    }
+
+    public const string CentsError = "Enter an amount in dollars and cents, at least $0.01.";
+
     // ------------------------------------------------------------------ layout
 
     public static StackPanel Row(double gap, params UIElement[] children)

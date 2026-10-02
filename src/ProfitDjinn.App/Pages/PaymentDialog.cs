@@ -7,13 +7,15 @@ using ProfitDjinn.App.Shell;
 using ProfitDjinn.Core;
 using ProfitDjinn.Core.Model;
 using ProfitDjinn.Core.Rules;
+using ProfitDjinn.Core.Services;
 
 namespace ProfitDjinn.App.Pages;
 
 /// <summary>
-/// Record Payment (1.x's payment dialog on the invoice page and the invoice list). When the
-/// customer has unused account credit, "Account Credit" is offered; it applies the credit
-/// to this invoice instead of recording money, capped at the credit and the balance.
+/// Record Payment, for an invoice (1.x's payment dialog) or, in 2.2, an expense. For an
+/// invoice whose customer has unused account credit, "Account Credit" is offered; it applies
+/// the credit instead of recording money, capped at the credit and the balance. An expense
+/// payment is capped at its balance.
 /// </summary>
 public static class PaymentDialog
 {
@@ -22,11 +24,35 @@ public static class PaymentDialog
         public override string ToString() => Label;
     }
 
-    public static async void Open(MainWindow shell, Invoice invoice)
+    /// <summary>What is being paid and how to record it.</summary>
+    private sealed record Target(
+        string Title,
+        double Balance,
+        double Credit,
+        bool CapAtBalance,
+        string? CustomerNote,
+        Func<double, string, string?, DateOnly?, string?, Notice> Record);
+
+    public static void Open(MainWindow shell, Invoice invoice)
     {
-        var store = shell.Store;
-        double balance = invoice.BalanceDue;
-        double credit = store.Invoices.AvailableCredit(invoice.CustomerId);
+        double credit = shell.Store.Invoices.AvailableCredit(invoice.CustomerId);
+        Show(shell, new Target($"Record Payment — {invoice.InvoiceNumber}", invoice.BalanceDue, credit, CapAtBalance: false,
+            CustomerNote: "This customer has ",
+            (amount, method, check, date, notes) => shell.Store.Invoices.RecordPayment(invoice.Id, amount, method, check, date, notes)));
+    }
+
+    /// <summary>2.2: pay an expense, all or part of its balance.</summary>
+    public static void Open(MainWindow shell, Expense expense)
+    {
+        string name = string.IsNullOrEmpty(expense.VendorName) ? expense.Description : expense.VendorName;
+        Show(shell, new Target($"Record Payment — {name}", expense.BalanceDue, 0, CapAtBalance: true, CustomerNote: null,
+            (amount, method, check, date, notes) => shell.Store.Expenses.RecordPayment(expense.Id, amount, method, check, date, notes)));
+    }
+
+    private static async void Show(MainWindow shell, Target target)
+    {
+        double balance = target.Balance;
+        double credit = target.Credit;
 
         var body = new StackPanel();
         var balanceLine = new WrapPanel { Margin = new Thickness(0, 0, 0, 16) };
@@ -37,7 +63,7 @@ public static class PaymentDialog
         if (credit > 0)
         {
             var note = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 13.6 }.WithResource(TextBlock.ForegroundProperty, "Alert.Warning.Fg");
-            note.Inlines.Add(new System.Windows.Documents.Run("This customer has "));
+            note.Inlines.Add(new System.Windows.Documents.Run(target.CustomerNote));
             note.Inlines.Add(new System.Windows.Documents.Bold(new System.Windows.Documents.Run(Ui.Money(credit))));
             note.Inlines.Add(new System.Windows.Documents.Run(" in account credit. Choose "));
             note.Inlines.Add(new System.Windows.Documents.Bold(new System.Windows.Documents.Run("Account Credit")));
@@ -80,20 +106,23 @@ public static class PaymentDialog
             }
         };
 
-        var title = $"Record Payment — {invoice.InvoiceNumber}";
-        bool done = await shell.OpenDialog(title, "cash-coin", body, "Record Payment", () =>
+        bool done = await shell.OpenDialog(target.Title, "cash-coin", body, "Record Payment", () =>
         {
             amountField.Error = checkField.Error = dateField.Error = null;
             string m = ((MethodChoice)method.SelectedItem).Value;
-            // The browser's number box only took cents (step 0.01, min 0.01).
-            if (!decimal.TryParse(amount.Text.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out decimal dec) || dec < 0.01m || decimal.Round(dec, 2) != dec)
+            if (!Ui.TryParseCents(amount.Text, out decimal dec))
             {
-                amountField.Error = "Enter an amount in dollars and cents, at least $0.01.";
+                amountField.Error = Ui.CentsError;
                 return false;
             }
             if (m == PaymentMethods.AccountCredit && (double)dec > PyMath.Round(creditCap, 2) + 1e-9)
             {
                 amountField.Error = $"At most {Ui.Money(creditCap)} of credit can be applied here.";
+                return false;
+            }
+            if (target.CapAtBalance && (double)dec > PyMath.Round(balance, 2) + 1e-9)
+            {
+                amountField.Error = $"At most {Ui.Money(balance)} is due.";
                 return false;
             }
             if (m == PaymentMethods.Check && check.Text.Trim().Length == 0)
@@ -108,7 +137,7 @@ public static class PaymentDialog
             }
             try
             {
-                var notice = store.Invoices.RecordPayment(invoice.Id, (double)dec, m, check.Text, date.Date, notes.Text);
+                var notice = target.Record((double)dec, m, check.Text, date.Date, notes.Text);
                 shell.Reload(notice);
                 return true;
             }

@@ -93,6 +93,8 @@ internal static class Seed
         new(SettingKeys.BackupReminderEnabled, "true", "boolean", "Remind me at start to back up my data", "backup", null),
         new(SettingKeys.BackupReminderDays, "7", "number", "Days between backup reminders", "backup", null),
         new(SettingKeys.BackupReminderLast, "", "text", "When the reminder countdown last restarted (auto-managed)", "backup", null),
+        new(SettingKeys.ExpensesEnabled, "false", "boolean", "Track vendors, expenses and recurring costs", "expenses", null),
+        new(SettingKeys.ReceiptsFolder, "", "text", "Folder for receipt files (empty = the data folder's receipts folder)", "expenses", null),
         new(SettingKeys.DatabaseAppVersion, "", "text", "App version that last opened this database (auto-managed)", "backup", null),
     };
 
@@ -157,6 +159,23 @@ internal static class Seed
         };
         foreach (var (key, old, @new) in moves)
             db.Execute("UPDATE settings SET value = @new WHERE \"key\" = @key AND value = @old", new { key, old, @new }, tx);
+    }
+
+    /// <summary>2.2: starter expense categories, modelled on the IRS Schedule C lines. "Other" is last.</summary>
+    internal static readonly string[] StarterCategories =
+    {
+        "Advertising", "Car & Truck", "Contract Labor", "Insurance", "Interest & Bank Fees",
+        "Legal & Professional", "Meals", "Office Expenses", "Rent/Lease", "Repairs & Maintenance",
+        "Supplies", "Software & Subscriptions", "Taxes & Licenses", "Travel", "Utilities",
+        "Phone & Internet", "Other",
+    };
+
+    internal static void ExpenseCategories(SqliteConnection db, SqliteTransaction tx)
+    {
+        string now = SqlFormat.NowUtc();
+        for (int i = 0; i < StarterCategories.Length; i++)
+            db.Execute("INSERT INTO expense_categories (name, is_active, sort_order, created_at) VALUES (@name, 1, @i, @now)",
+                new { name = StarterCategories[i], i, now }, tx);
     }
 
     private static void Insert(SqliteConnection db, SqliteTransaction tx, SettingDef s) =>

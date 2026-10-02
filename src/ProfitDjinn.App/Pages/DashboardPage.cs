@@ -43,6 +43,20 @@ public sealed class DashboardPage : AppPage
         revenue.Accent = "bottom";
         tiles.Children.Add(revenue);
 
+        // 2.2: with Expenses on, this year's net profit (cash basis) opens the Profit & Loss page.
+        if (Store.Expenses.Enabled)
+        {
+            double net = Store.Profit.YearNet(stats.Year);
+            var profit = Tile((net < 0 ? "-" : "") + Ui.Money(Math.Abs(net)), net < 0 ? $"{stats.Year} Net Loss" : $"{stats.Year} Net Profit", "bar-chart-line", net < 0 ? "danger" : "primary", null,
+                Routes.Profit(shell, stats.Year));
+            profit.Accent = "bottom";
+            tiles.Children.Add(profit);
+            // Six tiles do not fit one row without breaking the labels: two rows of three.
+            tiles.Columns = 3;
+            foreach (var t in tiles.Children.OfType<StatTile>()) t.Margin = new Thickness(8, 0, 8, 16);
+            tiles.Margin = new Thickness(-8, 0, -8, 8);
+        }
+
         var page = new StackPanel();
         page.Children.Add(Ui.PageHeader("Dashboard", welcome));
         page.Children.Add(tiles);

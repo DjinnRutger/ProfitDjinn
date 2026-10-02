@@ -21,6 +21,12 @@ public sealed class Store
     public BackupService Backups { get; }
     public AppPassword Password { get; }
     public BackupReminder BackupReminder { get; }
+    public VendorService Vendors { get; }
+    public ExpenseCategoryService Categories { get; }
+    public ExpenseService Expenses { get; }
+    public ReceiptStore Receipts { get; }
+    public RecurringService Recurring { get; }
+    public ProfitService Profit { get; }
 
     /// <param name="today">The clock. Tests pass a fixed date; the app passes the local date.</param>
     /// <param name="appVersion">The running version. Tests pass one to simulate an upgrade.</param>
@@ -47,5 +53,12 @@ public sealed class Store
         Backups = new BackupService(Database);
         Password = new AppPassword(Settings);
         BackupReminder = new BackupReminder(Settings, today);
+        Vendors = new VendorService(Database);
+        Categories = new ExpenseCategoryService(Database);
+        Receipts = new ReceiptStore(Settings, paths);
+        Expenses = new ExpenseService(Database, Settings, Receipts, today);
+        // Recurring expenses are created by the app at start (RecurringService.GenerateDue), not here.
+        Recurring = new RecurringService(Database, Settings, today);
+        Profit = new ProfitService(Database, today);
     }
 }

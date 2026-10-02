@@ -27,7 +27,10 @@ public partial class MainWindow : Window
         ("customers", "Customers", "building"),
         ("invoices", "Invoices", "receipt"),
         ("workorders", "Work Orders", "clipboard-check"),
+        ("vendors", "Vendors", "shop"),            // 2.2, shown only while Expenses is on
+        ("expenses", "Expenses", "wallet2"),
         ("revenue", "Revenue", "graph-up-arrow"),
+        ("profit", "Profit & Loss", "bar-chart-line"),   // 2.2, shown only while Expenses is on
         ("items", "Items", "box-seam"),
     };
 
@@ -36,6 +39,9 @@ public partial class MainWindow : Window
         ("settings", "Settings", "sliders"),
         ("backup", "Backup & Restore", "database"),
     };
+
+    /// <summary>Sidebar items that belong to the optional Expenses feature.</summary>
+    private static readonly string[] ExpenseNav = { "vendors", "expenses", "profit" };
 
     private readonly List<Func<AppPage>> _history = new();
     private int _index = -1;
@@ -67,7 +73,7 @@ public partial class MainWindow : Window
 
         Navigate(startPage is null ? Routes.Dashboard(this) : Routes.ForNav(this, startPage));
         if (store.Password.IsSet) ShowLock();
-        else ContentRendered += (_, _) => RemindBackupIfDue();
+        else ContentRendered += (_, _) => AfterStart();
     }
 
     // ------------------------------------------------------------------ navigation
@@ -255,6 +261,8 @@ public partial class MainWindow : Window
         FontScale.ScaleX = FontScale.ScaleY = scale;
 
         LockButton.Visibility = Store.Password.IsSet ? Visibility.Visible : Visibility.Collapsed;
+        var expenses = Store.Expenses.Enabled ? Visibility.Visible : Visibility.Collapsed;
+        foreach (string key in ExpenseNav) if (_navButtons.TryGetValue(key, out var b)) b.Visibility = expenses;
         SidebarFooter.Visibility = LockButton.Visibility;
 
         DarkTitleBar.Apply(this, ThemeManager.Current != ThemeManager.Light);
@@ -497,7 +505,36 @@ public partial class MainWindow : Window
         LockLayer.Visibility = Visibility.Collapsed;
         LockLayer.Content = null;
         Reload();
+        AfterStart();
+    }
+
+    /// <summary>Once the window is up (and unlocked): create due recurring expenses, then the backup reminder.</summary>
+    private void AfterStart()
+    {
+        RunRecurringOnce();
         RemindBackupIfDue();
+    }
+
+    private bool _recurringChecked;
+
+    /// <summary>2.2. Once per start: create the recurring expenses that have come due, and say so.</summary>
+    private void RunRecurringOnce()
+    {
+        if (_recurringChecked) return;
+        _recurringChecked = true;
+        try
+        {
+            var made = Store.Recurring.GenerateDue();
+            if (RecurringService.Summarize(made) is { } notice)
+            {
+                if (CurrentPage is Pages.DashboardPage or Pages.ExpensesPage) Reload(notice);
+                else ShowNotice(notice);
+            }
+        }
+        catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or IOException or UserFacingException)
+        {
+            ShowError($"Recurring expenses could not be added: {ex.Message}");
+        }
     }
 
     // ------------------------------------------------------------------ backup reminder
