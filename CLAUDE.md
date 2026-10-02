@@ -105,7 +105,7 @@ Tools (`tools/Smoke/`), all on throwaway data folders:
 
 Off by default (`expenses_enabled`). No 1.x equivalent and no 1.x table touched: six new
 tables (`vendors`, `expense_categories`, `expenses`, `expense_payments`, `expense_receipts`,
-`recurring_expenses`) that 1.x ignores. Phase 2 (reports, P&L) is still to do.
+`recurring_expenses`) that 1.x ignores. Phase 2 added the Profit & Loss page (below).
 
 - **Gating:** `MainWindow.ExpenseNav` items hide in `RefreshChrome`; every expense route in
   `Routes.cs` is wrapped in `Exp(...)`, which opens the Dashboard while it is off. New expense
@@ -124,6 +124,14 @@ tables (`vendors`, `expense_categories`, `expenses`, `expense_payments`, `expens
   relative to the folder plus the folder used at save time. `Resolve` tries the current
   folder, then that saved one, so "Leave Them" after a folder change still works. Not in the
   .db backup; the Backup page says so.
+- **Profit & Loss** (`ProfitService`, `Pages/ProfitLossPage.cs`, `Pdf/ProfitPdf.cs`): every
+  figure is a sum of dated entries from `ProfitService.Entries(basis)`, so months, years, CSV
+  and PDF always agree. Cash = payments received and made on their dates; an invoice marked
+  paid with no payment rows (older data has these) counts its net total on `paid_date`.
+  Accrual = invoice total and expense amount on their own dates. Applied account credit is
+  never income twice. This is not the Revenue page's figure, which counts AmountPaid by
+  invoice date (the 1.x rule, kept for parity). The dashboard's Net Profit tile is cash basis
+  and, with Expenses on, the tiles go to two rows of three.
 - `tools/Smoke/Smoke-Expenses.ps1` drives the whole feature through UI Automation.
 
 ## 1.x reference (Flask, in legacy/)

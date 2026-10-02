@@ -447,4 +447,19 @@ public class ExpenseTests
         Assert.Contains("2026-11-01,(No vendor),Supplies,\"Tape, \"\"heavy\"\" duty\",'=SUM(A1),5.00", detail);
         Assert.Equal(4, detail.Split("\r\n", StringSplitOptions.RemoveEmptyEntries).Length);   // header + 3 in 2026
     }
+
+    [Fact]
+    public void The_profit_and_loss_pdf_renders_a_page_with_the_totals()
+    {
+        var s = ProfitStore();
+        var r = s.Profit.Report(2026, ProfitBasis.Cash);
+        byte[] pdf = ProfitDjinn.Core.Pdf.ProfitPdf.Render(r, s.Settings.Company(), Today);
+        Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(pdf, 0, 4));
+        string dir = Path.Combine(Path.GetTempPath(), "profitdjinn-tests");
+        Directory.CreateDirectory(dir);
+        File.WriteAllBytes(Path.Combine(dir, "profit-loss-sample.pdf"), pdf);   // for a look by eye
+        using var doc = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(pdf), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+        Assert.Equal(1, doc.PageCount);
+        Assert.Equal("-$40.00", ProfitDjinn.Core.Pdf.ProfitPdf.Money(-40));
+    }
 }

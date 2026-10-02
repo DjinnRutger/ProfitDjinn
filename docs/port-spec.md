@@ -409,3 +409,20 @@ new tables follow the 1.x conventions (no AUTOINCREMENT, money FLOAT, DATE text,
   start up to today, only while Expenses is on; a start date in the past asks before
   back-filling. Never creates a date twice or re-creates a deleted one; resuming a paused
   template skips the paused dates; deleting a template keeps its expenses.
+
+### Profit & Loss (new in 2.2)
+
+- One year at a time, every year with income or expenses listed. **Cash** (default): income
+  is each payment received on its date, plus invoices marked paid without payment rows at
+  their net total on `paid_date` (else the invoice date); expenses are expense payments on
+  their dates. **Accrual**: invoice totals on invoice dates, expense amounts on expense
+  dates, paid or not. Applying account credit is not income.
+- Shows income, expenses, net (profit or loss), margin (net / income), last year's net,
+  months, expenses by category and by vendor, and year by year.
+- Exports: P&L CSV (months, total, categories), expenses CSV (every entry of the year),
+  one-page PDF. CSV is UTF-8 with a BOM, RFC 4180 quoting, and a leading = + @ is prefixed
+  with ' so a spreadsheet does not run it.
+- Dashboard: with Expenses on, a "{year} Net Profit" (or Net Loss) tile, cash basis, opens
+  the page; the six tiles sit in two rows of three.
+- Not the Revenue page's "collected" figure, which keeps 1.x's rule (AmountPaid by invoice
+  date).

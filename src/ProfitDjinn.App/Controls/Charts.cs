@@ -288,3 +288,128 @@ public sealed class DoughnutChart : StackPanel
         }
     }
 }
+
+/// <summary>
+/// 2.2: two bars per slot, income (Success) beside expenses (Danger), for the Profit &amp; Loss
+/// page. Same axis, ticks, grid and hover tooltip as <see cref="BarChart"/>; the tooltip also
+/// gives the net. A legend sits under the plot.
+/// </summary>
+public sealed class PairBarChart : FrameworkElement
+{
+    private IReadOnlyList<(string Label, double A, double B)> _data = Array.Empty<(string, double, double)>();
+    private readonly ChartTip _tip;
+    private int _hover = -1;
+    private Rect[] _slots = Array.Empty<Rect>();
+
+    public double AspectRatio { get; set; } = 3.2;
+    public string LabelA { get; set; } = "Income";
+    public string LabelB { get; set; } = "Expenses";
+
+    public PairBarChart()
+    {
+        _tip = new ChartTip(this);
+        MouseMove += OnMove;
+        MouseLeave += (_, _) => { _hover = -1; _tip.Hide(); InvalidateVisual(); };
+    }
+
+    public void SetData(IReadOnlyList<(string Label, double A, double B)> data)
+    {
+        _data = data;
+        InvalidateVisual();
+    }
+
+    protected override Size MeasureOverride(Size available)
+    {
+        double w = double.IsInfinity(available.Width) ? 600 : available.Width;
+        return new Size(w, Math.Max(180, w / AspectRatio));
+    }
+
+    protected override void OnRender(DrawingContext dc)
+    {
+        double w = ActualWidth, h = ActualHeight;
+        dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, w, h));
+        if (_data.Count == 0) return;
+        var label = Find("ChartLabel");
+        var brushA = Find("Success");
+        var brushB = Find("Danger");
+        var font = new Typeface((FontFamily)Application.Current.FindResource("BodyFont"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        double dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        FormattedText Text(string s) => new(s, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, font, 12, label, dpi);
+
+        double max = Math.Max(_data.Max(d => Math.Max(d.A, d.B)), 0);
+        var (step, top) = BarChart.NiceScale(max);
+        int ticks = (int)Math.Round(top / step);
+        var tickTexts = Enumerable.Range(0, ticks + 1).Select(i => Text("$" + (i * step).ToString("#,##0.##", CultureInfo.InvariantCulture))).ToList();
+        double left = tickTexts.Max(t => t.Width) + 10;
+        double legendH = 22, bottomPad = 22 + legendH, topPad = 8;
+        double plotH = h - bottomPad - topPad, plotW = w - left;
+
+        var gridPen = new Pen(Find("ChartGrid"), 1);
+        for (int i = 0; i <= ticks; i++)
+        {
+            double y = topPad + plotH - plotH * i / ticks;
+            dc.DrawLine(gridPen, new Point(left, Math.Round(y) + 0.5), new Point(w, Math.Round(y) + 0.5));
+            dc.DrawText(tickTexts[i], new Point(left - 8 - tickTexts[i].Width, y - tickTexts[i].Height / 2));
+        }
+
+        double slot = plotW / _data.Count;
+        double barW = Math.Min(slot * 0.8 / 2 * 0.9, 48);
+        _slots = new Rect[_data.Count];
+        for (int i = 0; i < _data.Count; i++)
+        {
+            double x0 = left + slot * i + (slot - barW * 2 - 2) / 2;
+            Bar(dc, x0, _data[i].A, brushA, i == _hover);
+            Bar(dc, x0 + barW + 2, _data[i].B, brushB, i == _hover);
+            _slots[i] = new Rect(left + slot * i, topPad, slot, plotH);
+            var lt = Text(_data[i].Label);
+            dc.DrawText(lt, new Point(left + slot * i + (slot - lt.Width) / 2, topPad + plotH + 4));
+        }
+
+        // legend
+        double lx = left, ly = h - legendH + 4;
+        foreach (var (name, brush) in new[] { (LabelA, brushA), (LabelB, brushB) })
+        {
+            dc.DrawRoundedRectangle(brush, null, new Rect(lx, ly + 3, 22, 10), 2, 2);
+            var t = Text(name);
+            dc.DrawText(t, new Point(lx + 28, ly));
+            lx += 28 + t.Width + 20;
+        }
+
+        void Bar(DrawingContext d, double x, double v, Brush brush, bool hover)
+        {
+            double bh = top > 0 ? plotH * Math.Max(0, v) / top : 0;
+            if (bh <= 0) return;
+            var rect = new Rect(x, topPad + plotH - bh, barW, bh);
+            double r = Math.Min(3, Math.Min(barW / 2, bh));
+            var geo = new StreamGeometry();
+            using (var g = geo.Open())
+            {
+                g.BeginFigure(new Point(rect.Left, rect.Bottom), true, true);
+                g.LineTo(new Point(rect.Left, rect.Top + r), true, false);
+                g.ArcTo(new Point(rect.Left + r, rect.Top), new Size(r, r), 0, false, SweepDirection.Clockwise, true, false);
+                g.LineTo(new Point(rect.Right - r, rect.Top), true, false);
+                g.ArcTo(new Point(rect.Right, rect.Top + r), new Size(r, r), 0, false, SweepDirection.Clockwise, true, false);
+                g.LineTo(new Point(rect.Right, rect.Bottom), true, false);
+            }
+            geo.Freeze();
+            d.PushOpacity(hover ? 1.0 : 0.85);
+            d.DrawGeometry(brush, null, geo);
+            d.Pop();
+        }
+    }
+
+    private void OnMove(object sender, MouseEventArgs e)
+    {
+        var p = e.GetPosition(this);
+        int hit = Array.FindIndex(_slots, r => r.Contains(p));
+        if (hit != _hover) { _hover = hit; InvalidateVisual(); }
+        if (hit >= 0)
+        {
+            var d = _data[hit];
+            _tip.Show($"{d.Label}   {LabelA} {Ui.MoneyGrouped(d.A)}   {LabelB} {Ui.MoneyGrouped(d.B)}   Net {Ui.MoneyGrouped(d.A - d.B)}", p);
+        }
+        else _tip.Hide();
+    }
+
+    private Brush Find(string key) => (Brush)(TryFindResource(key) ?? Brushes.Gray);
+}

@@ -30,6 +30,7 @@ public partial class MainWindow : Window
         ("vendors", "Vendors", "shop"),            // 2.2, shown only while Expenses is on
         ("expenses", "Expenses", "wallet2"),
         ("revenue", "Revenue", "graph-up-arrow"),
+        ("profit", "Profit & Loss", "bar-chart-line"),   // 2.2, shown only while Expenses is on
         ("items", "Items", "box-seam"),
     };
 
@@ -40,7 +41,7 @@ public partial class MainWindow : Window
     };
 
     /// <summary>Sidebar items that belong to the optional Expenses feature.</summary>
-    private static readonly string[] ExpenseNav = { "vendors", "expenses" };
+    private static readonly string[] ExpenseNav = { "vendors", "expenses", "profit" };
 
     private readonly List<Func<AppPage>> _history = new();
     private int _index = -1;

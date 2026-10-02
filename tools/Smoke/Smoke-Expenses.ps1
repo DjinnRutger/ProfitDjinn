@@ -153,6 +153,13 @@ try {
     Click "Add 3 Expenses"
     Wait-For ("Recurring expense 'Smoke rent' saved. " + $madeNotice) | Out-Null
   }
+  Step "the P&L shows the cash spent" {
+    Click "Profit & Loss"
+    Wait-For "P&L CSV" -type $CT::Button | Out-Null
+    # Cash out this year: the $40 payment plus each $500 rent dated this year. No income.
+    $spent = 40 + 500 * @($dates | Where-Object { $_.Year -eq $today.Year }).Count
+    Wait-For ("-`$" + $spent.ToString("0.00", $inv)) | Out-Null
+  }
   Step "turn Expenses off" {
     Click "Settings"
     Toggle "Expenses feature"
@@ -161,6 +168,7 @@ try {
     Start-Sleep -Milliseconds 500
     if ((Find-All "Vendors" $CT::Button).Count -ne 0) { throw "Vendors is still in the sidebar." }
     if ((Find-All "Expenses" $CT::Button).Count -ne 0) { throw "Expenses is still in the sidebar." }
+    if ((Find-All "Profit & Loss" $CT::Button).Count -ne 0) { throw "Profit & Loss is still in the sidebar." }
   }
 }
 catch {

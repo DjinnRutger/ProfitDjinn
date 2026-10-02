@@ -27,6 +27,12 @@ Windows SmartScreen may warn because the file is not code-signed; choose More in
   themselves every month or year, either already paid or as a bill to pay. Categories start
   from a common small-business tax list and can be renamed, added or hidden. Turning
   Expenses off hides it again; nothing is deleted.
+- **Profit & Loss** (with Expenses on): income, expenses, net profit and margin for any year,
+  month by month, with expenses by category (the totals you need for a tax return) and by
+  vendor. **Cash** basis (money received and paid, on the day it moved; how most small
+  businesses file) or **Accrual** (invoice and expense dates, paid or not). Export the P&L or
+  every expense as CSV for a spreadsheet or your accountant, or save a one-page PDF. The
+  Dashboard shows this year's net profit.
 - **Settings > Security** sets an optional app password, asked for at start (and by **Lock**
   in the sidebar). It keeps casual eyes out on a shared PC; it does not encrypt the data.
 - **Themes**: Light, Dark and Terminal, from the button at the top right.

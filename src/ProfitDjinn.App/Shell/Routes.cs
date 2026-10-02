@@ -53,6 +53,7 @@ public static class Routes
     public static Func<AppPage> NewRecurring(MainWindow s) => Exp(s, () => new RecurringFormPage(s, null));
     public static Func<AppPage> EditRecurring(MainWindow s, long id) => Exp(s, () => new RecurringFormPage(s, id));
     public static Func<AppPage> ExpenseCategories(MainWindow s) => Exp(s, () => new ExpenseCategoriesPage(s));
+    public static Func<AppPage> Profit(MainWindow s, int? year = null, ProfitBasis basis = ProfitBasis.Cash) => Exp(s, () => new ProfitLossPage(s, year, basis));
 
     /// <summary>
     /// A sidebar key, or "name:id" for one record (customer:3, invoice:7, workorder:3 by customer,
@@ -105,6 +106,8 @@ public static class Routes
         "recurring" => Recurring(s),
         "newrecurring" => NewRecurring(s),
         "expensecategories" => ExpenseCategories(s),
+        "profit" => Profit(s),
+        "profitaccrual" => Profit(s, null, ProfitBasis.Accrual),
         _ => Dashboard(s),
     };
 }
