@@ -33,7 +33,7 @@ backup and restore only in Admin > Database, same look in all three themes.
   `PyMath.Sum`, never LINQ `Sum`. `round()` is half-to-even on the exact binary value
   (`PyMath.Round`); JavaScript `toFixed` is half-up (`PyMath.JsToFixed`). The bill screen and
   invoice form use plain JavaScript addition (`PyMath.JsSum`).
-- **Database compatibility.** 2.0 opens the same `%LOCALAPPDATA%\ProfitDjinnpp.db`, keeps
+- **Database compatibility.** 2.0 opens the same `%LOCALAPPDATA%\ProfitDjinn\app.db`, keeps
   foreign keys off, writes dates as `YYYY-MM-DD` text, and only adds settings rows
   (`app_password_hash`, `theme`). The 1.x build must keep opening it: that is the rollback path.
 - SQLite tables use INTEGER PRIMARY KEY without AUTOINCREMENT, so deleting the highest row
