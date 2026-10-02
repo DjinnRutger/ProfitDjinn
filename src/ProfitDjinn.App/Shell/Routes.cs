@@ -36,6 +36,24 @@ public static class Routes
     public static Func<AppPage> Settings(MainWindow s, string? category = null) => () => new SettingsPage(s, category);
     public static Func<AppPage> Backup(MainWindow s) => () => new BackupPage(s);
 
+    // ---- 2.2 Expenses. Every one is guarded: with Expenses turned off in Settings, these open
+    // the Dashboard instead, which also covers Back/Forward history and --page.
+    private static Func<AppPage> Exp(MainWindow s, Func<AppPage> open) => () => s.Store.Expenses.Enabled ? open() : new DashboardPage(s);
+
+    public static Func<AppPage> Vendors(MainWindow s, string search = "", bool inactive = false) => Exp(s, () => new VendorsPage(s, search, inactive));
+    public static Func<AppPage> Vendor(MainWindow s, long id) => Exp(s, () => new VendorDetailPage(s, id));
+    public static Func<AppPage> NewVendor(MainWindow s) => Exp(s, () => new VendorFormPage(s, null));
+    public static Func<AppPage> EditVendor(MainWindow s, long id) => Exp(s, () => new VendorFormPage(s, id));
+    public static Func<AppPage> Expenses(MainWindow s, ExpenseFilter filter = ExpenseFilter.All, string search = "", long? category = null) =>
+        Exp(s, () => new ExpensesPage(s, filter, search, category));
+    public static Func<AppPage> Expense(MainWindow s, long id) => Exp(s, () => new ExpenseDetailPage(s, id));
+    public static Func<AppPage> NewExpense(MainWindow s, long? vendorId = null) => Exp(s, () => new ExpenseFormPage(s, null, vendorId));
+    public static Func<AppPage> EditExpense(MainWindow s, long id) => Exp(s, () => new ExpenseFormPage(s, id, null));
+    public static Func<AppPage> Recurring(MainWindow s) => Exp(s, () => new RecurringPage(s));
+    public static Func<AppPage> NewRecurring(MainWindow s) => Exp(s, () => new RecurringFormPage(s, null));
+    public static Func<AppPage> EditRecurring(MainWindow s, long id) => Exp(s, () => new RecurringFormPage(s, id));
+    public static Func<AppPage> ExpenseCategories(MainWindow s) => Exp(s, () => new ExpenseCategoriesPage(s));
+
     /// <summary>
     /// A sidebar key, or "name:id" for one record (customer:3, invoice:7, workorder:3 by customer,
     /// bill:2 by work order). The --page start argument uses this.
@@ -43,6 +61,7 @@ public static class Routes
     public static Func<AppPage> ForNav(MainWindow s, string key)
     {
         int colon = key.IndexOf(':');
+        if (colon > 0 && key[..colon] == "settings") return Settings(s, key[(colon + 1)..]);   // settings:expenses
         if (colon > 0 && long.TryParse(key[(colon + 1)..], out long id))
             return key[..colon] switch
             {
@@ -54,6 +73,12 @@ public static class Routes
                 "workorder" => WorkOrder(s, id),
                 "bill" => Bill(s, id),
                 "edititem" => EditItem(s, id),
+                "vendor" => Vendor(s, id),
+                "editvendor" => EditVendor(s, id),
+                "expense" => Expense(s, id),
+                "editexpense" => EditExpense(s, id),
+                "newexpense" => NewExpense(s, id),
+                "editrecurring" => EditRecurring(s, id),
                 _ => Dashboard(s),
             };
         return Named(s, key);
@@ -73,6 +98,13 @@ public static class Routes
         "settings" => Settings(s),
         "backup" => Backup(s),
         "gallery" => Gallery(s),
+        "vendors" => Vendors(s),
+        "newvendor" => NewVendor(s),
+        "expenses" => Expenses(s),
+        "newexpense" => NewExpense(s),
+        "recurring" => Recurring(s),
+        "newrecurring" => NewRecurring(s),
+        "expensecategories" => ExpenseCategories(s),
         _ => Dashboard(s),
     };
 }

@@ -53,7 +53,8 @@ public sealed class SettingsPage : AppPage
             if (group.Key == "appearance") body.Children.Add(ImageRow("app_icon_img", "Upload a PNG to replace the Bootstrap icon in the sidebar", Store.Paths.AppIconPath, SettingKeys.AppIconImage, "app_icon.png", "Remove the custom app icon?"));
             if (group.Key == "login") body.Children.Add(ImageRow("login_logo", "Upload a PNG image to replace the icon on the lock screen", Store.Paths.LoginLogoPath, SettingKeys.LoginLogo, "login_logo.png", "Remove the custom login logo?"));
             if (group.Key == "backup") body.Children.Add(BackupReminderRows());
-            foreach (var s in group.Where(s => group.Key != "backup"))
+            if (group.Key == "expenses") body.Children.Add(ExpensesRows());
+            foreach (var s in group.Where(s => group.Key is not ("backup" or "expenses")))
             {
                 if (s.Key is SettingKeys.LoginLogo or SettingKeys.AppIconImage) continue;
                 body.Children.Add(SettingRow(s));
@@ -87,7 +88,7 @@ public sealed class SettingsPage : AppPage
         string glyph = category switch
         {
             "general" => "grid-1x2", "appearance" => "palette", "security" => "shield-lock", "login" => "box-arrow-in-right",
-            "ui" => "type", "invoices" => "receipt", "workorders" => "clipboard-check", "backup" => "database", _ => "gear",
+            "ui" => "type", "invoices" => "receipt", "workorders" => "clipboard-check", "backup" => "database", "expenses" => "wallet2", _ => "gear",
         };
         string title = category == "workorders" ? "Work Orders" : category == "login" ? "Lock Screen"
             : category.Length == 0 ? "General" : char.ToUpperInvariant(category[0]) + category[1..].ToLowerInvariant();
@@ -322,9 +323,72 @@ public sealed class SettingsPage : AppPage
             daysRow);
     }
 
+    // ------------------------------------------------------------------ expenses (2.2)
+
+    /// <summary>The Expenses switch, where receipt files go, and a way to the categories.</summary>
+    private FrameworkElement ExpensesRows()
+    {
+        bool on = Store.Expenses.Enabled;
+        var sw = new CheckBox { Style = Ui.Style("Switch"), IsChecked = on };
+        void Label() => sw.Content = sw.IsChecked == true ? "Enabled" : "Disabled";
+        sw.Click += (_, _) => Label();
+        Label();
+        _readers[SettingKeys.ExpensesEnabled] = () => sw.IsChecked == true ? "true" : "false";
+
+        string setting = Store.Settings.Get(SettingKeys.ReceiptsFolder).Trim();
+        var shown = Ui.TextBox(Store.Receipts.Effective(setting)).Also(t => { t.IsReadOnly = true; t.SetResourceReference(TextBox.FontFamilyProperty, "MonoFont"); t.FontSize = 13; });
+        var browse = Ui.Button("Browse…", "Btn.OutlinePrimary", "folder2-open", () =>
+        {
+            var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "Folder for receipt files", InitialDirectory = Directory.Exists(shown.Text) ? shown.Text : "" };
+            if (dialog.ShowDialog(Shell) != true) return;
+            setting = dialog.FolderName;
+            shown.Text = Store.Receipts.Effective(setting);
+        }, small: true);
+        var reset = Ui.Button("Use Default", "Btn.OutlineSecondary", null, () =>
+        {
+            setting = "";
+            shown.Text = Store.Receipts.DefaultFolder;
+        }, small: true);
+        _readers[SettingKeys.ReceiptsFolder] = () => setting;
+        var folderWidget = Ui.Stack(8, shown, Ui.Row(8, browse, reset));
+
+        var rows = Ui.Stack(0,
+            Row(SettingKeys.ExpensesEnabled, "Track vendors, bills and recurring costs. Off hides Vendors and Expenses from the sidebar; nothing is deleted.", "boolean", sw),
+            Row(SettingKeys.ReceiptsFolder, "Where attached receipt files are kept. Pick a OneDrive or network folder to keep them backed up there. Receipts are not inside a database backup.", "folder", folderWidget));
+        if (on)
+            rows.Children.Add(Row("Categories", "Add, rename or hide expense categories.", null,
+                Ui.Button("Manage Categories", "Btn.OutlinePrimary", "tags", () => Shell.Navigate(Routes.ExpenseCategories(Shell)), small: true)
+                    .Also(b => b.HorizontalAlignment = HorizontalAlignment.Left)));
+        return rows;
+    }
+
+    /// <summary>
+    /// Before a new receipts folder is saved: it must be writable, and existing receipts can be
+    /// moved there. Returns false to stop the save, and a message about any move.
+    /// </summary>
+    private async Task<(bool Ok, string? Message)> ChangeReceiptsFolder(string newSetting)
+    {
+        string from = Store.Receipts.CurrentFolder, to = Store.Receipts.Effective(newSetting);
+        if (string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(from)), Path.TrimEndingDirectorySeparator(Path.GetFullPath(to)), StringComparison.OrdinalIgnoreCase)) return (true, null);
+        if (ReceiptStore.ValidateFolder(to) is { } problem) { Shell.ShowError(problem); return (false, null); }
+        int count = Store.Expenses.ReceiptCount();
+        if (count == 0) return (true, null);
+
+        var body = Ui.Text($"{count} receipt {(count == 1 ? "file is" : "files are")} in\n{from}\n\nMove {(count == 1 ? "it" : "them")} to the new folder? " +
+            "If you leave them, they still open from where they are, and only new receipts go to the new folder.", "Body", 14.4, wrap: true);
+        bool move = await Shell.OpenDialog("Move receipts?", "folder2-open", body, $"Move {count} {(count == 1 ? "Receipt" : "Receipts")}", () => true,
+            primaryGlyph: "arrow-right", maxWidth: 520, cancelText: "Leave Them");
+        if (!move) return (true, null);
+        var r = Store.Expenses.MoveReceipts(to);
+        string msg = $"{r.Moved} {(r.Moved == 1 ? "receipt" : "receipts")} moved.";
+        if (r.Missing > 0) msg += $" {r.Missing} could not be found.";
+        if (r.Failed.Count > 0) msg += $" {r.Failed.Count} could not be moved: {string.Join("; ", r.Failed.Take(3))}";
+        return (true, msg);
+    }
+
     // ------------------------------------------------------------------ save
 
-    private void SaveAll()
+    private async void SaveAll()
     {
         var values = _readers.ToDictionary(r => r.Key, r => r.Value());
         if (values.TryGetValue(SettingKeys.PrimaryColor, out var color) && ThemeManager.ParseColor(color) is null)
@@ -337,9 +401,23 @@ public sealed class SettingsPage : AppPage
             Shell.ShowError(problem);
             return;
         }
+        string? moved = null;
+        if (values.TryGetValue(SettingKeys.ReceiptsFolder, out var folder))
+        {
+            var (ok, message) = await ChangeReceiptsFolder(folder);
+            if (!ok) return;
+            moved = message;
+        }
+        bool wasOn = Store.Expenses.Enabled;
         Store.Settings.SetMany(values);
+        string extra = moved is null ? "" : " " + moved;
+        if (!wasOn && Store.Expenses.Enabled)
+        {
+            extra += " Expenses is on: Vendors and Expenses are now in the sidebar.";
+            if (RecurringService.Summarize(Store.Recurring.GenerateDue()) is { } made) extra += " " + made.Message;
+        }
         ThemeManager.Apply(ThemeManager.Current, Store.Settings.Get(SettingKeys.PrimaryColor));
         Shell.RefreshChrome();
-        Shell.Reload(Notice.Success("Settings saved successfully."));
+        Shell.Reload(Notice.Success("Settings saved successfully." + extra));
     }
 }
