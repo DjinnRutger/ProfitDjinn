@@ -1,0 +1,29 @@
+<Project>
+  <!-- Build output, intermediates and test results go under DevRoot: artifacts\ in the repo by default.
+       To put them somewhere else, create Directory.Build.local.props (gitignored) next to this file:
+       <Project><PropertyGroup><DevRoot>C:\Dev\ProfitDjinn\dotnet\</DevRoot></PropertyGroup></Project> -->
+  <Import Project="Directory.Build.local.props" Condition="Exists('$(MSBuildThisFileDirectory)Directory.Build.local.props')" />
+  <PropertyGroup>
+    <DevRoot Condition="'$(DevRoot)' == ''">$(MSBuildThisFileDirectory)artifacts\</DevRoot>
+    <BaseOutputPath>$(DevRoot)bin\$(MSBuildProjectName)\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(DevRoot)obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+    <Version>2.0.0-dev</Version>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <!-- Debug symbols inside the dlls, so the published folder is the exe and nothing else. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Shown in the footer and title bar so a user can say which build they have. -->
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>BuildDate</_Parameter1>
+      <_Parameter2>$([System.DateTime]::Now.ToString("yyyy-MM-dd"))</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

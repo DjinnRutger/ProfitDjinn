@@ -11,6 +11,10 @@ records payments and account credit, and prints invoice PDFs.
 The UI runs in an Edge WebView2 window — a real application window, no browser, no
 address bar. WebView2 ships with Windows 10 and 11, so there is nothing extra to install.
 
+**2.0 is in progress:** a native Windows (WPF) rewrite that will ship as one `ProfitDjinn.exe`
+with no server and no install, opening the same database. The Flask app below is the
+current release until then. Developer notes: `docs/port-spec.md`, `docs/design-spec.md`.
+
 ## Requirements
 
 - Windows 10 or 11

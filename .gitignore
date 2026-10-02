@@ -192,3 +192,17 @@ password.txt
 
 # Local-only private notes, never published
 CLAUDE.local.md
+
+# --- ProfitDjinn 2.0 (.NET) ---------------------------------------------------
+# Build output goes under DevRoot (artifacts\ unless Directory.Build.local.props moves it).
+artifacts/
+Directory.Build.local.props
+bin/
+obj/
+TestResults/
+*.user
+.vs/
+*.partial
+# The rules above ignore *.manifest and *.db; these two are source, not output.
+!src/ProfitDjinn.App/app.manifest
+!tests/ProfitDjinn.Tests/Fixtures/*.db

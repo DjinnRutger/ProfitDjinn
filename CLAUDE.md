@@ -12,6 +12,33 @@ of a scaffold called **LocalVibe**; that name now survives only inside
 `_apply_brand_defaults()`, which migrates old LocalVibe setting values forward. Don't
 delete that function — existing databases depend on it.
 
+## 2.0: native WPF rewrite (in progress)
+
+A .NET 8 WPF rewrite is being built alongside the Flask app, which keeps working until 2.0
+reaches parity. Plan: phases 1-7, one optional app password instead of users and roles,
+backup and restore only in Admin > Database, same look in all three themes.
+
+- `ProfitDjinn.sln`: `src/ProfitDjinn.Core` (data, rules, services, PDF; no WPF) and
+  `tests/ProfitDjinn.Tests`. `src/ProfitDjinn.App` (WPF) comes in phase 2.
+- Build output goes to `DevRoot` (`artifacts\` unless the gitignored
+  `Directory.Build.local.props` sets `C:\Dev\ProfitDjinn\dotnet\`).
+- `docs/port-spec.md` is the behaviour spec, `docs/design-spec.md` the visual one. Read
+  them before porting a screen. "Fixed in 2.0" lists the 1.x bugs deliberately not copied.
+- **Parity is tested, not assumed.** `tools/Parity/make_fixture.py` runs
+  `Fixtures/parity_ops.json` through the real 1.x routes; `ParityTests` replays the same ops
+  through the 2.0 services and compares every row and every computed figure bit for bit.
+  `tools/Parity/rollup_reference.mjs` runs 1.x's own bill-screen JavaScript (lifted out of
+  `bill.html`) for `RollupTests`. Regenerate both after changing a 1.x rule or adding a case.
+- **The number rules matter.** Python 3.12+ `sum()` is Neumaier-compensated, so totals use
+  `PyMath.Sum`, never LINQ `Sum`. `round()` is half-to-even on the exact binary value
+  (`PyMath.Round`); JavaScript `toFixed` is half-up (`PyMath.JsToFixed`). The bill screen and
+  invoice form use plain JavaScript addition (`PyMath.JsSum`).
+- **Database compatibility.** 2.0 opens the same `%LOCALAPPDATA%\ProfitDjinnpp.db`, keeps
+  foreign keys off, writes dates as `YYYY-MM-DD` text, and only adds settings rows
+  (`app_password_hash`, `theme`). The 1.x build must keep opening it: that is the rollback path.
+- SQLite tables use INTEGER PRIMARY KEY without AUTOINCREMENT, so deleting the highest row
+  frees its id. Fixture ops that reference ids must account for it.
+
 ## What it does
 
 - **Customers** — contact record, address, notes, and derived totals (invoiced,

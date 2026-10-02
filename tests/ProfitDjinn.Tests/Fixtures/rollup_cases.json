@@ -1,0 +1,33 @@
+{
+  "_about": "Selections of completed work for the bill screen. tools/Parity/rollup_reference.mjs runs 1.x's own buildRollup() from bill.html on each one and writes rollup_expected.json; RollupTests must produce the same rows. 'label' is label_or_general. Lines are in screen order (_sorted_billable).",
+  "cases": [
+    { "name": "three hours totalling 100 (the rounding quirk)",
+      "lines": [ { "id": 1, "label": "General", "type": "labor", "description": "Diagnostics", "iso": "2026-05-10", "qty": 3, "rate": 33.3333, "amount": 100.0, "noCharge": false } ] },
+    { "name": "one project, mixed types, a no-charge line",
+      "lines": [
+        { "id": 3, "label": "Network", "type": "labor", "description": "Site survey", "iso": "2026-05-01", "qty": 2.5, "rate": 85, "amount": 212.5, "noCharge": false },
+        { "id": 4, "label": "Network", "type": "part", "description": "Cable run", "iso": "2026-05-02", "qty": 3, "rate": 16.25, "amount": 48.75, "noCharge": false },
+        { "id": 1, "label": "Network", "type": "labor", "description": "Configure VLANs", "iso": "2026-05-04", "qty": 1.75, "rate": 85, "amount": 148.75, "noCharge": false },
+        { "id": 6, "label": "Network", "type": "labor", "description": "Firmware update", "iso": "2026-05-05", "qty": 0.75, "rate": 90, "amount": 67.5, "noCharge": false },
+        { "id": 5, "label": "General", "type": "service", "description": "Courtesy call", "iso": "2026-05-03", "qty": 1, "rate": 0, "amount": 0, "noCharge": true } ] },
+    { "name": "two projects, undated line, same day",
+      "lines": [
+        { "id": 10, "label": "Kitchen", "type": "part", "description": "Faucet", "iso": "", "qty": 1, "rate": 129.99, "amount": 129.99, "noCharge": false },
+        { "id": 11, "label": "Kitchen", "type": "labor", "description": "Install faucet", "iso": "2026-07-04", "qty": 1.5, "rate": 70, "amount": 105.0, "noCharge": false },
+        { "id": 12, "label": "Porch", "type": "labor", "description": "Paint rail", "iso": "2026-07-04", "qty": 4, "rate": 70, "amount": 280.0, "noCharge": false },
+        { "id": 13, "label": "Porch", "type": "other", "description": "Haul away", "iso": "2026-07-04", "qty": 1, "rate": 25, "amount": 25.0, "noCharge": false } ] },
+    { "name": "only no-charge work selected",
+      "lines": [ { "id": 20, "label": "General", "type": "labor", "description": "Warranty visit", "iso": "2026-08-01", "qty": 1, "rate": 85, "amount": 85.0, "noCharge": true } ] },
+    { "name": "zero labor hours and repeating decimals",
+      "lines": [
+        { "id": 30, "label": "Server", "type": "labor", "description": "Remote check", "iso": "2026-09-01", "qty": 0, "rate": 85, "amount": 0.0, "noCharge": false },
+        { "id": 31, "label": "Server", "type": "service", "description": "Backup service", "iso": "2026-09-02", "qty": 3, "rate": 10.333, "amount": 31.0, "noCharge": false },
+        { "id": 32, "label": "Server", "type": "service", "description": "Licence", "iso": "2026-09-30", "qty": 7, "rate": 0.1, "amount": 0.7, "noCharge": false },
+        { "id": 33, "label": "Server", "type": "part", "description": "Drive", "iso": "2026-09-15", "qty": 2, "rate": 0.005, "amount": 0.01, "noCharge": false } ] },
+    { "name": "labor hours that do not round evenly",
+      "lines": [
+        { "id": 40, "label": "General", "type": "labor", "description": "A", "iso": "2026-01-02", "qty": 0.333, "rate": 90, "amount": 29.97, "noCharge": false },
+        { "id": 41, "label": "General", "type": "labor", "description": "B", "iso": "2026-01-03", "qty": 0.334, "rate": 90, "amount": 30.06, "noCharge": false },
+        { "id": 42, "label": "General", "type": "labor", "description": "C", "iso": "2026-01-01", "qty": 1.005, "rate": 66.67, "amount": 67.0, "noCharge": false } ] }
+  ]
+}

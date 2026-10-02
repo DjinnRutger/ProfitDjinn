@@ -1,0 +1,330 @@
+{
+ "today": "2026-10-02",
+ "invoices": {
+  "1": {
+   "total": 144.99,
+   "net_total": 144.99,
+   "amount_paid": 144.999,
+   "balance_due": 0.0,
+   "credit_amount": 0.00899999999998613,
+   "is_partial": false,
+   "status": "Paid",
+   "unit_prices": [
+    33.33,
+    45.0
+   ]
+  },
+  "2": {
+   "total": 250.0,
+   "net_total": 250.0,
+   "amount_paid": 300.0,
+   "balance_due": 0.0,
+   "credit_amount": 50.0,
+   "is_partial": false,
+   "status": "Paid",
+   "unit_prices": [
+    250.0
+   ]
+  },
+  "3": {
+   "total": 200.0,
+   "net_total": 200.0,
+   "amount_paid": 120.1,
+   "balance_due": 79.9,
+   "credit_amount": 0.0,
+   "is_partial": true,
+   "status": "Partial",
+   "unit_prices": [
+    80.0
+   ]
+  },
+  "4": {
+   "total": 500.0,
+   "net_total": 500.0,
+   "amount_paid": 500.0,
+   "balance_due": 0.0,
+   "credit_amount": 0.0,
+   "is_partial": false,
+   "status": "Paid",
+   "unit_prices": [
+    500.0
+   ]
+  },
+  "5": {
+   "total": 40.0,
+   "net_total": 0.0,
+   "amount_paid": 30.0,
+   "balance_due": 0.0,
+   "credit_amount": 30.0,
+   "is_partial": false,
+   "status": "Paid",
+   "unit_prices": [
+    40.0
+   ]
+  },
+  "6": {
+   "total": 477.5,
+   "net_total": 477.5,
+   "amount_paid": 0.0,
+   "balance_due": 477.5,
+   "credit_amount": 0.0,
+   "is_partial": false,
+   "status": "Unpaid",
+   "unit_prices": [
+    85.75,
+    48.75
+   ]
+  },
+  "7": {
+   "total": 99.99,
+   "net_total": 99.99,
+   "amount_paid": 0.0,
+   "balance_due": 99.99,
+   "credit_amount": 0.0,
+   "is_partial": false,
+   "status": "Unpaid",
+   "unit_prices": [
+    33.33
+   ]
+  },
+  "8": {
+   "total": 0.9000000000000001,
+   "net_total": 0.9000000000000001,
+   "amount_paid": 0.9,
+   "balance_due": 1.1102230246251565e-16,
+   "credit_amount": 0.0,
+   "is_partial": true,
+   "status": "Partial",
+   "unit_prices": [
+    3.0000000000000004,
+    0.20000000000000004
+   ]
+  }
+ },
+ "customers": {
+  "1": {
+   "total_invoiced": 912.49,
+   "total_outstanding": 477.5,
+   "total_paid": 434.99,
+   "account_credit": 30.008999999999986,
+   "full_address": "1 Main St, Springfield, IL, 62701"
+  },
+  "2": {
+   "total_invoiced": 800.89,
+   "total_outstanding": 179.89000000000001,
+   "total_paid": 621.0,
+   "account_credit": 0.0,
+   "full_address": ""
+  },
+  "3": {
+   "total_invoiced": 0,
+   "total_outstanding": 0,
+   "total_paid": 0,
+   "account_credit": 0.0,
+   "full_address": "9 Elm, Shelbyville, IL"
+  }
+ },
+ "work_orders": {
+  "1": {
+   "ready_to_bill_total": 0,
+   "billed_total": 477.5,
+   "pending_count": 1,
+   "has_open_work": true,
+   "grouped_open": [
+    [
+     "General",
+     [
+      2
+     ]
+    ]
+   ],
+   "grouped_billed": [
+    [
+     6,
+     477.5,
+     [
+      1,
+      3,
+      4,
+      5,
+      6
+     ]
+    ]
+   ],
+   "open_labels": [
+    "Network"
+   ]
+  },
+  "2": {
+   "ready_to_bill_total": 25.0,
+   "billed_total": 100.0,
+   "pending_count": 0,
+   "has_open_work": true,
+   "grouped_open": [
+    [
+     "General",
+     [
+      8
+     ]
+    ]
+   ],
+   "grouped_billed": [
+    [
+     7,
+     100.0,
+     [
+      7
+     ]
+    ]
+   ],
+   "open_labels": []
+  }
+ },
+ "lines": {
+  "1": {
+   "effective_status": "billed",
+   "status_label": "Billed",
+   "quantity_label": "1.75 h",
+   "type_label": "Labor"
+  },
+  "2": {
+   "effective_status": "pending",
+   "status_label": "Pending",
+   "quantity_label": "2 h",
+   "type_label": "Labor"
+  },
+  "3": {
+   "effective_status": "billed",
+   "status_label": "Billed",
+   "quantity_label": "2.5 h",
+   "type_label": "Labor"
+  },
+  "4": {
+   "effective_status": "billed",
+   "status_label": "Billed",
+   "quantity_label": "3",
+   "type_label": "Parts"
+  },
+  "5": {
+   "effective_status": "billed",
+   "status_label": "Billed",
+   "quantity_label": "1",
+   "type_label": "Services"
+  },
+  "6": {
+   "effective_status": "billed",
+   "status_label": "Billed",
+   "quantity_label": "0.75 h",
+   "type_label": "Labor"
+  },
+  "7": {
+   "effective_status": "billed",
+   "status_label": "Billed",
+   "quantity_label": "3 h",
+   "type_label": "Labor"
+  },
+  "8": {
+   "effective_status": "completed",
+   "status_label": "Ready to Bill",
+   "quantity_label": "2",
+   "type_label": "Parts"
+  }
+ },
+ "next_invoice_number": "INV0011",
+ "next_work_order_number": "WO1003",
+ "dashboard": {
+  "unpaid_invoices": 4,
+  "unpaid_total": 657.39,
+  "year_revenue": 595.999,
+  "active_customers": 2,
+  "total_invoices": 8
+ },
+ "revenue": {
+  "2025": {
+   "total_revenue": 500.0,
+   "total_invoiced": 500.0,
+   "total_outstanding": 0.0,
+   "paid_count": 1,
+   "partial_count": 0,
+   "monthly_revenue": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    500.0,
+    0.0
+   ],
+   "monthly_invoiced": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    500.0,
+    0.0
+   ],
+   "customers": [
+    [
+     "Beta LLC",
+     500.0
+    ]
+   ]
+  },
+  "2026": {
+   "total_revenue": 595.999,
+   "total_invoiced": 1213.38,
+   "total_outstanding": 657.39,
+   "paid_count": 3,
+   "partial_count": 2,
+   "monthly_revenue": [
+    144.999,
+    300.0,
+    120.1,
+    30.0,
+    0.0,
+    0.9,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "monthly_invoiced": [
+    144.99,
+    250.0,
+    200.0,
+    40.0,
+    577.49,
+    0.9000000000000001,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "customers": [
+    [
+     "Acme Corp",
+     474.999
+    ],
+    [
+     "Beta LLC",
+     121.0
+    ]
+   ]
+  }
+ }
+}

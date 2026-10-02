@@ -1,0 +1,317 @@
+{
+ "cases": [
+  {
+   "name": "three hours totalling 100 (the rounding quirk)",
+   "selected_total": 100,
+   "modes": {
+    "one": {
+     "rows": [
+      {
+       "description": "General (May 10)",
+       "quantity": "1",
+       "unit_price": "100.00"
+      }
+     ],
+     "total": 100,
+     "mismatch": null
+    },
+    "type": {
+     "rows": [
+      {
+       "description": "Labor (May 10)",
+       "quantity": "3",
+       "unit_price": "33.33"
+      }
+     ],
+     "total": 99.99,
+     "mismatch": -0.010000000000005116
+    },
+    "detailed": {
+     "rows": [
+      {
+       "description": "May 10 - Diagnostics",
+       "quantity": "3",
+       "unit_price": "33.33"
+      }
+     ],
+     "total": 99.99,
+     "mismatch": -0.010000000000005116
+    }
+   }
+  },
+  {
+   "name": "one project, mixed types, a no-charge line",
+   "selected_total": 477.5,
+   "modes": {
+    "one": {
+     "rows": [
+      {
+       "description": "Service work (May 01 - May 05)",
+       "quantity": "1",
+       "unit_price": "477.50"
+      }
+     ],
+     "total": 477.5,
+     "mismatch": null
+    },
+    "type": {
+     "rows": [
+      {
+       "description": "Labor (May 01 - May 05)",
+       "quantity": "5",
+       "unit_price": "85.75"
+      },
+      {
+       "description": "Parts & materials (May 02)",
+       "quantity": "1",
+       "unit_price": "48.75"
+      }
+     ],
+     "total": 477.5,
+     "mismatch": null
+    },
+    "detailed": {
+     "rows": [
+      {
+       "description": "May 01 - Site survey",
+       "quantity": "2.5",
+       "unit_price": "85.00"
+      },
+      {
+       "description": "May 02 - Cable run",
+       "quantity": "3",
+       "unit_price": "16.25"
+      },
+      {
+       "description": "May 04 - Configure VLANs",
+       "quantity": "1.75",
+       "unit_price": "85.00"
+      },
+      {
+       "description": "May 05 - Firmware update",
+       "quantity": "0.75",
+       "unit_price": "90.00"
+      },
+      {
+       "description": "May 03 - Courtesy call (no charge)",
+       "quantity": "1",
+       "unit_price": "0.00"
+      }
+     ],
+     "total": 477.5,
+     "mismatch": null
+    }
+   }
+  },
+  {
+   "name": "two projects, undated line, same day",
+   "selected_total": 539.99,
+   "modes": {
+    "one": {
+     "rows": [
+      {
+       "description": "Service work (Jul 04)",
+       "quantity": "1",
+       "unit_price": "539.99"
+      }
+     ],
+     "total": 539.99,
+     "mismatch": null
+    },
+    "type": {
+     "rows": [
+      {
+       "description": "Labor (Jul 04)",
+       "quantity": "5.5",
+       "unit_price": "70.00"
+      },
+      {
+       "description": "Parts & materials",
+       "quantity": "1",
+       "unit_price": "129.99"
+      },
+      {
+       "description": "Other work (Jul 04)",
+       "quantity": "1",
+       "unit_price": "25.00"
+      }
+     ],
+     "total": 539.99,
+     "mismatch": null
+    },
+    "detailed": {
+     "rows": [
+      {
+       "description": "Faucet",
+       "quantity": "1",
+       "unit_price": "129.99"
+      },
+      {
+       "description": "Jul 04 - Install faucet",
+       "quantity": "1.5",
+       "unit_price": "70.00"
+      },
+      {
+       "description": "Jul 04 - Paint rail",
+       "quantity": "4",
+       "unit_price": "70.00"
+      },
+      {
+       "description": "Jul 04 - Haul away",
+       "quantity": "1",
+       "unit_price": "25.00"
+      }
+     ],
+     "total": 539.99,
+     "mismatch": null
+    }
+   }
+  },
+  {
+   "name": "only no-charge work selected",
+   "selected_total": 0,
+   "modes": {
+    "one": {
+     "rows": [
+      {
+       "description": "General (Aug 01)",
+       "quantity": "1",
+       "unit_price": "0.00"
+      }
+     ],
+     "total": 0,
+     "mismatch": null
+    },
+    "type": {
+     "rows": [],
+     "total": 0,
+     "mismatch": null
+    },
+    "detailed": {
+     "rows": [
+      {
+       "description": "Aug 01 - Warranty visit (no charge)",
+       "quantity": "1",
+       "unit_price": "0.00"
+      }
+     ],
+     "total": 0,
+     "mismatch": null
+    }
+   }
+  },
+  {
+   "name": "zero labor hours and repeating decimals",
+   "selected_total": 31.71,
+   "modes": {
+    "one": {
+     "rows": [
+      {
+       "description": "Server (Sep 01 - Sep 30)",
+       "quantity": "1",
+       "unit_price": "31.71"
+      }
+     ],
+     "total": 31.71,
+     "mismatch": null
+    },
+    "type": {
+     "rows": [
+      {
+       "description": "Labor (Sep 01)",
+       "quantity": "1",
+       "unit_price": "0.00"
+      },
+      {
+       "description": "Parts & materials (Sep 15)",
+       "quantity": "1",
+       "unit_price": "0.01"
+      },
+      {
+       "description": "Services (Sep 02 - Sep 30)",
+       "quantity": "1",
+       "unit_price": "31.70"
+      }
+     ],
+     "total": 31.71,
+     "mismatch": null
+    },
+    "detailed": {
+     "rows": [
+      {
+       "description": "Sep 01 - Remote check",
+       "quantity": "1",
+       "unit_price": "85.00"
+      },
+      {
+       "description": "Sep 02 - Backup service",
+       "quantity": "3",
+       "unit_price": "10.33"
+      },
+      {
+       "description": "Sep 30 - Licence",
+       "quantity": "7",
+       "unit_price": "0.10"
+      },
+      {
+       "description": "Sep 15 - Drive",
+       "quantity": "2",
+       "unit_price": "0.01"
+      }
+     ],
+     "total": 116.71000000000001,
+     "mismatch": 85
+    }
+   }
+  },
+  {
+   "name": "labor hours that do not round evenly",
+   "selected_total": 127.03,
+   "modes": {
+    "one": {
+     "rows": [
+      {
+       "description": "General (Jan 01 - Jan 03)",
+       "quantity": "1",
+       "unit_price": "127.03"
+      }
+     ],
+     "total": 127.03,
+     "mismatch": null
+    },
+    "type": {
+     "rows": [
+      {
+       "description": "Labor (Jan 01 - Jan 03)",
+       "quantity": "1.67",
+       "unit_price": "75.97"
+      }
+     ],
+     "total": 126.86989999999999,
+     "mismatch": -0.16010000000001412
+    },
+    "detailed": {
+     "rows": [
+      {
+       "description": "Jan 02 - A",
+       "quantity": "0.333",
+       "unit_price": "90.00"
+      },
+      {
+       "description": "Jan 03 - B",
+       "quantity": "0.334",
+       "unit_price": "90.00"
+      },
+      {
+       "description": "Jan 01 - C",
+       "quantity": "1.005",
+       "unit_price": "66.67"
+      }
+     ],
+     "total": 127.03335,
+     "mismatch": null
+    }
+   }
+  }
+ ]
+}
