@@ -31,7 +31,7 @@ DB_FILE = WORK / "parity.db"
 os.environ["DATABASE_URI"] = "sqlite:///" + DB_FILE.as_posix()
 os.environ["SECRET_KEY"] = "parity-fixture-only"
 os.environ["FLASK_INSTANCE_PATH"] = str(WORK)
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "legacy"))   # the 1.x Flask app lives in legacy/ since 2.0
 
 from app import create_app  # noqa: E402
 from app.extensions import db  # noqa: E402

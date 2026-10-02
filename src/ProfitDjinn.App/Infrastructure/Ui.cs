@@ -206,7 +206,13 @@ public static class Ui
     public static TextBox TextBox(string? value = null, string? placeholder = null, double? width = null)
     {
         var t = new TextBox { Text = value ?? "" };
-        if (placeholder is not null) Input.SetPlaceholder(t, placeholder);
+        if (placeholder is not null)
+        {
+            Input.SetPlaceholder(t, placeholder);
+            // A box with no label is announced (and found by the smoke tests) by its placeholder;
+            // a Field around it replaces this with the field's label.
+            System.Windows.Automation.AutomationProperties.SetName(t, placeholder);
+        }
         if (width is { } w) t.Width = w;
         return t;
     }

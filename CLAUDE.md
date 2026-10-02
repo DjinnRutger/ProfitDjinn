@@ -1,45 +1,107 @@
 # ProfitDjinn
 
-Jon's invoicing and customer management app. Flask + SQLAlchemy, SQLite, running in an
-Edge WebView2 desktop window — or as a plain dev server in a browser.
+Jon's invoicing and customer management app. **2.0** is a native Windows app (.NET 8 WPF),
+shipped as one self-contained `ProfitDjinn.exe`. **1.x** was Flask + SQLAlchemy in an Edge
+WebView2 window; it now lives in `legacy/` and stays runnable as the rollback path. Both
+open the same database, `%LOCALAPPDATA%\ProfitDjinn\app.db`.
 
 Private notes (repo history, personal setup) are in the gitignored `CLAUDE.local.md`.
 This file is public: technical project facts only.
 
-**Name check:** folder `ProfitDjinn`, repo `DjinnRutger/ProfitDjinn`, app display name
-`ProfitDjinn` (the `app_name` setting), README `ProfitDjinn`. All four agree. It grew out
-of a scaffold called **LocalVibe**; that name now survives only inside
-`_apply_brand_defaults()`, which migrates old LocalVibe setting values forward. Don't
-delete that function — existing databases depend on it.
+**Name check:** folder `ProfitDjinn`, repo `DjinnRutger/ProfitDjinn`, exe and window
+`ProfitDjinn` (the `app_name` setting), README `ProfitDjinn`. All agree. It grew out of a
+scaffold called **LocalVibe**; that name survives only in the brand-default migration
+(`Seed.ApplyBrandDefaults`, and 1.x `_apply_brand_defaults()`), which moves old LocalVibe
+setting values forward. Keep it: existing databases depend on it.
 
-## 2.0: native WPF rewrite (in progress)
+## 2.0 layout
 
-A .NET 8 WPF rewrite is being built alongside the Flask app, which keeps working until 2.0
-reaches parity. Plan: phases 1-7, one optional app password instead of users and roles,
-backup and restore only in Admin > Database, same look in all three themes.
+- `src/ProfitDjinn.Core`: data, business rules, services, invoice PDF. No WPF, all tested.
+  - `Data/`: `Database` (connection per call, pooling off, **foreign keys off**), `Schema`
+    (the SQLAlchemy DDL, byte for byte, plus 1.x's two hand migrations), `Seed`, `Loader`.
+  - `Model/`: entities with the 1.x computed properties (`Invoice.Total`, `BalanceDue`...).
+  - `Rules/`: `PyMath` (Python/JavaScript number semantics), `Numbering`, `InvoiceRows`
+    (the line builder's text-to-number rules), `Rollup` (bill-screen roll-ups).
+  - `Services/`: one per area (Customers, Invoices, Items, WorkOrders, Billing, Reports,
+    Backup, Settings, AppPassword). Refusals throw `UserFacingException` (or
+    `ValidationException` with field names); successes return a `Notice` to show.
+  - `Pdf/InvoicePdf.cs`: PDFsharp port of 1.x's fpdf2 layout, coordinate for coordinate.
+- `src/ProfitDjinn.App`: the WPF app.
+  - `Shell/MainWindow`: sidebar, top bar, breadcrumb, notices, dialogs, Back/Forward history,
+    lock screen. `Routes.cs` lists every screen; pages never construct each other.
+  - `Pages/`: one class per screen, built in code from `Infrastructure/Ui.cs` helpers.
+  - `Controls/`: `Icon` (Bootstrap Icons as path data), `Badge`, `Card`, `StatTile`, `Field`,
+    `Table` (Bootstrap table look), `LineBuilder`, `SuggestBox`, `BarChart`, `DoughnutChart`.
+  - `Themes/`: `Theme.Light/Dark/Terminal.xaml` (same keys each) and `Controls.xaml`.
+    `ThemeManager` swaps them and derives the brand brushes from `primary_color`.
+- `tests/ProfitDjinn.Tests`: xUnit, 65 tests including the parity tests.
+- `docs/port-spec.md` (behaviour) and `docs/design-spec.md` (look). "Fixed in 2.0" in the
+  port spec lists every 1.x bug deliberately not copied. Read them before changing a screen.
 
-- `ProfitDjinn.sln`: `src/ProfitDjinn.Core` (data, rules, services, PDF; no WPF) and
-  `tests/ProfitDjinn.Tests`. `src/ProfitDjinn.App` (WPF) comes in phase 2.
-- Build output goes to `DevRoot` (`artifacts\` unless the gitignored
-  `Directory.Build.local.props` sets `C:\Dev\ProfitDjinn\dotnet\`).
-- `docs/port-spec.md` is the behaviour spec, `docs/design-spec.md` the visual one. Read
-  them before porting a screen. "Fixed in 2.0" lists the 1.x bugs deliberately not copied.
-- **Parity is tested, not assumed.** `tools/Parity/make_fixture.py` runs
-  `Fixtures/parity_ops.json` through the real 1.x routes; `ParityTests` replays the same ops
-  through the 2.0 services and compares every row and every computed figure bit for bit.
-  `tools/Parity/rollup_reference.mjs` runs 1.x's own bill-screen JavaScript (lifted out of
-  `bill.html`) for `RollupTests`. Regenerate both after changing a 1.x rule or adding a case.
+## Build, test, run
+
+```
+.\build.ps1                       # tests, then publish <DevRoot>\publish\ProfitDjinn.exe
+dotnet test tests\ProfitDjinn.Tests
+dotnet run --project src\ProfitDjinn.App
+```
+
+`DevRoot` is `artifacts\` unless the gitignored `Directory.Build.local.props` moves it
+(`C:\Dev\ProfitDjinn\dotnet\` on Jon's machines). Version: `<Version>` in
+`Directory.Build.props`, shown in the footer.
+
+**Never point a test run at the real database.** `PROFITDJINN_DATA_DIR` sends the app to
+another data folder and puts `[test data: ...]` in the window title. .NET ignores a changed
+`LOCALAPPDATA` (it asks Windows for the known folder), so that variable is no protection:
+that is how a screenshot run once opened the real file (2026-10-02; it only added two empty
+settings rows). `--page <name>` or `--page name:id` opens a screen at start.
+
+Tools (`tools/Smoke/`), all on throwaway data folders:
+- `Smoke-Flow.ps1 -Exe <exe>`: UI Automation run through create customer, log work, bill,
+  record payment, then checks the database. Inputs are found by their field label
+  (`Field` sets the accessible name) or placeholder.
+- `Capture.ps1` / `Shoot-Themes.ps1`: screenshots of a page in each theme on fixture copies.
+
+## Parity with 1.x is tested, not assumed
+
+- `tools/Parity/make_fixture.py` runs `Fixtures/parity_ops.json` through the real 1.x routes
+  (`legacy/`); `ParityTests` replays the same ops through 2.0 and compares every row and every
+  computed figure bit for bit. `KnownFixes` in that test pins each deliberate difference.
+- `tools/Parity/rollup_reference.mjs` runs 1.x's own bill-screen JavaScript (lifted out of
+  `legacy/app/templates/work_orders/bill.html`) for `RollupTests`.
+- `tools/Parity/dump_figures.py` does the figure comparison on a copy of a real database
+  (see `CLAUDE.local.md`). Regenerate fixtures after changing a 1.x rule or adding a case.
 - **The number rules matter.** Python 3.12+ `sum()` is Neumaier-compensated, so totals use
   `PyMath.Sum`, never LINQ `Sum`. `round()` is half-to-even on the exact binary value
-  (`PyMath.Round`); JavaScript `toFixed` is half-up (`PyMath.JsToFixed`). The bill screen and
-  invoice form use plain JavaScript addition (`PyMath.JsSum`).
-- **Database compatibility.** 2.0 opens the same `%LOCALAPPDATA%\ProfitDjinn\app.db`, keeps
-  foreign keys off, writes dates as `YYYY-MM-DD` text, and only adds settings rows
-  (`app_password_hash`, `theme`). The 1.x build must keep opening it: that is the rollback path.
+  (`PyMath.Round`); JavaScript `toFixed` is half-up (`PyMath.JsToFixed`). The line builders
+  use plain JavaScript addition (`PyMath.JsSum`). 1.x templates printed money with `%.2f`,
+  no thousands separator (`Ui.Money`); the line builders and the PDF group thousands.
+- **Database compatibility.** 2.0 keeps foreign keys off, writes dates as `YYYY-MM-DD` text,
+  and only adds settings rows (`app_password_hash`, `theme`). 1.x must keep opening the
+  file: tested both ways. Cascades are done in code (customer delete, invoice delete
+  returning work lines to the tab).
 - SQLite tables use INTEGER PRIMARY KEY without AUTOINCREMENT, so deleting the highest row
   frees its id. Fixture ops that reference ids must account for it.
 
-## What it does
+## 2.0 gotchas
+
+- Compiled WPF XAML does not support `x:Boolean`, and a named transform inside a template is not
+  a trigger target. Inside `MainWindow`, `Icon` means the window's icon property: write
+  `Controls.Icon`.
+- `TextBox` applies `Padding` to its content host itself; the template must not add it again.
+- `Table` treats a fixed column width as a minimum, like HTML; columns under 60px get 8px
+  side padding so checkboxes and icons are not clipped.
+- Shadows sit on a separate layer behind cards so the card text keeps ClearType.
+- A page whose constructor throws `UserFacingException` (nothing to bill, deleted record)
+  is not added to history; the shell shows the message instead.
+- Uploaded logo and sidebar icon live in `%LOCALAPPDATA%\ProfitDjinn\branding\`. A
+  non-empty `login_logo` / `app_icon_img` setting with no file shows the built-in genie.
+
+## 1.x reference (Flask, in legacy/)
+
+Everything below describes the 1.x code in `legacy/`. It stays accurate for that code.
+
+### What it does
 
 - **Customers** — contact record, address, notes, and derived totals (invoiced,
   outstanding, paid, account credit).
@@ -52,7 +114,7 @@ backup and restore only in Admin > Database, same look in all three themes.
 - **Admin** — users, roles, permissions, dynamic settings, audit log, database
   backup/restore.
 
-## Run it
+### Run it
 
 Venv lives outside the project so OneDrive never syncs it. Once per machine:
 
@@ -61,13 +123,16 @@ python -m venv C:\Dev\venvs\ProfitDjinn
 C:\Dev\venvs\ProfitDjinn\Scripts\pip install -r requirements-dev.txt
 ```
 
+From `legacy/` (`pip install -r legacy\requirements-dev.txt` the first time):
+
 ```
+cd legacy
 C:\Dev\venvs\ProfitDjinn\Scripts\python run_gui.py    # desktop window
 C:\Dev\venvs\ProfitDjinn\Scripts\python run.py        # dev server, http://localhost:5000
 C:\Dev\venvs\ProfitDjinn\Scripts\python -m pytest     # 33 tests, must be green before pushing
 ```
 
-## Where the data lives — read before touching paths
+### Where the data lives — read before touching paths
 
 `paths.py` at the project root is the single source of truth. Two modes:
 
@@ -86,7 +151,7 @@ the top of `run_gui.py` above the `from app import create_app` line.
 `.secret_key` must stay stable. Flask-Login signs the "remember me" cookie with it, so
 regenerating it silently signs Jon out of every session.
 
-## The desktop shell
+### The desktop shell
 
 `run_gui.py` uses **pywebview**, which hosts the Flask app in an Edge WebView2 window.
 There is no Chrome process and no browser chrome. WebView2 ships with Windows 10/11, so
@@ -100,7 +165,7 @@ Two settings carry the whole "stay signed in" feature; do not change them casual
   `SESSION_COOKIE_SECURE` and `REMEMBER_COOKIE_SECURE` must stay `False` there — the
   window talks plain HTTP to `127.0.0.1`, so a Secure cookie would never come back.
 
-### The bug this replaced
+#### The bug this replaced
 
 The old shell was `flaskwebgui`, which launched Chrome with
 `--user-data-dir=<temp>/flaskwebgui<random-uuid>` and `rmtree`d it on exit. The remember
@@ -108,7 +173,7 @@ cookie was written correctly every time and then deleted, so sign-in never persi
 Chrome's password manager started empty on every launch. `tests/test_stays_signed_in.py`
 guards the server half of the fix. The browser half can only be verified by hand.
 
-## Accounts and first start
+### Accounts and first start
 
 No user is seeded. `_seed_database()` creates permissions, roles and settings (guarded
 on `Role`, not `User`, so a fresh install with no account yet is not re-seeded on the
@@ -127,7 +192,7 @@ on its own database via `create_app(config, overrides)`.
 Version: `app/version.py`, injected as `app_version`, shown in the footer and on the
 login and setup pages. Bump it per release; tag `v<version>`.
 
-## Architecture
+### Architecture
 
 Application factory in `app/__init__.py`, four config classes in `app/config.py`
 (`development` / `production` / `testing` / `gui`), extensions in `app/extensions.py`.
@@ -146,7 +211,7 @@ just auth; exempt any future rapid-entry feature the same way.
 the only thing that touches a child row on parent delete; any other cross-table cleanup
 has to be written in the route.
 
-### Invoices and credit
+#### Invoices and credit
 
 - `_next_invoice_number()` takes the highest existing `invoice_number` with the prefix
   and adds one. The `invoice_next_number` setting is only a seed for an empty table and
@@ -157,7 +222,7 @@ has to be written in the route.
   down. `net_total` = total minus `credit_applied`, and every paid/balance figure uses it.
 - `mark_unpaid` deletes **all** payment records on the invoice.
 
-### Work orders: why, and what must not regress
+#### Work orders: why, and what must not regress
 
 Built 2026-07-24 for one reason Jon stated: he stops at a customer several times over
 weeks and forgets to bill the work. Every choice serves "never lose billable work."
@@ -180,7 +245,7 @@ weeks and forgets to bill the work. Every choice serves "never lose billable wor
   `completed` instead of orphaning them. `WorkOrderLine.effective_status` is the second
   net for lines whose invoice vanished any other way.
 
-### Settings, not constants
+#### Settings, not constants
 
 Anything a user might want to change lives in the `settings` table and is read with
 `get_setting()` (`app/utils/settings.py`), which is injected into every template.
@@ -193,7 +258,7 @@ idempotent: `_ensure_invoice_settings()`, `_ensure_permissions()`,
 `_apply_brand_defaults()`. Add new settings and permissions there so existing
 databases pick them up.
 
-### Migrations — read this before changing a model
+#### Migrations — read this before changing a model
 
 `migrations/` is **empty**. Flask-Migrate is installed but `flask db init` was never run.
 Schema changes are handled two ways instead:
@@ -206,14 +271,14 @@ Schema changes are handled two ways instead:
 column to a model, you must also add a guarded `ALTER TABLE` to `_run_migrations()`
 or it will silently fail against the live database.
 
-### The login page is duplicated
+#### The login page is duplicated
 
 `app/templates/auth/login.html` contains the form twice — once for the `left` layout and
 once for `top`, chosen by the `login_logo_layout` setting. Both copies share the same
 element ids because only one renders at a time. **Any change to the login form has to be
 made in both blocks.**
 
-## Building the EXE
+### Building the EXE
 
 ```
 build.bat
@@ -238,7 +303,7 @@ Output goes to `C:\Dev\ProfitDjinn\dist\ProfitDjinn\`, outside OneDrive, because
 - **UPX is off on purpose.** It can corrupt .NET assemblies, and the failure shows up
   when the window opens rather than when the build runs.
 
-## Known gaps
+### Known gaps
 
 - `migrations/` empty (above).
 - The invoice PDF has only been checked by eye, not asserted against a fixture.

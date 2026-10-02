@@ -121,6 +121,35 @@ public sealed class Field : ContentControl
 
     public string Label { get => (string)GetValue(LabelProperty); set => SetValue(LabelProperty, value); }
     public bool Required { get => (bool)GetValue(RequiredProperty); set => SetValue(RequiredProperty, value); }
+
+    /// <summary>
+    /// The input takes the label as its accessible name, so screen readers announce it and the
+    /// UI Automation smoke tests can find it ("Amount", "Description").
+    /// </summary>
+    protected override void OnContentChanged(object oldContent, object newContent)
+    {
+        base.OnContentChanged(oldContent, newContent);
+        NameInput();
+    }
+
+    protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+        if (e.Property == LabelProperty) NameInput();
+    }
+
+    private void NameInput()
+    {
+        DependencyObject? target = Content switch
+        {
+            ProfitDjinn.App.Infrastructure.DateBox d => d.TextBox,
+            SuggestBox sb => sb.Box,
+            DependencyObject other => other,
+            _ => null,
+        };
+        if (target is not null && !string.IsNullOrEmpty(Label))
+            System.Windows.Automation.AutomationProperties.SetName(target, Label);
+    }
     public string? Error { get => (string?)GetValue(ErrorProperty); set => SetValue(ErrorProperty, value); }
     public string? Hint { get => (string?)GetValue(HintProperty); set => SetValue(HintProperty, value); }
 }

@@ -34,7 +34,6 @@ public sealed class BillPage : AppPage
     private readonly DateBox _date;
     private readonly Field _numberField, _dateField;
     private RollupMode _mode = RollupMode.One;
-    private bool _syncing;
 
     public override string NavKey => "workorders";
 
@@ -245,7 +244,6 @@ public sealed class BillPage : AppPage
 
     private void UpdateTotals()
     {
-        if (_syncing) return;
         _summaryTotal.Text = Ui.MoneyGrouped(_lines.Total);
         double? diff = Rollup.Mismatch(_lines.Rows, Selected());
         if (diff is { } d)

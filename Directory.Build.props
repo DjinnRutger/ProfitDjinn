@@ -7,7 +7,7 @@
     <DevRoot Condition="'$(DevRoot)' == ''">$(MSBuildThisFileDirectory)artifacts\</DevRoot>
     <BaseOutputPath>$(DevRoot)bin\$(MSBuildProjectName)\</BaseOutputPath>
     <BaseIntermediateOutputPath>$(DevRoot)obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
-    <Version>2.0.0-dev</Version>
+    <Version>2.0.0-beta</Version>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>

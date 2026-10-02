@@ -44,7 +44,7 @@ dst.close()
 os.environ["DATABASE_URI"] = "sqlite:///" + copy.as_posix()
 os.environ["SECRET_KEY"] = "parity-dump-only"
 os.environ["FLASK_INSTANCE_PATH"] = str(out_dir)
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "legacy"))   # the 1.x Flask app lives in legacy/ since 2.0
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from app import create_app  # noqa: E402

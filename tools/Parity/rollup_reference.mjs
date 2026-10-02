@@ -1,7 +1,7 @@
 // Runs 1.x's own bill-screen JavaScript on the cases in rollup_cases.json and writes what it
 // produces to rollup_expected.json, for RollupTests to compare against.
 //
-// The functions are lifted out of app/templates/work_orders/bill.html at run time, not
+// The functions are lifted out of legacy/app/templates/work_orders/bill.html at run time, not
 // copied, so this always tests the real 1.x code.
 //
 //   node tools/Parity/rollup_reference.mjs        (from the project root)
@@ -9,7 +9,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
 const root = new URL("../../", import.meta.url);
-const html = readFileSync(new URL("app/templates/work_orders/bill.html", root), "utf8");
+const html = readFileSync(new URL("legacy/app/templates/work_orders/bill.html", root), "utf8");
 const fixtures = new URL("tests/ProfitDjinn.Tests/Fixtures/", root);
 
 function slice(from, to) {

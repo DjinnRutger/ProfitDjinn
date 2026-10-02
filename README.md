@@ -1,171 +1,73 @@
 # ProfitDjinn
 
-**Download:** the Windows build is on the [Releases](https://github.com/DjinnRutger/ProfitDjinn/releases)
-page. Unzip it anywhere, run `ProfitDjinn.exe`, and create your administrator account on
-the first screen.
+Invoicing and customer management for a one-person business, as a Windows desktop app.
+Track customers, log work on a rolling work order as you do it, turn finished work into
+invoices, record payments and account credit, and print or save invoice PDFs.
 
-Flask-based invoicing and customer management, running as a Windows desktop app. Tracks
-customers, logs work orders as the work happens, turns completed work into invoices,
-records payments and account credit, and prints invoice PDFs.
+**Download:** get `ProfitDjinn.exe` from the [Releases](https://github.com/DjinnRutger/ProfitDjinn/releases)
+page and run it. It is one file with nothing to install: .NET is built in. Windows 10 or 11.
+Windows SmartScreen may warn because the file is not code-signed; choose More info > Run anyway.
 
-The UI runs in an Edge WebView2 window — a real application window, no browser, no
-address bar. WebView2 ships with Windows 10 and 11, so there is nothing extra to install.
+## Using it
 
-**2.0 is in progress:** a native Windows (WPF) rewrite that will ship as one `ProfitDjinn.exe`
-with no server and no install, opening the same database. The Flask app below is the
-current release until then. Developer notes: `docs/port-spec.md`, `docs/design-spec.md`.
+- **First start** opens the dashboard on an empty database. Put your business name, address
+  and payment terms on your invoices under **Settings > Invoices**, and your hourly rate under
+  **Settings > Work Orders**.
+- **Customers**: contact details, notes, and totals (invoiced, paid, outstanding, credit).
+- **Work Orders**: each customer has one rolling tab. Add to-dos, log work (hours x rate, or
+  parts and services), mark lines no-charge, then **Bill** them onto an invoice as one line,
+  grouped by type, or line by line. Anything not billed stays on the tab.
+- **Invoices**: line items, partial payments, overpayments that become account credit,
+  applying credit to another invoice, Print and PDF.
+- **Revenue**: collected revenue by month or year, by customer.
+- **Items**: a price list for quick-adding common lines.
+- **Settings > Security** sets an optional app password, asked for at start (and by **Lock**
+  in the sidebar). It keeps casual eyes out on a shared PC; it does not encrypt the data.
+- **Themes**: Light, Dark and Terminal, from the button at the top right.
 
-## Requirements
+## Your data
 
-- Windows 10 or 11
-- Python 3.13 (to build or run from source; the built EXE needs nothing)
+Everything is in one SQLite file, `%LOCALAPPDATA%\ProfitDjinn\app.db`. Replacing or deleting
+`ProfitDjinn.exe` never touches it.
 
-## Setup
+- **Backup & Restore** (sidebar) saves a complete copy and restores one. A restore checks
+  the file first, needs a confirm, and keeps a safety copy of your current data next to it
+  (`app.db.pre_restore_<date>`), put back automatically if the restore fails.
+- To move to a new PC: back up, install the exe there, restore.
+- Custom logo and sidebar icon: `%LOCALAPPDATA%\ProfitDjinn\branding\`.
 
-The virtual environment lives outside this folder so OneDrive never syncs it. Same path
-on both machines:
+## Coming from 1.x
 
-```
-python -m venv C:\Dev\venvs\ProfitDjinn
-C:\Dev\venvs\ProfitDjinn\Scripts\pip install -r requirements-dev.txt
-```
+2.0 opens the 1.x database where it already is, unchanged; the first start only adds two
+settings. 1.x can still open the file afterwards, so going back is safe. Users and roles are
+gone: one optional app password replaces sign-in. The bugs 2.0 fixes on the way are listed
+in `docs/port-spec.md` under "Fixed in 2.0".
 
-`requirements.txt` is what the app needs to run; `requirements-dev.txt` adds pytest and
-the build tools.
+## Building from source
 
-A `.env` is optional and only affects running from source. Without one the app uses
-`instance\app.db` and generates its own key.
-
-```
-SECRET_KEY=<generate: python -c "import secrets; print(secrets.token_hex(32))">
-DATABASE_URI=sqlite:///instance/app.db
-FLASK_ENV=development
-```
-
-## Run
-
-```
-C:\Dev\venvs\ProfitDjinn\Scripts\python run_gui.py    # desktop window
-C:\Dev\venvs\ProfitDjinn\Scripts\python run.py        # dev server at http://localhost:5000
-```
-
-**First start.** There is no built-in login. On a fresh database every page goes to a
-setup screen where you choose the administrator's username, email and password (8+
-characters). Once that account exists the setup screen is gone for good. Then put your
-business name and address on your invoices under Admin > Settings; the defaults are
-placeholders ("Your Name", "123 Main Street").
-
-Upgrading from a build before 1.0.0-beta, which shipped an `admin` account with a
-password published in this repo: if you never changed it, the app makes you change it
-the next time you sign in, before anything else works.
-
-The dev server (`run.py`) listens on `127.0.0.1` only.
-
-To keep Python's bytecode cache out of OneDrive, set this once per machine:
+Needs the .NET 8 SDK (or later).
 
 ```
-setx PYTHONPYCACHEPREFIX C:\Dev\ProfitDjinn\pycache
+.\build.ps1                          # runs the tests, then publishes the single exe
+dotnet test tests\ProfitDjinn.Tests  # 65 tests
+dotnet run --project src\ProfitDjinn.App
 ```
 
-## Tests
+Output goes to `artifacts\publish\ProfitDjinn.exe`, or wherever a `Directory.Build.local.props`
+sets `DevRoot`. To try a build without touching your real data, set
+`PROFITDJINN_DATA_DIR` to an empty folder first; the window title then says `[test data]`.
 
-```
-C:\Dev\venvs\ProfitDjinn\Scripts\python -m pytest
-```
-
-33 tests. They run against a throwaway database in the temp folder and never touch real
-data. Green before every commit.
-
-## Build the Windows EXE
-
-```
-build.bat
-```
-
-Output: `C:\Dev\ProfitDjinn\dist\ProfitDjinn\ProfitDjinn.exe`. Build output lives outside
-OneDrive on purpose — it is 50+ MB of regenerable files. To distribute, zip the whole
-`ProfitDjinn\` folder.
-
-### Releasing
-
-1. Bump `__version__` in `app/version.py`. It shows in the page footer and on the
-   sign-in page.
-2. Tests green, then `build.bat`.
-3. Smoke-test the EXE against a throwaway data folder, never your own: start it with
-   `LOCALAPPDATA` pointed at an empty folder and walk the first-start setup.
-4. Zip `C:\Dev\ProfitDjinn\dist\ProfitDjinn\` as `ProfitDjinn-<version>-win64.zip`.
-5. `gh release create v<version> <zip> --title "ProfitDjinn <version>"` (add
-   `--prerelease` for a beta).
-
-The EXE is standalone. Deleting and rebuilding it never touches the database.
-
-## Where your data lives
-
-| Path | Contents |
+| Folder | What it is |
 | --- | --- |
-| `%LOCALAPPDATA%\ProfitDjinn\app.db` | the database |
-| `%LOCALAPPDATA%\ProfitDjinn\.secret_key` | signing key — **do not delete, it signs you out** |
-| `%LOCALAPPDATA%\ProfitDjinn\webview\` | the window's cookies, which is what keeps you signed in |
-
-Running from source instead uses the project's `instance\` folder for all three.
-
-Deleting the `webview\` folder signs you out and loses nothing else. Deleting `app.db`
-loses everything — take a backup from Admin → Database first.
-
-## Restoring a backup
-
-A backup downloaded from Admin → Database is a complete SQLite database, not a partial
-dump. The fastest way to restore one is to put it in place directly:
-
-1. Close ProfitDjinn.
-2. Copy your backup over `%LOCALAPPDATA%\ProfitDjinn\app.db`.
-3. Start ProfitDjinn. Sign in with the account from the backup — your own username and
-   password. Missing columns and new settings are added on startup.
-
-Leave `.secret_key` alone. Replacing it signs you out but costs nothing else; the
-database does not depend on it.
-
-**Do not rely on Admin → Database → Restore to recover from an empty database.** That
-page is behind the login, so on a fresh install you would have to create a throwaway
-administrator on the setup screen first just to reach it. Copying the file is the reliable path. The in-app Restore is for swapping data
-while you are already signed in.
-
-## Staying signed in
-
-Tick "Keep me signed in" (it is on by default) and the app will not ask again until you
-click Sign Out. Two things make that work, and breaking either one brings the old bug
-back:
-
-- `run_gui.py` passes `private_mode=False` and a `storage_path` to `webview.start()`.
-  `private_mode` **defaults to `True`**, which throws the cookie away on close.
-- `GUIConfig` in `app/config.py` sets a 3650-day `REMEMBER_COOKIE_DURATION`, with
-  `SESSION_COOKIE_SECURE` and `REMEMBER_COOKIE_SECURE` off because the window uses plain
-  HTTP to `127.0.0.1`.
-
-`tests/test_stays_signed_in.py` covers the server side. The browser side needs a person:
-
-1. Launch the EXE, sign in with the box ticked. No save-password prompt should appear.
-2. Close the window completely.
-3. Reopen. You should land on the dashboard with no login page.
-4. Sign Out, close, reopen — now it should ask for credentials again.
-
-## Status
-
-Working and in use. Open items:
-
-- **`migrations/` is empty.** Flask-Migrate is installed but never initialized. New
-  columns must be added by hand to `_run_migrations()` in `app/__init__.py` or they will
-  not appear on an existing database. See `CLAUDE.md`.
-- **The old `dist\` and `build\` folders in this project are stale** — roughly 74 MB left
-  over from the previous build layout. Safe to delete; builds now go to `C:\Dev`.
-- The invoice PDF has only been checked by eye, not against a test fixture.
+| `src/ProfitDjinn.Core` | data, business rules, services, invoice PDF |
+| `src/ProfitDjinn.App` | the WPF app: shell, themes, controls, screens |
+| `tests/ProfitDjinn.Tests` | unit and parity tests |
+| `tools/` | parity harness against 1.x, icon converter, smoke tests |
+| `docs/` | behaviour and design specs for the port |
+| `legacy/` | the 1.x Flask app, kept for reference and as the rollback path |
 
 ## License
 
-MIT. See `LICENSE`.
-
-### History
-
-Originally shelled out to Chrome via `flaskwebgui`, which handed it a throwaway
-`--user-data-dir` and deleted it on exit. That is why sign-in never persisted and Chrome
-re-asked to save the password on every launch. Replaced with pywebview on 2026-08-21.
+MIT. See `LICENSE`. Bundled: Bootstrap Icons (MIT), Inter and VT323 fonts (SIL OFL), PDFsharp
+(MIT), PDFium (BSD-3/Apache-2.0) via bblanchon.PDFium, Dapper (Apache-2.0),
+Microsoft.Data.Sqlite (MIT).
