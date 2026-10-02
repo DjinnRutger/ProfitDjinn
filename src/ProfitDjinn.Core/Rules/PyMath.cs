@@ -120,6 +120,19 @@ public static class PyMath
         return s;
     }
 
+    /// <summary>Python's repr(x) / str(x) of a float, as a 1.x template printed a raw number: "2.5", "0.1", "1e-05".</summary>
+    public static string Repr(double x)
+    {
+        if (double.IsNaN(x)) return "nan";
+        if (double.IsInfinity(x)) return x > 0 ? "inf" : "-inf";
+        if (x == Math.Floor(x) && Math.Abs(x) < 1e16) return ((decimal)x).ToString(Inv) + ".0";
+        string r = x.ToString("R", Inv);
+        int e = r.IndexOfAny(new[] { 'E', 'e' });
+        if (e < 0) return r;
+        int exp = int.Parse(r[(e + 1)..], Inv);
+        return $"{r[..e]}e{(exp < 0 ? "-" : "+")}{Math.Abs(exp):00}";
+    }
+
     /// <summary>Python's f"{x:,.2f}": thousands separators, two decimals.</summary>
     public static string Money(double x) => Round(x, 2).ToString("#,##0.00", Inv);
 

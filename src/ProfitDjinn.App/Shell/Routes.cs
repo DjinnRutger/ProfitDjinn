@@ -21,10 +21,10 @@ public static class Routes
     public static Func<AppPage> NewItem(MainWindow s) => () => new ItemFormPage(s, null);
     public static Func<AppPage> EditItem(MainWindow s, long id) => () => new ItemFormPage(s, id);
 
-    public static Func<AppPage> Invoices(MainWindow s, InvoiceFilter filter = InvoiceFilter.All, string search = "") => () => new PlaceholderPage(s, "invoices");
-    public static Func<AppPage> Invoice(MainWindow s, long id) => () => new PlaceholderPage(s, "invoices");
-    public static Func<AppPage> NewInvoice(MainWindow s, long? customerId = null) => () => new PlaceholderPage(s, "invoices");
-    public static Func<AppPage> EditInvoice(MainWindow s, long id) => () => new PlaceholderPage(s, "invoices");
+    public static Func<AppPage> Invoices(MainWindow s, InvoiceFilter filter = InvoiceFilter.All, string search = "") => () => new InvoicesPage(s, filter, search);
+    public static Func<AppPage> Invoice(MainWindow s, long id) => () => new InvoiceDetailPage(s, id);
+    public static Func<AppPage> NewInvoice(MainWindow s, long? customerId = null) => () => new InvoiceFormPage(s, null, customerId);
+    public static Func<AppPage> EditInvoice(MainWindow s, long id) => () => new InvoiceFormPage(s, id, null);
     public static Func<AppPage> Bill(MainWindow s, long workOrderId, string? label = null) => () => new PlaceholderPage(s, "workorders");
 
     public static Func<AppPage> WorkOrders(MainWindow s) => () => new PlaceholderPage(s, "workorders");

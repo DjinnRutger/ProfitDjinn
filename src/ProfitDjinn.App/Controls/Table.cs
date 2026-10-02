@@ -21,7 +21,8 @@ public static class Table
         Action<T>? onRowClick = null,
         Func<T, string?>? rowBrush = null,
         IReadOnlyList<UIElement?[]>? footer = null,
-        bool header = true)
+        bool header = true,
+        Func<int, bool>? footerShaded = null)
     {
         var scope = new Grid();
         Grid.SetIsSharedSizeScope(scope, true);
@@ -71,11 +72,13 @@ public static class Table
         }
 
         if (footer is not null)
-            foreach (var cells in footer)
+            for (int f = 0; f < footer.Count; f++)
             {
-                var grid = RowGrid(columns, cells.Select(c => c ?? new TextBlock()).ToArray());
-                stack.Children.Add(new Border { Child = grid, BorderThickness = new Thickness(0, 0, 0, 1) }
-                    .WithResource(Border.BackgroundProperty, "TotalsRow").WithResource(Border.BorderBrushProperty, "Border"));
+                var grid = RowGrid(columns, footer[f].Select(c => c ?? new TextBlock()).ToArray());
+                var row = new Border { Child = grid, BorderThickness = new Thickness(0, 0, 0, 1) }.WithResource(Border.BorderBrushProperty, "Border");
+                // Bootstrap's table-active shading; by default every footer row has it.
+                if (footerShaded?.Invoke(f) ?? true) row.SetResourceReference(Border.BackgroundProperty, "TotalsRow");
+                stack.Children.Add(row);
             }
         return scope;
     }

@@ -14,7 +14,7 @@ namespace ProfitDjinn.Core.Pdf;
 /// fpdf2 conventions copied here:
 ///   - a cell's text is inset 1 mm from its edges (c_margin);
 ///   - the text baseline is at y + h/2 + 0.3 * font size;
-///   - page 1 starts at y = 10, because 1.x added the page before setting 15 mm margins.
+///   - content starts at y = 15 (measured against a 1.x PDF of the same invoice).
 /// Helvetica is drawn with Arial, its metric twin. Unlike fpdf2's core fonts, Arial covers
 /// all of Unicode that the invoice needs, so 1.x's ASCII clean-up is not needed.
 /// </summary>
@@ -41,8 +41,8 @@ public static class InvoicePdf
         double half = effW * 0.55;
         double rightX = Margin + half;
 
-        // ---- two-column header (page 1 starts at y = 10) ----
-        double top = 10;
+        // ---- two-column header ----
+        double top = Margin;
         w.Cell(Margin, top, half, 10, company.Name, 18, bold: true);
         w.Cell(rightX, top, effW - half, 10, "INVOICE", 20, bold: true, align: Align.Right);
 

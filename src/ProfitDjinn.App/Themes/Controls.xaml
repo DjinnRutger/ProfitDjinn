@@ -396,6 +396,9 @@
                     BorderBrush="{DynamicResource FocusRing}" Visibility="Collapsed" />
             <Border x:Name="Bd" CornerRadius="{DynamicResource Radius}" Background="{TemplateBinding Background}"
                     BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" />
+            <TextBlock x:Name="Placeholder" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" IsHitTestVisible="False"
+                       Text="{Binding (c:Input.Placeholder), RelativeSource={RelativeSource TemplatedParent}}"
+                       Foreground="{DynamicResource InputPlaceholder}" Visibility="Collapsed" />
             <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center" IsHitTestVisible="False"
                               Content="{TemplateBinding SelectionBoxItem}"
                               ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
@@ -422,6 +425,9 @@
             </Trigger>
             <Trigger Property="c:Input.Invalid" Value="True">
               <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource DangerText}" />
+            </Trigger>
+            <Trigger Property="SelectedItem" Value="{x:Null}">
+              <Setter TargetName="Placeholder" Property="Visibility" Value="Visible" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter Property="Opacity" Value="0.65" />

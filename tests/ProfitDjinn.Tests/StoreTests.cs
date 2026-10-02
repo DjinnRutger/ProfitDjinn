@@ -96,6 +96,12 @@ public class StoreTests
         var company = store.Settings.Company();
 
         byte[] one = InvoicePdf.Render(store.Invoices.Get(6), company);
+        // For a side-by-side check against 1.x's PDF of the same invoice.
+        if (Environment.GetEnvironmentVariable("PROFITDJINN_PDF_OUT") is { Length: > 0 } outDir)
+        {
+            File.WriteAllBytes(Path.Combine(outDir, "inv6-2.0.pdf"), one);
+            File.WriteAllBytes(Path.Combine(outDir, "inv5-2.0.pdf"), InvoicePdf.Render(store.Invoices.Get(5), company));
+        }
         Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(one, 0, 4));
         Assert.Equal(1, PdfReader.Open(new MemoryStream(one), PdfDocumentOpenMode.Import).PageCount);
 

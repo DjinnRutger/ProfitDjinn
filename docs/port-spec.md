@@ -319,7 +319,7 @@ work lines went back to the tab.
 
 ### Invoice PDF (`utils/pdf_generator.py:66-268`)
 
-- A4 portrait, mm, margins 15. Page 1's header starts at y = 10.
+- A4 portrait, mm, margins 15. The header starts at y = 15 (measured on a real 1.x PDF; reading the code suggested 10).
 - Header:
   - Left: company name, Helvetica Bold 18, h10.
   - Right: "INVOICE", Bold 20, right-aligned.
