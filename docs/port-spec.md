@@ -383,3 +383,29 @@ work lines went back to the tab.
 Login, first-start setup, users, roles and permissions, the audit log screen, Admin
 overview, and the external-database configuration. One optional app password replaces
 sign-in. The tables stay, so a 1.x build can still open the file.
+
+## Expenses (new in 2.2, no 1.x equivalent)
+
+Optional; the `expenses_enabled` setting (default `false`) shows Vendors and Expenses in the
+sidebar. Turning it off hides them and keeps the data. The 1.x tables are untouched; the six
+new tables follow the 1.x conventions (no AUTOINCREMENT, money FLOAT, DATE text, BOOLEAN 0/1).
+
+- **Vendors:** name required; contact, address, phone, email, default category, notes,
+  active. A vendor with expenses or recurring expenses cannot be deleted, only made inactive.
+- **Categories:** 17 starters (Schedule C style, "Other" last), seeded once. Names unique
+  ignoring case; new ones go before "Other". In use: hide only. Hidden: kept on old
+  expenses, not offered on new ones.
+- **Expenses:** vendor optional, category, date, optional due date (not before the date),
+  description, reference, amount in whole cents above zero, notes. "Already paid" on a new
+  expense records one full payment. Status Paid / Partial / Unpaid from payments only;
+  Overdue when a balance remains past the due date.
+- **Payments:** any number, each at most the balance due; an edit cannot lower the amount
+  below what is paid. Methods are the invoice payment methods.
+- **Receipts:** PDF or image, 25 MB max, copied into `receipts_folder` (empty = the data
+  folder's `receipts`). Changing the folder offers to move existing files; "Leave Them" keeps
+  them openable where they are. Deleting an expense or a receipt deletes ProfitDjinn's copy.
+- **Recurring:** monthly or yearly, start date, day of month (short months use their last
+  day), optional end date, auto-paid (with a method) or bill (due on its date). Created at
+  start up to today, only while Expenses is on; a start date in the past asks before
+  back-filling. Never creates a date twice or re-creates a deleted one; resuming a paused
+  template skips the paused dates; deleting a template keeps its expenses.

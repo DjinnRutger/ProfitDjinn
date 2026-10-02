@@ -330,6 +330,7 @@ public sealed class SettingsPage : AppPage
     {
         bool on = Store.Expenses.Enabled;
         var sw = new CheckBox { Style = Ui.Style("Switch"), IsChecked = on };
+        System.Windows.Automation.AutomationProperties.SetName(sw, "Expenses feature");   // for the smoke test
         void Label() => sw.Content = sw.IsChecked == true ? "Enabled" : "Disabled";
         sw.Click += (_, _) => Label();
         Label();

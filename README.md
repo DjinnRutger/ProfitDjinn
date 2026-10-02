@@ -21,6 +21,12 @@ Windows SmartScreen may warn because the file is not code-signed; choose More in
   applying credit to another invoice, Print and PDF.
 - **Revenue**: collected revenue by month or year, by customer.
 - **Items**: a price list for quick-adding common lines.
+- **Expenses** (optional, off until you turn it on in **Settings > Expenses**): vendors, bills
+  and purchases with partial payments, due dates and overdue flags, receipts (PDFs or photos)
+  attached to each expense, and recurring expenses (rent, subscriptions, insurance) that add
+  themselves every month or year, either already paid or as a bill to pay. Categories start
+  from a common small-business tax list and can be renamed, added or hidden. Turning
+  Expenses off hides it again; nothing is deleted.
 - **Settings > Security** sets an optional app password, asked for at start (and by **Lock**
   in the sidebar). It keeps casual eyes out on a shared PC; it does not encrypt the data.
 - **Themes**: Light, Dark and Terminal, from the button at the top right.

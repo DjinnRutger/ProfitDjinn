@@ -82,6 +82,9 @@ with depth 0, blur about 12 and colour #00ff41.
 - **Nav:**
   - Dashboard `speedometer2`, Customers `building`, Invoices `receipt`, Work Orders
     `clipboard-check`, Revenue `graph-up-arrow`, Items `box-seam`.
+  - 2.2, only while Expenses is on, after Work Orders: Vendors `shop`, Expenses `wallet2`.
+    Expense screens reuse the customer and invoice layouts; Recurring is `arrow-repeat`,
+    Categories `tags`, receipts `paperclip`, Overdue a `danger` badge next to the status.
   - Then, under "Administration": Settings `sliders`, Backup & Restore `database`.
   - Logout becomes Lock, `box-arrow-right`, shown only when the app password is on.
 - **Top bar:**
