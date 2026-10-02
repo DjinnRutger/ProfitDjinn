@@ -52,7 +52,8 @@ public sealed class SettingsPage : AppPage
             if (group.Key == "security") body.Children.Add(PasswordRow());
             if (group.Key == "appearance") body.Children.Add(ImageRow("app_icon_img", "Upload a PNG to replace the Bootstrap icon in the sidebar", Store.Paths.AppIconPath, SettingKeys.AppIconImage, "app_icon.png", "Remove the custom app icon?"));
             if (group.Key == "login") body.Children.Add(ImageRow("login_logo", "Upload a PNG image to replace the icon on the lock screen", Store.Paths.LoginLogoPath, SettingKeys.LoginLogo, "login_logo.png", "Remove the custom login logo?"));
-            foreach (var s in group)
+            if (group.Key == "backup") body.Children.Add(BackupReminderRows());
+            foreach (var s in group.Where(s => group.Key != "backup"))
             {
                 if (s.Key is SettingKeys.LoginLogo or SettingKeys.AppIconImage) continue;
                 body.Children.Add(SettingRow(s));
@@ -86,7 +87,7 @@ public sealed class SettingsPage : AppPage
         string glyph = category switch
         {
             "general" => "grid-1x2", "appearance" => "palette", "security" => "shield-lock", "login" => "box-arrow-in-right",
-            "ui" => "type", "invoices" => "receipt", "workorders" => "clipboard-check", _ => "gear",
+            "ui" => "type", "invoices" => "receipt", "workorders" => "clipboard-check", "backup" => "database", _ => "gear",
         };
         string title = category == "workorders" ? "Work Orders" : category == "login" ? "Lock Screen"
             : category.Length == 0 ? "General" : char.ToUpperInvariant(category[0]) + category[1..].ToLowerInvariant();
@@ -297,6 +298,30 @@ public sealed class SettingsPage : AppPage
         return Row("App password", desc, pw.IsSet ? "on" : "off", form);
     }
 
+    // ------------------------------------------------------------------ backup reminder
+
+    /// <summary>The reminder switch, and the days field, which only shows while the reminder is on.</summary>
+    private FrameworkElement BackupReminderRows()
+    {
+        var reminder = Store.BackupReminder;
+        var sw = new CheckBox { Style = Ui.Style("Switch"), IsChecked = reminder.Enabled };
+        var days = Ui.TextBox(reminder.Days.ToString(CultureInfo.InvariantCulture)).Also(t => { t.MaxWidth = 200; t.MinWidth = 160; t.HorizontalAlignment = HorizontalAlignment.Left; });
+        var daysRow = Row(SettingKeys.BackupReminderDays, "Days between backup reminders. Making a backup also restarts the count.", "number", days);
+        void Sync()
+        {
+            sw.Content = sw.IsChecked == true ? "Enabled" : "Disabled";
+            daysRow.Visibility = sw.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        }
+        sw.Click += (_, _) => Sync();
+        Sync();
+        _readers[SettingKeys.BackupReminderEnabled] = () => sw.IsChecked == true ? "true" : "false";
+        // A hidden field keeps its saved value, so turning the reminder off never trips validation.
+        _readers[SettingKeys.BackupReminderDays] = () => sw.IsChecked == true ? days.Text.Trim() : reminder.Days.ToString(CultureInfo.InvariantCulture);
+        return Ui.Stack(0,
+            Row(SettingKeys.BackupReminderEnabled, "When ProfitDjinn opens, ask me to back up my data every few days.", "boolean", sw),
+            daysRow);
+    }
+
     // ------------------------------------------------------------------ save
 
     private void SaveAll()
@@ -305,6 +330,11 @@ public sealed class SettingsPage : AppPage
         if (values.TryGetValue(SettingKeys.PrimaryColor, out var color) && ThemeManager.ParseColor(color) is null)
         {
             Shell.ShowError($"\"{color}\" is not a colour. Use a hex value such as #2563eb.");
+            return;
+        }
+        if (values.TryGetValue(SettingKeys.BackupReminderDays, out var days) && BackupReminder.Validate(days) is { } problem)
+        {
+            Shell.ShowError(problem);
             return;
         }
         Store.Settings.SetMany(values);

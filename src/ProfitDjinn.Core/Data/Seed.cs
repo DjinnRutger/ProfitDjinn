@@ -90,6 +90,9 @@ internal static class Seed
         // 2.0: the optional app password. Stored as a PBKDF2 hash; empty means no password.
         new(SettingKeys.AppPasswordHash, "", "secret", "App password (set it in Settings > Security)", "security", null),
         new(SettingKeys.Theme, "", "text", "Colour theme (light, dark or terminal)", "appearance", null),
+        new(SettingKeys.BackupReminderEnabled, "true", "boolean", "Remind me at start to back up my data", "backup", null),
+        new(SettingKeys.BackupReminderDays, "7", "number", "Days between backup reminders", "backup", null),
+        new(SettingKeys.BackupReminderLast, "", "text", "When the reminder countdown last restarted (auto-managed)", "backup", null),
     };
 
     internal static void FirstRun(SqliteConnection db, SqliteTransaction tx)

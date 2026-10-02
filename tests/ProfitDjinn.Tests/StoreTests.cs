@@ -40,6 +40,52 @@ public class StoreTests
     }
 
     [Fact]
+    public void Backup_reminder_is_on_every_7_days_and_waits_on_a_new_install()
+    {
+        var day = new DateOnly(2026, 10, 2);
+        var store = new Store(Fixture.TempPaths(), () => day);
+        var reminder = store.BackupReminder;
+        Assert.True(reminder.Enabled);
+        Assert.Equal(7, reminder.Days);
+
+        Assert.False(reminder.IsDue());                        // first start: countdown begins, no popup
+        Assert.Equal("2026-10-02", store.Settings.Get(SettingKeys.BackupReminderLast));
+        day = day.AddDays(6);
+        Assert.False(reminder.IsDue());
+        day = day.AddDays(1);
+        Assert.True(reminder.IsDue());                         // 7 days on
+        Assert.True(reminder.IsDue());                         // still due until answered
+
+        reminder.Restart();                                    // answered (yes or not now) or a backup made
+        Assert.False(reminder.IsDue());
+        day = day.AddDays(7);
+        Assert.True(reminder.IsDue());
+
+        store.Settings.Set(SettingKeys.BackupReminderEnabled, "false");
+        Assert.False(reminder.IsDue());
+        store.Settings.Set(SettingKeys.BackupReminderEnabled, "true");
+        store.Settings.Set(SettingKeys.BackupReminderDays, "30");
+        Assert.False(reminder.IsDue());
+        day = day.AddDays(30);
+        Assert.True(reminder.IsDue());
+    }
+
+    [Fact]
+    public void Backup_reminder_days_must_be_1_to_365_and_a_bad_saved_value_falls_back_to_7()
+    {
+        Assert.Null(BackupReminder.Validate("1"));
+        Assert.Null(BackupReminder.Validate(" 365 "));
+        foreach (string bad in new[] { "", "0", "366", "-3", "2.5", "seven" })
+            Assert.NotNull(BackupReminder.Validate(bad));
+
+        var store = Fixture.FreshStore();
+        store.Settings.Set(SettingKeys.BackupReminderDays, "abc");
+        Assert.Equal(7, store.BackupReminder.Days);
+        store.Settings.Set(SettingKeys.BackupReminderLast, "not a date");
+        Assert.False(store.BackupReminder.IsDue());             // treated as no countdown: starts one
+    }
+
+    [Fact]
     public void Invoice_numbers_are_highest_plus_one_by_value()
     {
         Assert.Equal("JQ1000", Numbering.Next("JQ", new[] { "JQ998", "JQ999", "XX5000" }, "1001"));

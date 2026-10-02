@@ -33,6 +33,10 @@ Everything is in one SQLite file, `%LOCALAPPDATA%\ProfitDjinn\app.db`. Replacing
 - **Backup & Restore** (sidebar) saves a complete copy and restores one. A restore checks
   the file first, needs a confirm, and keeps a safety copy of your current data next to it
   (`app.db.pre_restore_<date>`), put back automatically if the restore fails.
+- **Backup reminder** (on by default, every 7 days): when ProfitDjinn opens, it asks you to
+  save a backup. "Back Up Now" or "Not Now", it then waits the full interval again; making a
+  backup from Backup & Restore also restarts the count. A new install waits the interval
+  before the first reminder. Turn it off or change the days in Settings > Backup.
 - To move to a new PC: back up, install the exe there, restore.
 - Custom logo and sidebar icon: `%LOCALAPPDATA%\ProfitDjinn\branding\`.
 

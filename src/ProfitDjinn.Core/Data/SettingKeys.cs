@@ -35,4 +35,10 @@ public static class SettingKeys
 
     /// <summary>2.0. light, dark or terminal. In 1.x the theme was per user.</summary>
     public const string Theme = "theme";
+
+    /// <summary>2.0. Backup reminder at start: on/off, days between reminders, and the date
+    /// (YYYY-MM-DD) the countdown last restarted, set when the reminder is answered or a backup is made.</summary>
+    public const string BackupReminderEnabled = "backup_reminder_enabled";
+    public const string BackupReminderDays = "backup_reminder_days";
+    public const string BackupReminderLast = "backup_reminder_last";
 }

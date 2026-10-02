@@ -67,6 +67,7 @@ public partial class MainWindow : Window
 
         Navigate(startPage is null ? Routes.Dashboard(this) : Routes.ForNav(this, startPage));
         if (store.Password.IsSet) ShowLock();
+        else ContentRendered += (_, _) => RemindBackupIfDue();
     }
 
     // ------------------------------------------------------------------ navigation
@@ -496,5 +497,42 @@ public partial class MainWindow : Window
         LockLayer.Visibility = Visibility.Collapsed;
         LockLayer.Content = null;
         Reload();
+        RemindBackupIfDue();
+    }
+
+    // ------------------------------------------------------------------ backup reminder
+
+    private bool _backupReminderChecked;
+
+    /// <summary>
+    /// Once per start (after unlocking, when there is an app password): if the reminder is due,
+    /// ask to back up. Either answer restarts the countdown, so it waits the full interval again.
+    /// </summary>
+    private async void RemindBackupIfDue()
+    {
+        if (_backupReminderChecked) return;
+        _backupReminderChecked = true;
+        bool due;
+        try { due = Store.BackupReminder.IsDue(); }
+        catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or IOException)
+        {
+            ShowError($"The backup reminder could not be checked: {ex.Message}");
+            return;
+        }
+        if (!due) return;
+
+        int days = Store.BackupReminder.Days;
+        var body = new TextBlock
+        {
+            Text = $"It has been {days} day{(days == 1 ? "" : "s")} or more since your last backup or reminder. " +
+                   "Save a copy of your customers, invoices and payments somewhere other than this PC, " +
+                   "such as a USB drive or cloud folder.\n\nYou can change or turn off this reminder in Settings.",
+            TextWrapping = TextWrapping.Wrap, FontSize = 15,
+        };
+        body.SetResourceReference(TextBlock.ForegroundProperty, "Text");
+        bool backUp = await OpenDialog("Back up your data?", "database", body, "Back Up Now", () => true,
+            primaryGlyph: "cloud-download", maxWidth: 460, cancelText: "Not Now");
+        Store.BackupReminder.Restart();
+        if (backUp) Pages.BackupPage.SaveBackupAs(this);
     }
 }

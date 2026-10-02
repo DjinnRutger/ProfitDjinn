@@ -301,6 +301,12 @@ work lines went back to the tab.
 
 - Backup: copy the SQLite file to `profitdjinn_backup_YYYYmmdd_HHMMSS.db`. The port uses the
   SQLite online-backup API instead of a raw file copy.
+- New in 2.1 (no 1.x equivalent): the start-up backup reminder, `Services/BackupReminder.cs`.
+  Settings `backup_reminder_enabled` (default true), `backup_reminder_days` (default 7, 1 to
+  365) and `backup_reminder_last` (YYYY-MM-DD, hidden). Due when enabled and today minus last
+  is at least the interval. A missing or unreadable `last` starts the countdown instead of
+  asking. Either answer to the popup, or any saved backup, sets `last` to today. Shown once
+  per start, after unlock when there is an app password.
 - Analyze a chosen file:
   - It must start with `SQLite format 3`.
   - List tables both sides; missing and extra tables; missing columns per shared table;

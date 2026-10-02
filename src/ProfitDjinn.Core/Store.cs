@@ -20,6 +20,7 @@ public sealed class Store
     public ReportService Reports { get; }
     public BackupService Backups { get; }
     public AppPassword Password { get; }
+    public BackupReminder BackupReminder { get; }
 
     /// <param name="today">The clock. Tests pass a fixed date; the app passes the local date.</param>
     public Store(AppPaths paths, Func<DateOnly>? today = null)
@@ -40,5 +41,6 @@ public sealed class Store
         Reports = new ReportService(Database, today);
         Backups = new BackupService(Database);
         Password = new AppPassword(Settings);
+        BackupReminder = new BackupReminder(Settings, today);
     }
 }

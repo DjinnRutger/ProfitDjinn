@@ -89,7 +89,13 @@ public sealed class BackupPage : AppPage
         _ => $"{bytes / 1024.0 / 1024 / 1024:0.0} GB",
     };
 
-    private void Backup()
+    private void Backup() => SaveBackupAs(Shell);
+
+    /// <summary>
+    /// Asks where to save, writes the backup and says where it went. Used by this page and the
+    /// start-up reminder. A saved backup restarts the reminder countdown.
+    /// </summary>
+    public static void SaveBackupAs(MainWindow shell)
     {
         var dialog = new SaveFileDialog
         {
@@ -97,12 +103,14 @@ public sealed class BackupPage : AppPage
             Filter = "ProfitDjinn backup (*.db)|*.db",
             InitialDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads"),
         };
-        if (dialog.ShowDialog(Shell) != true) return;
-        Try(() =>
+        if (dialog.ShowDialog(shell) != true) return;
+        try
         {
-            Store.Backups.Backup(dialog.FileName);
-            Shell.ShowNotice(Notice.Success($"Backup saved to {dialog.FileName}"));
-        });
+            shell.Store.Backups.Backup(dialog.FileName);
+            shell.Store.BackupReminder.Restart();
+            shell.ShowNotice(Notice.Success($"Backup saved to {dialog.FileName}"));
+        }
+        catch (UserFacingException ex) { shell.ShowError(ex.Message); }
     }
 
     private void ChooseBackup()
