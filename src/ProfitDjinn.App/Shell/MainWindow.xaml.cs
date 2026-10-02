@@ -75,10 +75,19 @@ public partial class MainWindow : Window
     public async void Navigate(Func<AppPage> open, Notice? notice = null)
     {
         if (CurrentPage is { } current && !await current.CanLeaveAsync()) return;
+        // Build the page before touching the history: a page can refuse to open (nothing to
+        // bill, the record was deleted), and then we stay where we are and say why.
+        AppPage page;
+        try { page = open(); }
+        catch (UserFacingException ex)
+        {
+            ShowError(ex.Message);
+            return;
+        }
         if (_index < _history.Count - 1) _history.RemoveRange(_index + 1, _history.Count - _index - 1);
         _history.Add(open);
         _index = _history.Count - 1;
-        Show(open(), notice);
+        Show(page, notice);
     }
 
     /// <summary>Rebuilds the current page from the database (after an action that stays on the page).</summary>
@@ -86,7 +95,17 @@ public partial class MainWindow : Window
     {
         if (_index < 0) return;
         double scroll = ContentScroll.VerticalOffset;
-        Show(_history[_index](), notice, animate: false);
+        AppPage page;
+        try { page = _history[_index](); }
+        catch (UserFacingException ex)
+        {
+            // The page's record is gone (e.g. its last billable line was just billed). Go home.
+            _history.Clear();
+            _index = -1;
+            Navigate(Routes.Dashboard(this), notice ?? Notice.Warning(ex.Message));
+            return;
+        }
+        Show(page, notice, animate: false);
         ContentScroll.ScrollToVerticalOffset(scroll);
     }
 
@@ -95,7 +114,7 @@ public partial class MainWindow : Window
         if (_index <= 0) return;
         if (CurrentPage is { } current && !await current.CanLeaveAsync()) return;
         _index--;
-        Show(_history[_index]());
+        ShowFromHistory();
     }
 
     public async void Forward()
@@ -103,7 +122,13 @@ public partial class MainWindow : Window
         if (_index >= _history.Count - 1) return;
         if (CurrentPage is { } current && !await current.CanLeaveAsync()) return;
         _index++;
-        Show(_history[_index]());
+        ShowFromHistory();
+    }
+
+    private void ShowFromHistory()
+    {
+        try { Show(_history[_index]()); }
+        catch (UserFacingException ex) { ShowError(ex.Message); }
     }
 
     private void Show(AppPage page, Notice? notice = null, bool animate = true)

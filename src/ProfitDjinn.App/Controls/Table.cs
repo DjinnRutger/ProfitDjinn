@@ -88,11 +88,17 @@ public static class Table
         var g = new Grid();
         for (int i = 0; i < columns.Count; i++)
         {
-            var cd = new ColumnDefinition { Width = columns[i].Width };
-            if (columns[i].Width.IsAuto) cd.SharedSizeGroup = "c" + i;
+            // HTML tables treat a fixed column width as a minimum: the column still grows to fit
+            // its content. So a fixed width becomes an auto column with that minimum.
+            var w = columns[i].Width;
+            var cd = w.IsAbsolute ? new ColumnDefinition { Width = GridLength.Auto, MinWidth = w.Value } : new ColumnDefinition { Width = w };
+            if (w.IsAuto || w.IsAbsolute) cd.SharedSizeGroup = "c" + i;
             g.ColumnDefinitions.Add(cd);
             if (i >= cells.Length) continue;
-            var host = new Border { Padding = new Thickness(16, 12, 16, 12), Child = cells[i] };
+            // A narrow fixed column (checkbox, status icon) gets less side padding: in the browser its
+            // content overflowed the 42px cell visibly, but WPF would clip it.
+            double side = columns[i].Width.IsAbsolute && columns[i].Width.Value < 60 ? 8 : 16;
+            var host = new Border { Padding = new Thickness(side, 12, side, 12), Child = cells[i] };
             Grid.SetColumn(host, i);
             g.Children.Add(host);
         }

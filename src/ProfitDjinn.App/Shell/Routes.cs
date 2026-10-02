@@ -25,13 +25,15 @@ public static class Routes
     public static Func<AppPage> Invoice(MainWindow s, long id) => () => new InvoiceDetailPage(s, id);
     public static Func<AppPage> NewInvoice(MainWindow s, long? customerId = null) => () => new InvoiceFormPage(s, null, customerId);
     public static Func<AppPage> EditInvoice(MainWindow s, long id) => () => new InvoiceFormPage(s, id, null);
-    public static Func<AppPage> Bill(MainWindow s, long workOrderId, string? label = null) => () => new PlaceholderPage(s, "workorders");
+    public static Func<AppPage> Bill(MainWindow s, long workOrderId, string? label = null) => () => new BillPage(s, workOrderId, label);
 
-    public static Func<AppPage> WorkOrders(MainWindow s) => () => new PlaceholderPage(s, "workorders");
+    public static Func<AppPage> WorkOrders(MainWindow s, bool all = false, string search = "") => () => new WorkOrdersPage(s, all, search);
     /// <summary>The customer's work order tab (created on first visit, as in 1.x).</summary>
-    public static Func<AppPage> WorkOrder(MainWindow s, long customerId) => () => new PlaceholderPage(s, "workorders");
+    public static Func<AppPage> WorkOrder(MainWindow s, long customerId) => () => new WorkOrderPage(s, customerId);
 
-    public static Func<AppPage> Revenue(MainWindow s) => () => new PlaceholderPage(s, "revenue");
+    public static Func<AppPage> Revenue(MainWindow s, int? year = null, bool all = false) => () => new PlaceholderPage(s, "revenue");
+    /// <summary>Settings, scrolled to a category (e.g. "workorders").</summary>
+    public static Func<AppPage> Settings(MainWindow s, string? category = null) => () => new PlaceholderPage(s, "settings");
 
     /// <summary>
     /// A sidebar key, or "name:id" for one record (customer:3, invoice:7, workorder:3 by customer,

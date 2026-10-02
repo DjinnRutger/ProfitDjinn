@@ -691,7 +691,10 @@
                         Visibility="{Binding Title, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource HasValue}}">
                   <DockPanel>
                     <ContentPresenter DockPanel.Dock="Right" Content="{TemplateBinding HeaderRight}" VerticalAlignment="Center" />
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <ContentPresenter Content="{TemplateBinding HeaderLeft}" VerticalAlignment="Center"
+                                      Visibility="{Binding HeaderLeft, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource HasValue}}" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                Visibility="{Binding HeaderLeft, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource HasNoValue}}">
                       <c:Icon Glyph="{TemplateBinding Glyph}" Size="15" Margin="0,0,8,0"
                               Foreground="{TemplateBinding GlyphBrush}"
                               Visibility="{Binding Glyph, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource HasValue}}" />

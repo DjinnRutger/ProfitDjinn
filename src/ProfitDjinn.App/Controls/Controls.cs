@@ -70,6 +70,8 @@ public class Card : ContentControl
     public static readonly DependencyProperty GlyphProperty = DependencyProperty.Register(nameof(Glyph), typeof(string), typeof(Card), new PropertyMetadata(null));
     public static readonly DependencyProperty GlyphBrushProperty = DependencyProperty.Register(nameof(GlyphBrush), typeof(Brush), typeof(Card), new PropertyMetadata(null));
     public static readonly DependencyProperty HeaderRightProperty = DependencyProperty.Register(nameof(HeaderRight), typeof(object), typeof(Card), new PropertyMetadata(null));
+    /// <summary>Replaces the icon and title with custom content (e.g. a collapse toggle). Set Title too, so the header shows.</summary>
+    public static readonly DependencyProperty HeaderLeftProperty = DependencyProperty.Register(nameof(HeaderLeft), typeof(object), typeof(Card), new PropertyMetadata(null));
     public static readonly DependencyProperty BodyPaddingProperty = DependencyProperty.Register(nameof(BodyPadding), typeof(Thickness), typeof(Card), new PropertyMetadata(new Thickness(16)));
 
 
@@ -77,6 +79,7 @@ public class Card : ContentControl
     public string? Glyph { get => (string?)GetValue(GlyphProperty); set => SetValue(GlyphProperty, value); }
     public Brush? GlyphBrush { get => (Brush?)GetValue(GlyphBrushProperty); set => SetValue(GlyphBrushProperty, value); }
     public object? HeaderRight { get => GetValue(HeaderRightProperty); set => SetValue(HeaderRightProperty, value); }
+    public object? HeaderLeft { get => GetValue(HeaderLeftProperty); set => SetValue(HeaderLeftProperty, value); }
     public Thickness BodyPadding { get => (Thickness)GetValue(BodyPaddingProperty); set => SetValue(BodyPaddingProperty, value); }
 }
 
