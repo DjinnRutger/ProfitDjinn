@@ -110,4 +110,96 @@ public class ExpenseTests
         c.Delete(fuel);
         Assert.DoesNotContain(c.List(), u => u.Category.Id == fuel);
     }
+
+    // ------------------------------------------------------------------ expenses and payments
+
+    private static long Cat(Store s, string name = "Supplies") => s.Categories.Active().Single(c => c.Name == name).Id;
+
+    private static ExpenseDraft Draft(Store s, double? amount = 100, long? vendor = null, DateOnly? date = null,
+        DateOnly? due = null, string desc = "Printer paper", PaidNow? paid = null) =>
+        new(vendor, Cat(s), date ?? Today, due, desc, "INV-77", amount, "", paid);
+
+    [Fact]
+    public void An_expense_validates_its_fields()
+    {
+        var s = Fixture.FreshStore(Today);
+        var e = Assert.Throws<ValidationException>(() => s.Expenses.Create(new ExpenseDraft(null, null, null, null, "", "", null, "")));
+        Assert.Equal(new[] { "amount", "category_id", "date", "description" }, e.Fields.Keys.OrderBy(k => k));
+        Assert.Contains("amount", Assert.Throws<ValidationException>(() => s.Expenses.Create(Draft(s, amount: 0))).Fields.Keys);
+        Assert.Contains("amount", Assert.Throws<ValidationException>(() => s.Expenses.Create(Draft(s, amount: 1.005))).Fields.Keys);
+        Assert.Contains("due_date", Assert.Throws<ValidationException>(() => s.Expenses.Create(Draft(s, due: Today.AddDays(-1)))).Fields.Keys);
+        Assert.Contains("vendor_id", Assert.Throws<ValidationException>(() => s.Expenses.Create(Draft(s, vendor: 42))).Fields.Keys);
+        long gone = s.Vendors.Create(Vendor("Gone", active: false)).Id;
+        Assert.Contains("vendor_id", Assert.Throws<ValidationException>(() => s.Expenses.Create(Draft(s, vendor: gone))).Fields.Keys);
+    }
+
+    [Fact]
+    public void Payments_move_an_expense_from_unpaid_to_partial_to_paid_and_cannot_overpay()
+    {
+        var s = Fixture.FreshStore(Today);
+        long v = s.Vendors.Create(Vendor("Acme")).Id;
+        long id = s.Expenses.Create(Draft(s, vendor: v, due: Today.AddDays(10))).Id;
+        Assert.Equal(InvoiceStatus.Unpaid, s.Expenses.Get(id).Status);
+
+        var n = s.Expenses.RecordPayment(id, 40, "check", " 1001 ", Today, "first");
+        Assert.Equal("Partial payment of $40.00 recorded. Balance remaining: $60.00.", n.Message);
+        var e = s.Expenses.Get(id);
+        Assert.Equal(InvoiceStatus.Partial, e.Status);
+        Assert.Equal("1001", e.Payments.Single().CheckNumber);
+
+        Assert.Contains("$60.00 balance", Assert.Throws<UserFacingException>(() => s.Expenses.RecordPayment(id, 60.01, "cash", null, null, null)).Message);
+        Assert.Contains("amount", Assert.Throws<ValidationException>(() => s.Expenses.Update(id, Draft(s, amount: 39.99, vendor: v))).Fields.Keys);
+
+        Assert.Equal("Payment of $60.00 recorded. Expense paid in full.", s.Expenses.RecordPayment(id, 60, "ach", null, Today, null).Message);
+        e = s.Expenses.Get(id);
+        Assert.Equal(InvoiceStatus.Paid, e.Status);
+        Assert.Equal(0, e.BalanceDue);
+        Assert.Equal("Check, ACH", e.PaidVia);
+        Assert.Throws<UserFacingException>(() => s.Expenses.RecordPayment(id, 1, "cash", null, null, null));
+
+        s.Expenses.DeletePayment(id, e.Payments[1].Id);
+        Assert.Equal(InvoiceStatus.Partial, s.Expenses.Get(id).Status);
+        Assert.Equal(100, s.Vendors.Get(v).TotalBilled);
+        Assert.Equal(40, s.Vendors.Get(v).TotalPaid);
+        Assert.Equal(60, s.Vendors.Get(v).Owed);
+    }
+
+    [Fact]
+    public void Already_paid_records_one_full_payment_and_delete_removes_everything()
+    {
+        var s = Fixture.FreshStore(Today);
+        long id = s.Expenses.Create(Draft(s, amount: 19.99, paid: new PaidNow("credit_card", null, null))).Id;
+        var e = s.Expenses.Get(id);
+        Assert.Equal(InvoiceStatus.Paid, e.Status);
+        Assert.Equal(Today, e.Payments.Single().Date);
+        Assert.Equal(19.99, e.Payments.Single().Amount);
+
+        s.Expenses.Delete(id);
+        Assert.Throws<UserFacingException>(() => s.Expenses.Get(id));
+        Assert.Equal(0, s.Database.Run(db => db.ExecuteScalar<int>("SELECT COUNT(*) FROM expense_payments")));
+    }
+
+    [Fact]
+    public void The_list_filters_and_searches_and_the_summary_counts_this_year_unpaid_and_overdue()
+    {
+        var s = Fixture.FreshStore(Today);
+        long acme = s.Vendors.Create(Vendor("Acme")).Id;
+        s.Expenses.Create(Draft(s, amount: 50, vendor: acme, desc: "Toner", date: Today.AddDays(-20), due: Today.AddDays(-5)));  // overdue
+        s.Expenses.Create(Draft(s, amount: 25, desc: "Stamps", paid: new PaidNow("cash", null, null)));
+        s.Expenses.Create(new ExpenseDraft(null, Cat(s, "Software & Subscriptions"), new DateOnly(2025, 12, 31), null, "Old licence", "", 10, ""));
+
+        Assert.Equal(new[] { "Stamps", "Toner", "Old licence" }, s.Expenses.List().Select(e => e.Description));
+        Assert.Equal(new[] { "Toner", "Old licence" }, s.Expenses.List(ExpenseFilter.Unpaid).Select(e => e.Description));
+        Assert.Equal(new[] { "Stamps" }, s.Expenses.List(ExpenseFilter.Paid).Select(e => e.Description));
+        Assert.Equal(new[] { "Toner" }, s.Expenses.List(search: "acme").Select(e => e.Description));
+        Assert.Equal(new[] { "Old licence" }, s.Expenses.List(categoryId: Cat(s, "Software & Subscriptions")).Select(e => e.Description));
+
+        var sum = s.Expenses.Summary();
+        Assert.Equal(75, sum.YearTotal);
+        Assert.Equal(2, sum.UnpaidCount);
+        Assert.Equal(60, sum.UnpaidTotal);
+        Assert.Equal(1, sum.OverdueCount);
+        Assert.Equal(50, sum.OverdueTotal);
+        Assert.False(s.Expenses.Enabled);
+    }
 }
