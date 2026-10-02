@@ -14,7 +14,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 
-from conftest import SEEDED_PASSWORD, SEEDED_USERNAME
+from conftest import ADMIN_PASSWORD, ADMIN_USERNAME
 
 REMEMBER_COOKIE = "remember_token"
 
@@ -32,7 +32,7 @@ def _expiry_of(cookie_header):
 
 
 def _login(client, remember):
-    data = {"username": SEEDED_USERNAME, "password": SEEDED_PASSWORD}
+    data = {"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD}
     if remember:
         data["remember_me"] = "y"
     return client.post("/auth/login", data=data)

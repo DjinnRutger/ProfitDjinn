@@ -3,7 +3,7 @@
 This is the smoke test the auto-push rule depends on. If it fails, nothing
 gets pushed.
 """
-from conftest import AUTHENTICATED_ROUTES, SEEDED_PASSWORD, SEEDED_USERNAME
+from conftest import AUTHENTICATED_ROUTES, ADMIN_PASSWORD, ADMIN_USERNAME
 
 
 def test_seeds_on_first_run(app):
@@ -13,7 +13,7 @@ def test_seeds_on_first_run(app):
         from app.models.setting import Setting
         from app.models.user import User
 
-        assert User.query.filter_by(username=SEEDED_USERNAME).first() is not None
+        assert User.query.filter_by(username=ADMIN_USERNAME).first() is not None
         assert Role.query.filter_by(name="Administrator").first() is not None
         assert Permission.query.count() > 0
         assert Setting.query.filter_by(key="app_name").first().value == "ProfitDjinn"
@@ -45,7 +45,7 @@ def test_login_page_renders(client):
 def test_rejects_a_bad_password(client):
     response = client.post(
         "/auth/login",
-        data={"username": SEEDED_USERNAME, "password": "not-the-password"},
+        data={"username": ADMIN_USERNAME, "password": "not-the-password"},
         follow_redirects=True,
     )
     assert response.status_code == 200

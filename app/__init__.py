@@ -8,7 +8,9 @@ from app.config import config
 from app.extensions import db, login_manager, csrf, limiter, migrate
 
 
-def create_app(config_name: str = "default") -> Flask:
+def create_app(config_name: str = "default", overrides: dict | None = None) -> Flask:
+    """Build the app. `overrides` is applied on top of the config class; the
+    tests use it to give one app its own fresh database."""
     # When running as a frozen EXE, FLASK_INSTANCE_PATH is set to a writable
     # folder next to the EXE so SQLite persists between runs.
     _instance_path = os.environ.get("FLASK_INSTANCE_PATH")
@@ -17,6 +19,8 @@ def create_app(config_name: str = "default") -> Flask:
     else:
         app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(config[config_name])
+    if overrides:
+        app.config.update(overrides)
 
     # Ensure instance directory exists (SQLite lives here)
     os.makedirs(app.instance_path, exist_ok=True)
@@ -61,6 +65,7 @@ def create_app(config_name: str = "default") -> Flask:
     def inject_globals():
         from flask_login import current_user
         from app.utils.settings import get_setting
+        from app.version import __version__
 
         def admin_nav():
             """Build admin sidebar items — only called when user is admin."""
@@ -73,7 +78,7 @@ def create_app(config_name: str = "default") -> Flask:
                 {"icon": "bi-database",      "label": "Database",    "url": url_for("database.index"),   "key": "admin_database"},
             ]
 
-        return dict(get_setting=get_setting, admin_nav=admin_nav)
+        return dict(get_setting=get_setting, admin_nav=admin_nav, app_version=__version__)
 
     # ── Error handlers ───────────────────────────────────────────────────────
     @app.errorhandler(403)
@@ -131,13 +136,18 @@ def _run_migrations() -> None:
 
 # ── Seed helper ──────────────────────────────────────────────────────────────
 def _seed_database() -> None:
-    """Populate initial data on first run (runs only if no users exist)."""
-    from app.models.user import User
+    """Populate permissions, roles and settings on first run.
+
+    No user account is created. The first start sends the browser to
+    /auth/setup, where the person installing it chooses the administrator's
+    username and password (see auth.setup). A seeded default login would
+    sit in public source for anyone to read.
+    """
     from app.models.role import Role
     from app.models.permission import Permission
     from app.models.setting import Setting
 
-    if User.query.first():
+    if Role.query.first():
         return  # already seeded
 
     # ── Permissions ──────────────────────────────────────────────────────────
@@ -191,17 +201,6 @@ def _seed_database() -> None:
 
     db.session.add_all([admin_role, user_role])
     db.session.flush()
-
-    # ── Default admin user ───────────────────────────────────────────────────
-    admin = User(
-        username="admin",
-        email="admin@localvibe.local",
-        is_admin=True,
-        is_active=True,
-        role_id=admin_role.id,
-    )
-    admin.set_password("Admin@1234!")
-    db.session.add(admin)
 
     # ── Default settings ─────────────────────────────────────────────────────
     # (key, value, type, description, category, options_json)

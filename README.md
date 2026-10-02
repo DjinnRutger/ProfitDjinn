@@ -1,5 +1,9 @@
 # ProfitDjinn
 
+**Download:** the Windows build is on the [Releases](https://github.com/DjinnRutger/ProfitDjinn/releases)
+page. Unzip it anywhere, run `ProfitDjinn.exe`, and create your administrator account on
+the first screen.
+
 Flask-based invoicing and customer management, running as a Windows desktop app. Tracks
 customers, logs work orders as the work happens, turns completed work into invoices,
 records payments and account credit, and prints invoice PDFs.
@@ -41,8 +45,17 @@ C:\Dev\venvs\ProfitDjinn\Scripts\python run_gui.py    # desktop window
 C:\Dev\venvs\ProfitDjinn\Scripts\python run.py        # dev server at http://localhost:5000
 ```
 
-First run creates the database and seeds an administrator account. The seeded
-credentials are in `app/__init__.py`; change the password immediately.
+**First start.** There is no built-in login. On a fresh database every page goes to a
+setup screen where you choose the administrator's username, email and password (8+
+characters). Once that account exists the setup screen is gone for good. Then put your
+business name and address on your invoices under Admin > Settings; the defaults are
+placeholders ("Your Name", "123 Main Street").
+
+Upgrading from a build before 1.0.0-beta, which shipped an `admin` account with a
+password published in this repo: if you never changed it, the app makes you change it
+the next time you sign in, before anything else works.
+
+The dev server (`run.py`) listens on `127.0.0.1` only.
 
 To keep Python's bytecode cache out of OneDrive, set this once per machine:
 
@@ -56,7 +69,7 @@ setx PYTHONPYCACHEPREFIX C:\Dev\ProfitDjinn\pycache
 C:\Dev\venvs\ProfitDjinn\Scripts\python -m pytest
 ```
 
-16 tests. They run against a throwaway database in the temp folder and never touch real
+33 tests. They run against a throwaway database in the temp folder and never touch real
 data. Green before every commit.
 
 ## Build the Windows EXE
@@ -68,6 +81,17 @@ build.bat
 Output: `C:\Dev\ProfitDjinn\dist\ProfitDjinn\ProfitDjinn.exe`. Build output lives outside
 OneDrive on purpose — it is 50+ MB of regenerable files. To distribute, zip the whole
 `ProfitDjinn\` folder.
+
+### Releasing
+
+1. Bump `__version__` in `app/version.py`. It shows in the page footer and on the
+   sign-in page.
+2. Tests green, then `build.bat`.
+3. Smoke-test the EXE against a throwaway data folder, never your own: start it with
+   `LOCALAPPDATA` pointed at an empty folder and walk the first-start setup.
+4. Zip `C:\Dev\ProfitDjinn\dist\ProfitDjinn\` as `ProfitDjinn-<version>-win64.zip`.
+5. `gh release create v<version> <zip> --title "ProfitDjinn <version>"` (add
+   `--prerelease` for a beta).
 
 The EXE is standalone. Deleting and rebuilding it never touches the database.
 
@@ -92,15 +116,14 @@ dump. The fastest way to restore one is to put it in place directly:
 1. Close ProfitDjinn.
 2. Copy your backup over `%LOCALAPPDATA%\ProfitDjinn\app.db`.
 3. Start ProfitDjinn. Sign in with the account from the backup — your own username and
-   password, not the seeded one. Missing columns and new settings are added on startup.
+   password. Missing columns and new settings are added on startup.
 
 Leave `.secret_key` alone. Replacing it signs you out but costs nothing else; the
 database does not depend on it.
 
 **Do not rely on Admin → Database → Restore to recover from an empty database.** That
-page is behind the login, so on a fresh install you would have to sign in as the seeded
-`admin` account first (credentials are in the seed block in `app/__init__.py`) just to
-reach it. Copying the file is the reliable path. The in-app Restore is for swapping data
+page is behind the login, so on a fresh install you would have to create a throwaway
+administrator on the setup screen first just to reach it. Copying the file is the reliable path. The in-app Restore is for swapping data
 while you are already signed in.
 
 ## Staying signed in
@@ -131,8 +154,11 @@ Working and in use. Open items:
   not appear on an existing database. See `CLAUDE.md`.
 - **The old `dist\` and `build\` folders in this project are stale** — roughly 74 MB left
   over from the previous build layout. Safe to delete; builds now go to `C:\Dev`.
-- **No version stamp in the UI.** Fine while this is a single-user app.
 - The invoice PDF has only been checked by eye, not against a test fixture.
+
+## License
+
+MIT. See `LICENSE`.
 
 ### History
 

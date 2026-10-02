@@ -328,6 +328,9 @@
 </div>
 {% endif %}
 
+{# Version stamp: outside both layout blocks, so it is written once. #}
+<div class="position-fixed bottom-0 end-0 m-2 text-secondary" style="font-size:.75rem">v{{ app_version }}</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc4s9bIOgUxi8T/jzmZ7r1zy1U4mEdFvXb0HhpVJp0i5" crossorigin="anonymous"></script>
 <script>

@@ -1,6 +1,6 @@
 import datetime
 
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, session
 from flask_login import login_required, current_user
 
 from app.extensions import db
@@ -202,8 +202,12 @@ def change_password():
     if new_pw != confirm_pw:
         return jsonify(error="Passwords do not match."), 400
 
+    if new_pw == current_pw:
+        return jsonify(error="New password must be different from the current one."), 400
+
     current_user.set_password(new_pw)
     db.session.commit()
+    session.pop("must_change_password", None)
     return jsonify(success=True, message="Password updated successfully.")
 
 
@@ -228,9 +232,12 @@ def profile():
     if form.validate_on_submit():
         if not current_user.check_password(form.current_password.data):
             flash("Current password is incorrect.", "danger")
+        elif form.new_password.data == form.current_password.data:
+            flash("New password must be different from the current one.", "danger")
         elif form.new_password.data:
             current_user.set_password(form.new_password.data)
             db.session.commit()
+            session.pop("must_change_password", None)
             flash("Password updated successfully.", "success")
         return redirect(url_for("main.profile"))
     return render_template("main/profile.html", form=form, active_page="profile")

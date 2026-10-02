@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en"
+      data-bs-theme="light"
+      data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Set Up — {{ get_setting('app_name', 'ProfitDjinn') }}</title>
+
+  <script>
+    (function(){
+      var t = localStorage.getItem("theme");
+      if (t) {
+        document.documentElement.setAttribute("data-theme", t);
+        document.documentElement.setAttribute("data-bs-theme", t === "light" ? "light" : "dark");
+      }
+    })();
+  </script>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+
+  {% set _brand = get_setting('primary_color', '#2563eb') %}
+  <style>
+    :root {
+      --primary:       {{ _brand }};
+      --primary-hover: color-mix(in srgb, {{ _brand }} 82%, #000);
+    }
+    .btn-primary { background-color: var(--primary); border-color: var(--primary); }
+    .btn-primary:hover, .btn-primary:focus { background-color: var(--primary-hover); border-color: var(--primary-hover); }
+    .form-control:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
+    }
+    .setup-wrapper {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bs-body-bg);
+      padding: 2rem 1rem;
+    }
+    .setup-card {
+      width: 100%;
+      max-width: 460px;
+      background: var(--bs-body-bg);
+      border: 1px solid var(--bs-border-color);
+      border-radius: .75rem;
+      padding: 2.25rem 2rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,.12);
+    }
+    .setup-logo { max-height: 90px; max-width: 200px; display: block; margin: 0 auto .5rem; }
+  </style>
+</head>
+<body>
+
+<div class="setup-wrapper">
+  <div class="setup-card">
+
+    {% if get_setting('login_logo', '') %}
+    <img src="{{ url_for('static', filename='img/login_logo.png') }}"
+         alt="{{ get_setting('app_name', 'ProfitDjinn') }} logo" class="setup-logo">
+    {% endif %}
+    <h1 class="text-center fw-bold mb-1" style="font-size:1.5rem">Welcome to {{ get_setting('app_name', 'ProfitDjinn') }}</h1>
+    <p class="text-center text-secondary mb-4" style="font-size:.88rem">
+      Create the administrator account. You will sign in with it from now on.
+    </p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+      <div class="alert alert-{{ category }} py-2 mb-3" style="font-size:.85rem">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('auth.setup') }}" novalidate>
+      {{ form.hidden_tag() }}
+
+      {% for field, placeholder, autocomplete in [
+            (form.username, 'At least 3 characters', 'username'),
+            (form.email, 'you@example.com', 'email'),
+            (form.password, 'At least 8 characters', 'new-password'),
+            (form.confirm_password, 'Type it again', 'new-password'),
+         ] %}
+      <div class="mb-3">
+        {{ field.label(class="form-label") }}
+        {{ field(class="form-control" + (" is-invalid" if field.errors else ""),
+                 placeholder=placeholder, autocomplete=autocomplete,
+                 autofocus=(field.name == 'username')) }}
+        {% for error in field.errors %}
+        <div class="invalid-feedback">{{ error }}</div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+
+      <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold mt-2">
+        <i class="bi bi-person-check me-1"></i>Create Administrator
+      </button>
+    </form>
+
+    <p class="text-secondary mt-4 mb-0" style="font-size:.78rem">
+      Your data stays on this computer. Keep the password somewhere safe: there is no
+      password reset by email.
+    </p>
+  </div>
+</div>
+
+<div class="position-fixed bottom-0 end-0 m-2 text-secondary" style="font-size:.75rem">v{{ app_version }}</div>
+
+</body>
+</html>

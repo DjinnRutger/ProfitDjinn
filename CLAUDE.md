@@ -37,7 +37,7 @@ C:\Dev\venvs\ProfitDjinn\Scripts\pip install -r requirements-dev.txt
 ```
 C:\Dev\venvs\ProfitDjinn\Scripts\python run_gui.py    # desktop window
 C:\Dev\venvs\ProfitDjinn\Scripts\python run.py        # dev server, http://localhost:5000
-C:\Dev\venvs\ProfitDjinn\Scripts\python -m pytest     # 16 tests, must be green before pushing
+C:\Dev\venvs\ProfitDjinn\Scripts\python -m pytest     # 33 tests, must be green before pushing
 ```
 
 ## Where the data lives — read before touching paths
@@ -80,6 +80,25 @@ The old shell was `flaskwebgui`, which launched Chrome with
 cookie was written correctly every time and then deleted, so sign-in never persisted and
 Chrome's password manager started empty on every launch. `tests/test_stays_signed_in.py`
 guards the server half of the fix. The browser half can only be verified by hand.
+
+## Accounts and first start
+
+No user is seeded. `_seed_database()` creates permissions, roles and settings (guarded
+on `Role`, not `User`, so a fresh install with no account yet is not re-seeded on the
+next start). `auth.require_setup_and_safe_password` (a `before_app_request` hook) sends
+every request to `/auth/setup` until a user exists, then caches that in
+`app.config["SETUP_COMPLETE"]`. Setup creates one `is_admin` user on the Administrator
+role and signs them in; it redirects to login once any user exists.
+
+Builds before 1.0.0-beta seeded `admin` / `LEGACY_DEFAULT_PASSWORD` (in
+`app/blueprints/auth.py`, public in git history). Signing in with that password sets
+`session["must_change_password"]` and the same hook pins the user to `/profile` until
+either password-change path (profile form or `/api/change-password`) clears it. Both
+paths refuse new == current. `tests/test_first_start.py` covers all of this, each test
+on its own database via `create_app(config, overrides)`.
+
+Version: `app/version.py`, injected as `app_version`, shown in the footer and on the
+login and setup pages. Bump it per release; tag `v<version>`.
 
 ## Architecture
 
@@ -198,5 +217,4 @@ Output goes to `C:\Dev\ProfitDjinn\dist\ProfitDjinn\`, outside OneDrive, because
 - The invoice PDF has only been checked by eye, not asserted against a fixture.
 - `scripts/import_old_data.py` reads `Old-Database-TV2/`, which is gitignored, so the
   importer is not runnable from a fresh clone.
-- No version stamp in the UI. Fine while Jon is the only user; needed the moment anyone
-  else runs a copy (see `Software Dev/CLAUDE.md`).
+- No EXE file-version resource; the version is visible in the UI only.

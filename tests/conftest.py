@@ -41,8 +41,40 @@ AUTHENTICATED_ROUTES = [
     "/admin/database",
 ]
 
-SEEDED_USERNAME = "admin"
-SEEDED_PASSWORD = "Admin@1234!"
+# Created through the first-start setup page by the `app` fixture. Not the
+# old public default password, which the app now refuses to keep.
+ADMIN_USERNAME = "owner"
+ADMIN_PASSWORD = "test-only-Owner-pass-1"
+ADMIN_EMAIL = "owner@example.com"
+
+
+def make_app(database_file=None):
+    """Build an app the way the EXE does, ready for the test client.
+
+    With `database_file`, the app gets its own empty database instead of the
+    shared session one -- for tests that need a true fresh install.
+    """
+    overrides = {}
+    if database_file is not None:
+        overrides["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + Path(database_file).as_posix()
+    application = create_app("gui", overrides)
+
+    # Both of these are read per-request, so switching them off after the app
+    # is built works and keeps GUIConfig itself honest.
+    application.config["WTF_CSRF_ENABLED"] = False
+    application.config["RATELIMIT_ENABLED"] = False
+    return application
+
+
+def complete_setup(application, username=ADMIN_USERNAME, password=ADMIN_PASSWORD,
+                   email=ADMIN_EMAIL):
+    """Post the first-start form, as a person installing the app would."""
+    return application.test_client().post(
+        "/auth/setup",
+        data={"username": username, "email": email,
+              "password": password, "confirm_password": password},
+        follow_redirects=False,
+    )
 
 
 @pytest.fixture(scope="session")
@@ -53,13 +85,9 @@ def app():
     durations that make "Keep me signed in" work only exist on GUIConfig, and
     those are what test_stays_signed_in.py is about.
     """
-    application = create_app("gui")
-
-    # Both of these are read per-request, so switching them off after the app
-    # is built works and keeps GUIConfig itself honest.
-    application.config["WTF_CSRF_ENABLED"] = False
-    application.config["RATELIMIT_ENABLED"] = False
-
+    application = make_app()
+    response = complete_setup(application)
+    assert response.status_code == 302, "first-start setup did not create the administrator"
     return application
 
 
@@ -74,8 +102,8 @@ def signed_in_client(client):
     response = client.post(
         "/auth/login",
         data={
-            "username": SEEDED_USERNAME,
-            "password": SEEDED_PASSWORD,
+            "username": ADMIN_USERNAME,
+            "password": ADMIN_PASSWORD,
             "remember_me": "y",
         },
         follow_redirects=True,
