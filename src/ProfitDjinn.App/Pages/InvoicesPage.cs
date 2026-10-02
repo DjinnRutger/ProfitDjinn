@@ -34,6 +34,7 @@ public sealed class InvoicesPage : AppPage
             lead.Children.Add(Ui.Text($"{unpaidCount} with balance ({Ui.Money(unpaidTotal)})", "Strong", 14).WithResource(TextBlock.ForegroundProperty, "DangerText"));
         }
         var header = (DockPanel)Ui.PageHeader("Invoices", " ", null,
+            Ui.Button("Recurring", "Btn.OutlineSecondary", "arrow-repeat", () => Shell.Navigate(Routes.RecurringInvoices(Shell))),
             Ui.Button("New Invoice", "Btn.Primary", "plus-lg", () => Shell.Navigate(Routes.NewInvoice(Shell))));
         // Swap the plain lead line for the one with the red "with balance" part.
         var left = (StackPanel)header.Children[1];
@@ -56,6 +57,8 @@ public sealed class InvoicesPage : AppPage
 
         var page = new StackPanel();
         page.Children.Add(header);
+        var upcoming = UpcomingCard();
+        if (upcoming is not null) page.Children.Add(upcoming.Margin(0, 0, 0, 24));
         page.Children.Add(Ui.Card(bar, bodyPadding: new Thickness(16)).Margin(0, 0, 0, 24));
 
         var columns = new List<Column<Invoice>>
@@ -96,8 +99,63 @@ public sealed class InvoicesPage : AppPage
             };
             body = Table.Build(columns, invoices, footer: footer);
         }
-        page.Children.Add(Ui.Card(body, bodyPadding: new Thickness(0)));
+        // With an Upcoming section above it, this one gets a title so the two read as sections.
+        page.Children.Add(upcoming is null
+            ? Ui.Card(body, bodyPadding: new Thickness(0))
+            : Ui.Card(body, "All Invoices", "receipt", bodyPadding: new Thickness(0)));
         Content = page;
+    }
+
+    /// <summary>
+    /// 2.4. The next invoice of every active recurring invoice, soonest first. Shown only once a
+    /// recurring invoice exists, so someone who never uses them sees the page as before.
+    /// </summary>
+    private FrameworkElement? UpcomingCard()
+    {
+        if (Store.RecurringInvoices.List().Count == 0) return null;
+        var upcoming = Store.RecurringInvoices.Upcoming();
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var columns = new List<Column<UpcomingInvoice>>
+        {
+            new("Date", Ui.Auto, u =>
+            {
+                int days = u.Date.DayNumber - today.DayNumber;
+                return Ui.Stack(0, Ui.Text(Ui.Date(u.Date), "Body", 14.4),
+                    Ui.Muted(days <= 0 ? "Due today" : days == 1 ? "Tomorrow" : $"In {days} days", 12.8));
+            }),
+            new("Customer", Ui.Star(), u => Ui.Link(u.Schedule.Customer?.Name ?? "", () => Shell.Navigate(Routes.Customer(Shell, u.Schedule.CustomerId)), bold: false)),
+            new("Invoice", Ui.Star(1.3), u => Ui.Text(u.Schedule.Lines.FirstOrDefault() is { } l ? PeriodText.Fill(l.Description, u.Date) : "", "Body", 14.4)
+                .Also(t => t.TextTrimming = TextTrimming.CharacterEllipsis)),
+            new("Repeats", Ui.Auto, u => Ui.Muted(u.Schedule.ScheduleLabel, 13.6)),
+            new("Amount", Ui.Auto, u => Ui.Text(Ui.Money(u.Total), "Money"), HorizontalAlignment.Right),
+            new("", Ui.Auto, u => Ui.Row(4,
+                Ui.IconButton("eye", "Btn.OutlineSecondary", "View", () => Shell.Navigate(Routes.Upcoming(Shell, u.Schedule.Id, u.Date))),
+                Ui.IconButton("send", "Btn.OutlineSuccess", "Issue now", () => IssueNow(u)),
+                Ui.IconButton("skip-forward", "Btn.OutlineWarning", "Skip this one", () => Skip(u))), HorizontalAlignment.Right),
+        };
+        FrameworkElement body = upcoming.Count == 0
+            ? Ui.Stack(0, Table.Build(columns, Array.Empty<UpcomingInvoice>()),
+                Ui.Empty("calendar-event", "Nothing upcoming: every recurring invoice is paused or has ended.", "Manage recurring invoices.", () => Shell.Navigate(Routes.RecurringInvoices(Shell))))
+            : Table.Build(columns, upcoming, onRowClick: u => Shell.Navigate(Routes.Upcoming(Shell, u.Schedule.Id, u.Date)));
+        return Ui.Card(body, "Upcoming", "calendar-event", "Info", headerRight: Ui.Badge(upcoming.Count.ToString(), "info"), bodyPadding: new Thickness(0));
+    }
+
+    private async void IssueNow(UpcomingInvoice u)
+    {
+        if (!await Shell.Confirm($"Issue the {Ui.Date(u.Date)} invoice for {u.Schedule.Customer?.Name} now? It is created today with the next invoice number, keeps its date, and the schedule moves on.",
+                "Issue Invoice", title: "Issue this invoice now?"))
+            return;
+        Try(() =>
+        {
+            var issued = Store.RecurringInvoices.Issue(u.Schedule.Id, u.Date);
+            Shell.Navigate(Routes.Invoice(Shell, issued.InvoiceId), Notice.Success($"Invoice {issued.InvoiceNumber} created from the recurring invoice, dated {Ui.Date(issued.Date)}."));
+        });
+    }
+
+    private async void Skip(UpcomingInvoice u)
+    {
+        if (!await Shell.Confirm($"Skip the {Ui.Date(u.Date)} invoice for {u.Schedule.Customer?.Name}? It will not be created.", "Skip It", title: "Skip this invoice?")) return;
+        Try(() => Shell.Reload(Store.RecurringInvoices.Skip(u.Schedule.Id, u.Date)));
     }
 
     private Button Tab(string text, string? glyph, string style, InvoiceFilter filter, UIElement? badge)

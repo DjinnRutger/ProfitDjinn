@@ -27,6 +27,13 @@ public static class Routes
     public static Func<AppPage> EditInvoice(MainWindow s, long id) => () => new InvoiceFormPage(s, id, null);
     public static Func<AppPage> Bill(MainWindow s, long workOrderId, string? label = null) => () => new BillPage(s, workOrderId, label);
 
+    // ---- 2.4 recurring invoices. No on/off switch: they only appear once a schedule exists.
+    public static Func<AppPage> RecurringInvoices(MainWindow s) => () => new RecurringInvoicesPage(s);
+    public static Func<AppPage> NewRecurringInvoice(MainWindow s, long? customerId = null) => () => new RecurringInvoiceFormPage(s, null, customerId);
+    public static Func<AppPage> EditRecurringInvoice(MainWindow s, long id) => () => new RecurringInvoiceFormPage(s, id, null);
+    /// <summary>A schedule's upcoming invoice, shown like an invoice. Without a date, its next one.</summary>
+    public static Func<AppPage> Upcoming(MainWindow s, long recurringId, DateOnly? date = null) => () => new UpcomingInvoicePage(s, recurringId, date);
+
     public static Func<AppPage> WorkOrders(MainWindow s, bool all = false, string search = "") => () => new WorkOrdersPage(s, all, search);
     /// <summary>The customer's work order tab (created on first visit, as in 1.x).</summary>
     public static Func<AppPage> WorkOrder(MainWindow s, long customerId) => () => new WorkOrderPage(s, customerId);
@@ -57,7 +64,7 @@ public static class Routes
 
     /// <summary>
     /// A sidebar key, or "name:id" for one record (customer:3, invoice:7, workorder:3 by customer,
-    /// bill:2 by work order). The --page start argument uses this.
+    /// bill:2 by work order, upcoming:4 by recurring invoice). The --page start argument uses this.
     /// </summary>
     public static Func<AppPage> ForNav(MainWindow s, string key)
     {
@@ -80,6 +87,9 @@ public static class Routes
                 "editexpense" => EditExpense(s, id),
                 "newexpense" => NewExpense(s, id),
                 "editrecurring" => EditRecurring(s, id),
+                "newrecurringinvoice" => NewRecurringInvoice(s, id),
+                "editrecurringinvoice" => EditRecurringInvoice(s, id),
+                "upcoming" => Upcoming(s, id),
                 _ => Dashboard(s),
             };
         return Named(s, key);
@@ -104,6 +114,8 @@ public static class Routes
         "expenses" => Expenses(s),
         "newexpense" => NewExpense(s),
         "recurring" => Recurring(s),
+        "recurringinvoices" => RecurringInvoices(s),
+        "newrecurringinvoice" => NewRecurringInvoice(s),
         "newrecurring" => NewRecurring(s),
         "expensecategories" => ExpenseCategories(s),
         "profit" => Profit(s),

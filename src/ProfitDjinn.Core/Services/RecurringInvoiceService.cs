@@ -67,11 +67,15 @@ public sealed class RecurringInvoiceService
 
     public RecurringInvoice Get(long id) => _db.Run(db => Load(db, null, null, id).SingleOrDefault()) ?? throw NotFound();
 
-    /// <summary>A new schedule's starting values: monthly from today, the default terms.</summary>
+    /// <summary>
+    /// A new schedule's starting values: monthly on the 1st, starting next month, the default
+    /// terms. Not today: a first date of today would create an invoice the moment it is saved.
+    /// </summary>
     public RecurringInvoiceDraft NewDraft(long? customerId = null)
     {
         var today = _today();
-        return new(customerId, BillingInterval.Month, today, today.Day, null, "",
+        var first = new DateOnly(today.Year, today.Month, 1).AddMonths(1);
+        return new(customerId, BillingInterval.Month, first, 1, null, "",
             _settings.Get(SettingKeys.InvoiceTerm1, "Payment Terms: Due within 30 days"),
             _settings.Get(SettingKeys.InvoiceTerm2, "Make all checks payable to Your Name"),
             true, Array.Empty<InvoiceLineDraft>());

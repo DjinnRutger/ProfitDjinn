@@ -209,4 +209,19 @@ public sealed class Link : TextBlock
         MouseLeave += (_, _) => { TextDecorations = null; SetResourceReference(ForegroundProperty, "Link"); };
         MouseLeftButtonUp += (_, e) => { Click?.Invoke(this, new RoutedEventArgs()); e.Handled = true; };
     }
+
+    internal void PerformClick() => Click?.Invoke(this, new RoutedEventArgs());
+
+    /// <summary>Screen readers and UI Automation see a hyperlink they can invoke (the smoke test uses it).</summary>
+    protected override System.Windows.Automation.Peers.AutomationPeer OnCreateAutomationPeer() => new LinkPeer(this);
+
+    private sealed class LinkPeer : System.Windows.Automation.Peers.TextBlockAutomationPeer, System.Windows.Automation.Provider.IInvokeProvider
+    {
+        public LinkPeer(Link owner) : base(owner) { }
+        protected override System.Windows.Automation.Peers.AutomationControlType GetAutomationControlTypeCore() =>
+            System.Windows.Automation.Peers.AutomationControlType.Hyperlink;
+        public override object GetPattern(System.Windows.Automation.Peers.PatternInterface pattern) =>
+            pattern == System.Windows.Automation.Peers.PatternInterface.Invoke ? this : base.GetPattern(pattern);
+        public void Invoke() => ((Link)Owner).PerformClick();
+    }
 }

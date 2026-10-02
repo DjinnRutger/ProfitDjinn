@@ -19,6 +19,13 @@ Windows SmartScreen may warn because the file is not code-signed; choose More in
   grouped by type, or line by line. Anything not billed stays on the tab.
 - **Invoices**: line items, partial payments, overpayments that become account credit,
   applying credit to another invoice, Print and PDF.
+- **Recurring invoices**: on a customer, **Recurring Invoice** sets up an invoice that repeats
+  every month or year: its lines, the first date and the day of the month. ProfitDjinn creates
+  each one on its date (the next time it opens), with the next invoice number. Write `{month}`
+  and `{year}` in a line to show the billing period ("Lawn care - November 2026"). The
+  **Invoices** page lists what is **Upcoming**; open one to see it like a normal invoice,
+  and Print, PDF or **Issue Now** to send it early (it keeps its scheduled date). **Skip**
+  passes on one date. The Dashboard counts the invoices due in the next 30 days.
 - **Revenue**: collected revenue by month or year, by customer.
 - **Items**: a price list for quick-adding common lines.
 - **Expenses** (optional, off until you turn it on in **Settings > Expenses**): vendors, bills
