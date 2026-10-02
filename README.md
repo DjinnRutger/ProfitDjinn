@@ -39,7 +39,7 @@ Everything is in one SQLite file, `%LOCALAPPDATA%\ProfitDjinn\app.db`. Replacing
   before the first reminder. Turn it off or change the days in Settings > Backup.
 - **Updating:** close ProfitDjinn, replace `ProfitDjinn.exe`, start it. The new version
   upgrades the database itself. Before it changes anything, it saves a copy to
-  `%LOCALAPPDATA%\ProfitDjinnackups\pre-upgrade_<date>_from-<old>_to-<new>.db`; the newest
+  `%LOCALAPPDATA%\ProfitDjinn\backups\pre-upgrade_<date>_from-<old>_to-<new>.db`; the newest
   five are kept. To go back, restore one of those from Backup & Restore.
 - To move to a new PC: back up, install the exe there, restore.
 - Custom logo and sidebar icon: `%LOCALAPPDATA%\ProfitDjinn\branding\`.
