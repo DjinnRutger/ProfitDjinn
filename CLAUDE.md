@@ -34,7 +34,7 @@ setting values forward. Keep it: existing databases depend on it.
     `Table` (Bootstrap table look), `LineBuilder`, `SuggestBox`, `BarChart`, `DoughnutChart`.
   - `Themes/`: `Theme.Light/Dark/Terminal.xaml` (same keys each) and `Controls.xaml`.
     `ThemeManager` swaps them and derives the brand brushes from `primary_color`.
-- `tests/ProfitDjinn.Tests`: xUnit, 65 tests including the parity tests.
+- `tests/ProfitDjinn.Tests`: xUnit, 112 tests including the parity tests.
 - `docs/port-spec.md` (behaviour) and `docs/design-spec.md` (look). "Fixed in 2.0" in the
   port spec lists every 1.x bug deliberately not copied. Read them before changing a screen.
 
@@ -58,7 +58,8 @@ settings rows). `--page <name>` or `--page name:id` opens a screen at start.
 
 Tools (`tools/Smoke/`), all on throwaway data folders:
 - `Smoke-Flow.ps1 -Exe <exe>`: UI Automation run through create customer, log work, bill,
-  record payment, then checks the database. Inputs are found by their field label
+  record payment, a recurring invoice that back-fills three and one issued early, then checks
+  the database. Inputs are found by their field label
   (`Field` sets the accessible name) or placeholder.
 - `Capture.ps1` / `Shoot-Themes.ps1`: screenshots of a page in each theme on fixture copies.
 
@@ -152,6 +153,31 @@ tables (`vendors`, `expense_categories`, `expenses`, `expense_payments`, `expens
   links are opened. "Latest" skips pre-releases, so **publish new versions as full releases**
   with the asset named `ProfitDjinn.exe`, or the badge and the README download link never
   move on.
+
+## Recurring invoices (2.4)
+
+No on/off switch: nothing shows until a schedule exists, except the dashboard's first tile
+(Upcoming in 30 days, which replaced the Customers count). Three new tables
+(`recurring_invoices`, `recurring_invoice_lines`, `recurring_invoice_runs`); no 1.x table touched.
+
+- **`RecurringInvoiceService.Issue`/`IssueIn` is the only place a schedule becomes an
+  invoice.** Generation at start, Issue Now, early Print/PDF all use it. Keep it that way: it
+  is the Stripe hook (`docs/stripe-readiness.md`).
+- **Never twice:** `generated_through` (as in recurring expenses) plus the runs table's unique
+  `(recurring_id, date)`. A deleted invoice keeps its run row (link cleared in
+  `InvoiceService.Delete`), so its date is not recreated. Issuing early keeps the scheduled
+  date and only the next date can be issued or skipped (`RequireNext`).
+- **Dates** come from `Rules/Schedule.cs`, shared with `RecurringService`; change the rule
+  there and both features follow (the expense recurring tests guard it).
+- `{month}`/`{year}` are filled by `Rules/PeriodText` at issue time (lines and notes); the
+  schedule stores them raw. Lists show them filled for the next date.
+- Generation runs in `MainWindow.RunRecurringOnce` (invoices, then expenses; one reload, then
+  both notices) and after saving a schedule. Never in the `Store` constructor.
+- `NewDraft` starts on the 1st of next month on purpose: a first date of today would create an
+  invoice the moment the form is saved.
+- Customer delete removes its schedules (`RecurringInvoiceService.DeleteSchedules`).
+- `Ui.IconButton` sets the accessible name to its tooltip and `Link` is a UI Automation
+  hyperlink: `Smoke-Flow.ps1` clicks both ("Smoke Test Co", "View the next invoice").
 
 ## 1.x reference (Flask, in legacy/)
 

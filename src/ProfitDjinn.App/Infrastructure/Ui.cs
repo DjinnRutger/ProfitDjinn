@@ -182,8 +182,13 @@ public static class Ui
     }
 
     /// <summary>The icon-only small outline button used in table action columns.</summary>
+    /// <summary>An icon-only button. Its tooltip is also its accessible name, so screen readers and UI Automation can find it.</summary>
     public static Button IconButton(string glyph, string style, string tooltip, Action onClick) =>
-        Button(null, style, glyph, onClick, small: true, tooltip: tooltip).Also(b => b.Padding = new Thickness(7, 4.8, 7, 4.8));
+        Button(null, style, glyph, onClick, small: true, tooltip: tooltip).Also(b =>
+        {
+            b.Padding = new Thickness(7, 4.8, 7, 4.8);
+            System.Windows.Automation.AutomationProperties.SetName(b, tooltip);
+        });
 
     public static Badge Badge(string text, string kind, bool big = false) => new() { Text = text, Kind = kind, Big = big };
 

@@ -24,6 +24,7 @@ public sealed class CustomerDetailPage : AppPage
         page.Children.Add(Ui.PageHeader(c.Name, string.IsNullOrEmpty(c.Attn) ? null : $"Attn: {c.Attn}", null,
             Ui.Button("Work Order", "Btn.OutlinePrimary", "clipboard-check", () => Shell.Navigate(Routes.WorkOrder(Shell, c.Id))),
             Ui.Button("New Invoice", "Btn.Success", "receipt", () => Shell.Navigate(Routes.NewInvoice(Shell, c.Id))),
+            Ui.Button("Recurring Invoice", "Btn.OutlineSuccess", "arrow-repeat", () => Shell.Navigate(Routes.NewRecurringInvoice(Shell, c.Id))),
             Ui.Button("Edit", "Btn.Primary", "pencil", () => Shell.Navigate(Routes.EditCustomer(Shell, c.Id))),
             Ui.Button("Delete", "Btn.OutlineDanger", "trash", Delete)));
 
@@ -121,9 +122,16 @@ public sealed class CustomerDetailPage : AppPage
             ? Ui.Stack(0, Table.Build(columns, Array.Empty<Invoice>()), Ui.Empty("receipt", "No invoices yet.", "Create the first one.", () => Shell.Navigate(Routes.NewInvoice(Shell, c.Id))))
             : Table.Build(columns, invoices, onRowClick: i => Shell.Navigate(Routes.Invoice(Shell, i.Id)));
         var history = Ui.Card(table, "Invoice History", "receipt", headerRight: Ui.Badge(invoices.Count.ToString(), "secondary"), bodyPadding: new Thickness(0));
-        history.VerticalAlignment = VerticalAlignment.Top;
 
-        page.Children.Add(Ui.Columns(24, (Ui.Star(1), left), (Ui.Star(2), history)));
+        // ---- 2.4: recurring invoices, above the history, only once there is one
+        var right = new StackPanel { VerticalAlignment = VerticalAlignment.Top };
+        var schedules = Store.RecurringInvoices.List(c.Id);
+        if (schedules.Count > 0)
+            right.Children.Add(Ui.Card(RecurringInvoicesPage.Table(Shell, schedules, showCustomer: false), "Recurring Invoices", "arrow-repeat", "Success",
+                headerRight: Ui.Badge(schedules.Count.ToString(), "secondary"), bodyPadding: new Thickness(0)).Margin(0, 0, 0, 24));
+        right.Children.Add(history);
+
+        page.Children.Add(Ui.Columns(24, (Ui.Star(1), left), (Ui.Star(2), right)));
         Content = page;
     }
 
@@ -134,7 +142,7 @@ public sealed class CustomerDetailPage : AppPage
 
     private async void Delete()
     {
-        if (!await Shell.Confirm($"Delete {_c.Name}? This also deletes all their invoices and their work order.", "Delete", danger: true)) return;
+        if (!await Shell.Confirm($"Delete {_c.Name}? This also deletes all their invoices, their work order and any recurring invoices.", "Delete", danger: true)) return;
         Try(() => Shell.Navigate(Routes.Customers(Shell), Store.Customers.Delete(_c.Id)));
     }
 }

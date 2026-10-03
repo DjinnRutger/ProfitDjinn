@@ -23,7 +23,12 @@ public sealed class DashboardPage : AppPage
         string welcome = company.Length > 0 && company != "Your Name" ? $"Welcome back, {company}!" : "Welcome back!";
 
         var tiles = new UniformGrid { Columns = 5, Margin = new Thickness(-8, 0, -8, 24) };
-        tiles.Children.Add(Tile(stats.ActiveCustomers.ToString(), "Customers", "building", "primary", null, Routes.Customers(shell)));
+        // 2.4: recurring invoices due in the next 30 days (replaced the Customers count).
+        var (dueCount, dueTotal) = Store.RecurringInvoices.DueWithin(30);
+        var upcoming = Tile(dueCount.ToString(), "Upcoming (30 Days)", "calendar-event", "primary",
+            dueCount > 0 ? Ui.Badge(Ui.Money(dueTotal), "secondary") : null, Routes.Invoices(shell));
+        upcoming.Muted = dueCount == 0;
+        tiles.Children.Add(upcoming);
         tiles.Children.Add(Tile(stats.TotalInvoices.ToString(), "Total Invoices", "receipt", "info", null, Routes.Invoices(shell)));
 
         var outstanding = Tile(Ui.Money(stats.UnpaidTotal), "Outstanding", "exclamation-circle-fill", "warning",

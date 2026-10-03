@@ -56,28 +56,15 @@ public sealed class RecurringService
     /// so day 31 gives Jan 31, Feb 28 (29 in a leap year), Mar 31; a yearly Feb 29 gives Feb 28
     /// in other years.
     /// </summary>
-    public static IEnumerable<DateOnly> Occurrences(RecurringExpense t, DateOnly from, DateOnly to)
-    {
-        var anchor = new DateOnly(t.StartDate.Year, t.StartDate.Month, 1);
-        int step = t.Frequency == RecurringFrequency.Yearly ? 12 : 1;
-        for (int k = 0; ; k++)
-        {
-            var month = anchor.AddMonths(k * step);
-            var d = new DateOnly(month.Year, month.Month, Math.Min(t.DayOfMonth, DateTime.DaysInMonth(month.Year, month.Month)));
-            if (d > to) yield break;
-            if (t.EndDate is { } end && d > end) yield break;
-            if (d < t.StartDate || d < from) continue;
-            yield return d;
-        }
-    }
+    public static IEnumerable<DateOnly> Occurrences(RecurringExpense t, DateOnly from, DateOnly to) =>
+        ScheduleOf(t).Occurrences(from, to);
 
     /// <summary>The first date not yet created, or null when the template has ended.</summary>
-    public DateOnly? NextDate(RecurringExpense t)
-    {
-        DateOnly from = t.GeneratedThrough is { } g ? g.AddDays(1) : t.StartDate;
-        foreach (var d in Occurrences(t, from, DateOnly.MaxValue.AddYears(-1))) return d;
-        return null;
-    }
+    public DateOnly? NextDate(RecurringExpense t) =>
+        ScheduleOf(t).FirstFrom(t.GeneratedThrough is { } g ? g.AddDays(1) : t.StartDate);
+
+    private static Schedule ScheduleOf(RecurringExpense t) =>
+        new(t.StartDate, t.Frequency == RecurringFrequency.Yearly ? 12 : 1, t.DayOfMonth, t.EndDate);
 
     // ------------------------------------------------------------------ reading
 

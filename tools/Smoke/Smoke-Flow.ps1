@@ -5,9 +5,12 @@
 
   Starts the app on an empty data folder (PROFITDJINN_DATA_DIR, never the real database),
   then does what a person would: create a customer, open their work order, log two hours
-  of work, bill it, and record the payment. Then it closes the app and checks the database
-  with Python's sqlite3: one paid invoice of $100.00, the work line billed onto it, one
-  payment. Exits 1 on the first step that does not happen.
+  of work, bill it, and record the payment. Then (2.4) it sets up a recurring invoice whose
+  first date is two months back, confirms the three missed invoices, opens the next one from
+  the customer page and issues it early. Then it closes the app and checks the database with
+  Python's sqlite3: one paid invoice of $100.00, the work line billed onto it, one payment,
+  four recurring invoices with their period text and run rows. Exits 1 on the first step
+  that does not happen.
 #>
 param(
   [Parameter(Mandatory)] [string] $Exe,
@@ -56,6 +59,19 @@ function Click([string] $name) {
 function Type-Into([string] $name, [string] $text) {
   $e = Wait-For $name -type ([System.Windows.Automation.ControlType]::Edit)
   $e.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($text)
+}
+function Wait-Like([string] $pattern, [int] $seconds = 10) {
+  for ($i = 0; $i -lt $seconds * 4; $i++) {
+    $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+    foreach ($e in $all) { if ($e.Current.Name -like $pattern) { return $e } }
+    Start-Sleep -Milliseconds 250
+  }
+  throw "Timed out waiting for text like '$pattern'."
+}
+function Invoke-Link([string] $name) {
+  $e = Wait-For $name -type ([System.Windows.Automation.ControlType]::Hyperlink)
+  $e.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  Start-Sleep -Milliseconds 400
 }
 function Step([string] $what, [scriptblock] $do) {
   Write-Host -NoNewline "  $what ... "
@@ -122,6 +138,29 @@ try {
     Click "Record Payment"       # the dialog's button (the last one found)
     Wait-For "Payment of `$100.00 recorded. Invoice paid in full." | Out-Null
   }
+  $start = (Get-Date).Date.AddMonths(-2)
+  Step "set up a recurring invoice starting $($start.ToString('yyyy-MM-dd'))" {
+    Invoke-Link "Smoke Test Co"
+    Click "Recurring Invoice"
+    Wait-For "Save Recurring Invoice" -type ([System.Windows.Automation.ControlType]::Button) | Out-Null
+    Start-Sleep -Milliseconds 500
+    Type-Into "First Invoice" $start.ToString('yyyy-MM-dd')
+    Type-Into "On Day" ([string]$start.Day)
+    Type-Into "Description" "Monthly support - {month} {year}"
+    Type-Into "0.00" "75"
+    Click "Save Recurring Invoice"
+    Wait-For "Create invoices now?" | Out-Null
+    Click "Create 3 Invoices"
+    Wait-Like "Recurring invoice for Smoke Test Co saved. 3 recurring invoices created: INV1002 Smoke Test Co*" | Out-Null
+  }
+  Step "open the next one and issue it early" {
+    Click "View the next invoice"
+    Wait-For "Upcoming Invoice" | Out-Null
+    Click "Issue Now"
+    Wait-For "Issue this invoice now?" | Out-Null
+    Click "Issue Invoice"
+    Wait-Like "Invoice INV1005 created from the recurring invoice, dated*" | Out-Null
+  }
 }
 catch {
   $shot = Join-Path $DataDir 'failure.png'
@@ -139,15 +178,19 @@ Write-Host -NoNewline "  check the database ... "
 $check = @"
 import sqlite3, sys
 c = sqlite3.connect(sys.argv[1])
-inv = c.execute("select invoice_number, paid from invoices").fetchall()
+inv = c.execute("select invoice_number, paid from invoices order by id").fetchall()
 lines = c.execute("select description, status, invoice_id, amount from work_order_lines order by id").fetchall()
 pays = c.execute("select amount, method from payments").fetchall()
 total = c.execute("select sum(amount) from invoice_lines").fetchone()[0]
+runs = c.execute("select count(*), count(invoice_id) from recurring_invoice_runs").fetchone()
+monthly = c.execute("select description from invoice_lines where description like 'Monthly support - %' order by id").fetchall()
 problems = []
-if inv != [("INV1001", 1)]: problems.append(f"invoices {inv}")
+if inv != [("INV1001", 1), ("INV1002", 0), ("INV1003", 0), ("INV1004", 0), ("INV1005", 0)]: problems.append(f"invoices {inv}")
+if runs != (4, 4): problems.append(f"recurring runs {runs}")
+if len(monthly) != 4 or any("{" in d for (d,) in monthly): problems.append(f"recurring lines {monthly}")
 if lines != [("Check backups", "pending", None, 0.0), ("Network setup", "billed", 1, 100.0)]: problems.append(f"work lines {lines}")
 if pays != [(100.0, "cash")]: problems.append(f"payments {pays}")
-if total != 100.0: problems.append(f"invoice total {total}")
+if total != 400.0: problems.append(f"invoice total {total}")
 print("; ".join(problems) if problems else "OK")
 "@
 $result = $check | python - (Join-Path $DataDir 'app.db')

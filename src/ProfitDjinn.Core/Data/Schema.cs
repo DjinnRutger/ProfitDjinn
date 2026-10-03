@@ -307,6 +307,62 @@ public static class Schema
         """,
     };
 
+    /// <summary>
+    /// 2.4 recurring invoices. New tables only, like the expense tables, so 1.x still opens the
+    /// file. <c>recurring_invoice_runs</c> records which date of which schedule became which
+    /// invoice; its unique index is what stops a date from ever being invoiced twice, and it
+    /// avoids adding a column to 1.x's <c>invoices</c> table. <c>interval</c>,
+    /// <c>interval_count</c> and <c>collection_method</c> use Stripe's names and values (see
+    /// docs/stripe-readiness.md).
+    /// </summary>
+    private static readonly string[] RecurringInvoiceTables =
+    {
+        """
+        CREATE TABLE IF NOT EXISTS recurring_invoices (
+        	id INTEGER NOT NULL,
+        	customer_id INTEGER NOT NULL,
+        	interval VARCHAR(10) NOT NULL,
+        	interval_count INTEGER NOT NULL DEFAULT 1,
+        	start_date DATE NOT NULL,
+        	day_of_month INTEGER NOT NULL,
+        	end_date DATE,
+        	notes TEXT,
+        	term1 VARCHAR(300),
+        	term2 VARCHAR(300),
+        	collection_method VARCHAR(30) NOT NULL DEFAULT 'send_invoice',
+        	is_active BOOLEAN NOT NULL,
+        	generated_through DATE,
+        	created_at DATETIME,
+        	PRIMARY KEY (id)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_recurring_invoices_customer_id ON recurring_invoices (customer_id)",
+        """
+        CREATE TABLE IF NOT EXISTS recurring_invoice_lines (
+        	id INTEGER NOT NULL,
+        	recurring_id INTEGER NOT NULL,
+        	position INTEGER NOT NULL,
+        	description VARCHAR(500) NOT NULL,
+        	quantity FLOAT NOT NULL,
+        	amount FLOAT NOT NULL,
+        	PRIMARY KEY (id)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_recurring_invoice_lines_recurring_id ON recurring_invoice_lines (recurring_id)",
+        """
+        CREATE TABLE IF NOT EXISTS recurring_invoice_runs (
+        	id INTEGER NOT NULL,
+        	recurring_id INTEGER NOT NULL,
+        	date DATE NOT NULL,
+        	invoice_id INTEGER,
+        	created_at DATETIME,
+        	PRIMARY KEY (id)
+        )
+        """,
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_recurring_invoice_runs ON recurring_invoice_runs (recurring_id, date)",
+        "CREATE INDEX IF NOT EXISTS ix_recurring_invoice_runs_invoice_id ON recurring_invoice_runs (invoice_id)",
+    };
+
     /// <summary>Run at every start. Safe to run any number of times.</summary>
     public static void Ensure(Database database)
     {
@@ -318,6 +374,7 @@ public static class Schema
             bool newCategories = !TableExists(db, tx, "expense_categories");
             foreach (string sql in ExpenseTables) db.Execute(sql, transaction: tx);
             if (newCategories) Seed.ExpenseCategories(db, tx);
+            foreach (string sql in RecurringInvoiceTables) db.Execute(sql, transaction: tx);
             RunMigrations(db, tx);
             if (!db.ExecuteScalar<bool>("SELECT EXISTS (SELECT 1 FROM roles)", transaction: tx))
                 Seed.FirstRun(db, tx);

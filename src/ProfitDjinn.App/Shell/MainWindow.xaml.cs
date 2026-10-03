@@ -510,7 +510,7 @@ public partial class MainWindow : Window
         AfterStart();
     }
 
-    /// <summary>Once the window is up (and unlocked): create due recurring expenses, then the backup reminder.</summary>
+    /// <summary>Once the window is up (and unlocked): create due recurring invoices and expenses, then the backup reminder.</summary>
     private void AfterStart()
     {
         RunRecurringOnce();
@@ -560,24 +560,35 @@ public partial class MainWindow : Window
 
     private bool _recurringChecked;
 
-    /// <summary>2.2. Once per start: create the recurring expenses that have come due, and say so.</summary>
+    /// <summary>
+    /// Once per start: create the recurring invoices (2.4) and recurring expenses (2.2) that have
+    /// come due, and say so. The page is rebuilt once when it shows their figures, then both
+    /// notices are shown (a rebuild would clear a notice shown before it).
+    /// </summary>
     private void RunRecurringOnce()
     {
         if (_recurringChecked) return;
         _recurringChecked = true;
+        var notices = new List<Notice>();
         try
         {
-            var made = Store.Recurring.GenerateDue();
-            if (RecurringService.Summarize(made) is { } notice)
-            {
-                if (CurrentPage is Pages.DashboardPage or Pages.ExpensesPage) Reload(notice);
-                else ShowNotice(notice);
-            }
+            if (RecurringInvoiceService.Summarize(Store.RecurringInvoices.GenerateDue()) is { } invoices) notices.Add(invoices);
         }
         catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or IOException or UserFacingException)
         {
-            ShowError($"Recurring expenses could not be added: {ex.Message}");
+            notices.Add(new Notice($"Recurring invoices could not be created: {ex.Message}", NoticeKind.Danger));
         }
+        try
+        {
+            if (RecurringService.Summarize(Store.Recurring.GenerateDue()) is { } expenses) notices.Add(expenses);
+        }
+        catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or IOException or UserFacingException)
+        {
+            notices.Add(new Notice($"Recurring expenses could not be added: {ex.Message}", NoticeKind.Danger));
+        }
+        if (notices.Count == 0) return;
+        if (CurrentPage is Pages.DashboardPage or Pages.ExpensesPage or Pages.InvoicesPage or Pages.CustomerDetailPage) Reload();
+        foreach (var n in notices) ShowNotice(n);
     }
 
     // ------------------------------------------------------------------ backup reminder

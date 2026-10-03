@@ -250,7 +250,8 @@ work lines went back to the tab.
 
 ### Dashboard (`main.py:14-76`)
 
-- Customers: count of active customers.
+- Customers: count of active customers. (2.4 shows Upcoming invoices in this place instead;
+  see "New in 2.4". `DashboardStats.ActiveCustomers` is still computed.)
 - Total invoices: count.
 - Outstanding: Σ balance_due over invoices with balance > 0, plus that count.
 - Unbilled work: `Σ amount` over work-order lines with `invoice_id IS NULL AND status !=
@@ -442,3 +443,36 @@ new tables follow the 1.x conventions (no AUTOINCREMENT, money FLOAT, DATE text,
   failure is silent and retried next start. When the stored version is newer than the
   running one (semantic order; 2.3.0 is newer than 2.3.0-beta), the footer shows
   "Update available: vX" opening the release page. Settings > Updates & About has Check Now.
+
+## New in 2.4
+
+- **Recurring invoices** (no 1.x equivalent; three new tables, no 1.x table changed):
+  `recurring_invoices` (customer, `interval` month/year, `interval_count` 1, start date, day of
+  month, optional end date, notes, terms, `collection_method` `send_invoice`, active,
+  `generated_through`), `recurring_invoice_lines` (description, quantity, extended amount, in
+  order) and `recurring_invoice_runs` (one row per schedule and date, unique, with the invoice
+  it made; the invoice link is cleared, not the row, when that invoice is deleted).
+- Dates: the shared `Rules/Schedule` (same rule as recurring expenses: from the start month,
+  day clamped to the month's last day). Next date = first occurrence after
+  `generated_through` (or the start date).
+- **Creating:** at every start (after unlock), and after a schedule is saved, every date from
+  the next one through today is created: next invoice number, the scheduled date, unpaid,
+  lines with amounts rounded to cents, `{month}`/`{year}` (any case) filled from the date in
+  line descriptions and notes. A schedule whose customer is inactive or deleted is held back
+  with a warning naming it. Saving a schedule whose first date is today or past asks first
+  ("Create N invoices now?").
+- **Issue early** (Upcoming page Print, PDF, Issue Now; the Invoices page send button): only
+  the next date, which keeps its date; the schedule moves on. Print and PDF issue first, then
+  open the real invoice and print it. **Skip** sets `generated_through` to that date.
+- Pausing creates nothing; turning back on skips the paused dates. Editing changes future
+  invoices only. Deleting a schedule keeps its invoices; deleting the customer deletes its
+  schedules (with its invoices, as before).
+- **Dashboard:** the first tile is "Upcoming (30 days)": the number of invoices the active
+  schedules will create from now through 30 days ahead (a date already due but not yet
+  created counts), badge = their total; muted at 0; opens Invoices.
+- **Invoices page:** once any schedule exists, an **Upcoming** card (each active schedule's
+  next invoice, soonest first) sits above the tabs, and the list card is titled All Invoices.
+  Header button **Recurring** opens the list of schedules.
+- Accessibility: icon-only buttons take their tooltip as the accessible name, and text links
+  are UI Automation hyperlinks that can be invoked (the smoke test relies on both).
+- Stripe readiness: see `docs/stripe-readiness.md`.
