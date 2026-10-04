@@ -77,7 +77,7 @@ public sealed class RecurringInvoiceService
         var first = new DateOnly(today.Year, today.Month, 1).AddMonths(1);
         return new(customerId, BillingInterval.Month, first, 1, null, "",
             _settings.Get(SettingKeys.InvoiceTerm1, "Payment Terms: Due within 30 days"),
-            _settings.Get(SettingKeys.InvoiceTerm2, "Make all checks payable to Your Name"),
+            _settings.Get(SettingKeys.InvoiceTerm2),
             true, Array.Empty<InvoiceLineDraft>());
     }
 
@@ -311,7 +311,7 @@ public sealed class RecurringInvoiceService
             SELECT last_insert_rowid();
             """, new { invoice.InvoiceNumber, invoice.CustomerId, invoice.Date, invoice.Notes, invoice.Term1, invoice.Term2, now = SqlFormat.NowUtc() }, tx);
         InvoiceService.InsertLines(db, tx, invoiceId,
-            invoice.Lines.Select(l => new InvoiceLineDraft(l.Description, l.Quantity, l.Amount)), skipBlank: false, roundAmounts: true);
+            invoice.Lines.Select(l => new InvoiceLineDraft(l.Description, l.Quantity, l.Amount, l.ServiceStart, l.ServiceEnd)), skipBlank: false, roundAmounts: true);
         db.Execute("INSERT INTO recurring_invoice_runs (recurring_id, date, invoice_id, created_at) VALUES (@Id, @d, @invoiceId, @now)",
             new { t.Id, d, invoiceId, now = SqlFormat.NowUtc() }, tx);
         db.Execute("UPDATE recurring_invoices SET generated_through = @d WHERE id = @Id AND (generated_through IS NULL OR generated_through < @d)",
@@ -321,7 +321,10 @@ public sealed class RecurringInvoiceService
     }
 
     /// <summary>The invoice a schedule makes on a date. Amounts are rounded to cents as saved.</summary>
-    private static Invoice Build(RecurringInvoice t, DateOnly d, string number) => new()
+    private static Invoice Build(RecurringInvoice t, DateOnly d, string number)
+    {
+        var (from, through) = t.PeriodOf(d);
+        return new()
     {
         InvoiceNumber = number,
         CustomerId = t.CustomerId,
@@ -335,8 +338,11 @@ public sealed class RecurringInvoiceService
             Description = PeriodText.Fill(l.Description, d),
             Quantity = l.Quantity,
             Amount = PyMath.Round(l.Amount, 2),
+            ServiceStart = l.BillPeriod ? from : null,
+            ServiceEnd = l.BillPeriod ? through : null,
         }).ToList(),
     };
+    }
 
     private static void RequireNext(RecurringInvoice t, DateOnly date)
     {
@@ -370,8 +376,8 @@ public sealed class RecurringInvoiceService
     private static void SaveLines(SqliteConnection db, SqliteTransaction tx, long id, IReadOnlyList<InvoiceLineDraft> lines)
     {
         for (int i = 0; i < lines.Count; i++)
-            db.Execute("INSERT INTO recurring_invoice_lines (recurring_id, position, description, quantity, amount) VALUES (@id, @i, @Description, @Quantity, @Amount)",
-                new { id, i, lines[i].Description, lines[i].Quantity, lines[i].Amount }, tx);
+            db.Execute("INSERT INTO recurring_invoice_lines (recurring_id, position, description, quantity, amount, bill_period) VALUES (@id, @i, @Description, @Quantity, @Amount, @BillPeriod)",
+                new { id, i, lines[i].Description, lines[i].Quantity, lines[i].Amount, lines[i].BillPeriod }, tx);
     }
 
     /// <summary>On resuming, dates before today are treated as already handled.</summary>

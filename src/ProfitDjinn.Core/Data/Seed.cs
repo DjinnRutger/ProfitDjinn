@@ -69,17 +69,17 @@ internal static class Seed
     /// <summary>Inserted whenever missing (1.x <c>_ensure_invoice_settings</c>, plus the 2.0 additions at the end).</summary>
     internal static readonly SettingDef[] EnsuredSettings =
     {
-        new("company_name", "Your Name", "text", "Your name / company name on invoices", "invoices", null),
-        new("company_address", "123 Main Street", "text", "Street address for invoice header", "invoices", null),
-        new("company_city", "Anytown", "text", "City for invoice header", "invoices", null),
-        new("company_state", "ST", "text", "State for invoice header", "invoices", null),
-        new("company_zip", "00000", "text", "ZIP code for invoice header", "invoices", null),
-        new("company_email", "you@example.com", "text", "Email shown on invoices", "invoices", null),
-        new("company_phone", "(555) 555-0100", "text", "Phone shown on invoices", "invoices", null),
+        new("company_name", "", "text", "Your name / company name on invoices", "invoices", null),
+        new("company_address", "", "text", "Street address for invoice header", "invoices", null),
+        new("company_city", "", "text", "City for invoice header", "invoices", null),
+        new("company_state", "", "text", "State for invoice header", "invoices", null),
+        new("company_zip", "", "text", "ZIP code for invoice header", "invoices", null),
+        new("company_email", "", "text", "Email shown on invoices", "invoices", null),
+        new("company_phone", "", "text", "Phone shown on invoices", "invoices", null),
         new("invoice_prefix", "INV", "text", "Invoice number prefix", "invoices", null),
         new("invoice_next_number", "1001", "number", "Next invoice number sequence start", "invoices", null),
         new("invoice_term1", "Payment Terms: Due within 30 days", "text", "Default payment terms line 1", "invoices", null),
-        new("invoice_term2", "Make all checks payable to Your Name", "text", "Default payment terms line 2", "invoices", null),
+        new("invoice_term2", "", "text", "Default payment terms line 2", "invoices", null),
         new("ui_font_scale", "1.0", "select", "Site-wide text size (affects all pages)", "ui", "[\"0.80\", \"0.85\", \"0.90\", \"0.95\", \"1.0\", \"1.05\", \"1.10\", \"1.15\", \"1.20\", \"1.25\"]"),
         new("login_logo_layout", "left", "select", "Login page: logo/name/tagline position", "login", "[\"top\", \"left\"]"),
         new("login_logo", "login_logo.png", "text", "Custom login logo filename (auto-managed)", "login", null),
@@ -100,7 +100,31 @@ internal static class Seed
         new(SettingKeys.UpdateLatestVersion, "", "text", "Latest version found on GitHub (auto-managed)", "updates", null),
         new(SettingKeys.UpdateLatestUrl, "", "text", "Release page of the latest version (auto-managed)", "updates", null),
         new(SettingKeys.DatabaseAppVersion, "", "text", "App version that last opened this database (auto-managed)", "backup", null),
+        new(SettingKeys.WorkOrdersEnabled, "true", "boolean", "Work orders: log work per customer and bill it", "features", null),
     };
+
+    /// <summary>
+    /// 2.5. The sample values 1.x and 2.0-2.4 seeded into the business settings. They were real
+    /// text, not hints, so a new user had to delete each one; Settings now shows these as
+    /// placeholders instead. A setting still holding exactly its sample is cleared at start.
+    /// </summary>
+    internal static readonly (string Key, string Sample)[] OldSamples =
+    {
+        ("company_name", "Your Name"),
+        ("company_address", "123 Main Street"),
+        ("company_city", "Anytown"),
+        ("company_state", "ST"),
+        ("company_zip", "00000"),
+        ("company_email", "you@example.com"),
+        ("company_phone", "(555) 555-0100"),
+        ("invoice_term2", "Make all checks payable to Your Name"),
+    };
+
+    internal static void ClearOldSamples(SqliteConnection db, SqliteTransaction tx)
+    {
+        foreach (var (key, sample) in OldSamples)
+            db.Execute("UPDATE settings SET value = '' WHERE \"key\" = @key AND value = @sample", new { key, sample }, tx);
+    }
 
     internal static void FirstRun(SqliteConnection db, SqliteTransaction tx)
     {

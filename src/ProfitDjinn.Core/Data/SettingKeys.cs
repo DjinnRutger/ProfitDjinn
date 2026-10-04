@@ -46,6 +46,9 @@ public static class SettingKeys
     public const string ExpensesEnabled = "expenses_enabled";
     public const string ReceiptsFolder = "receipts_folder";
 
+    /// <summary>2.5. Work orders on/off (on by default). Off hides them everywhere; the data is kept.</summary>
+    public const string WorkOrdersEnabled = "workorders_enabled";
+
     /// <summary>2.3. Daily check for a newer release on GitHub (on by default), and what it last found.</summary>
     public const string UpdateCheckEnabled = "update_check_enabled";
     public const string UpdateLastCheck = "update_last_check";

@@ -61,7 +61,7 @@ public sealed class BillingService
 
         return new BillSetup(wo, Rollup.SortBillable(billable), preselected, _invoices.NextNumber(), _today(),
             _settings.Get(SettingKeys.InvoiceTerm1, "Payment Terms: Due within 30 days"),
-            _settings.Get(SettingKeys.InvoiceTerm2, "Make all checks payable to Your Name"),
+            _settings.Get(SettingKeys.InvoiceTerm2),
             filter.Length > 0 ? filter : null);
     }
 
@@ -88,6 +88,9 @@ public sealed class BillingService
                 throw new SelectionChangedException(
                     "Some of the selected work was billed or changed since this page was opened. Check the selection and try again.");
             if (rows.Count == 0) throw new UserFacingException("The invoice needs at least one line item.");
+            var dateChecks = new Checks();
+            InvoiceService.CheckServiceDates(dateChecks, rows.Select(InvoiceRows.ToDraft));
+            dateChecks.ThrowIfAny();
 
             string number = header.InvoiceNumber.Trim().ToUpperInvariant();
             if (db.ExecuteScalar<bool>("SELECT EXISTS (SELECT 1 FROM invoices WHERE invoice_number = @number)", new { number }, tx))

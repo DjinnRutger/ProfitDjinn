@@ -52,6 +52,17 @@ public sealed class RecurringInvoice
     /// <summary>The first date not yet invoiced, or null when the schedule has ended.</summary>
     public DateOnly? NextDate => Schedule.FirstFrom(GeneratedThrough is { } g ? g.AddDays(1) : StartDate);
 
+    /// <summary>
+    /// 2.5. The period an invoice dated <paramref name="d"/> covers: from that date to the day
+    /// before the schedule's following date (Nov 1 monthly: Nov 1 - Nov 30; yearly: 12 months).
+    /// </summary>
+    public (DateOnly From, DateOnly Through) PeriodOf(DateOnly d)
+    {
+        var open = Schedule with { End = null };
+        var next = open.FirstFrom(d.AddDays(1)) ?? d.AddMonths(Interval == BillingInterval.Year ? 12 : 1);
+        return (d, next.AddDays(-1));
+    }
+
     public string ScheduleLabel
     {
         get
@@ -78,4 +89,7 @@ public sealed class RecurringInvoiceLine
     public double Amount { get; set; }
 
     public double UnitPrice => Quantity != 0 ? Amount / Quantity : Amount;
+
+    /// <summary>2.5. Print the period each invoice covers as this line's service dates.</summary>
+    public bool BillPeriod { get; set; }
 }

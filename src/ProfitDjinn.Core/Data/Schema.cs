@@ -345,6 +345,7 @@ public static class Schema
         	description VARCHAR(500) NOT NULL,
         	quantity FLOAT NOT NULL,
         	amount FLOAT NOT NULL,
+        	bill_period BOOLEAN NOT NULL DEFAULT 0,
         	PRIMARY KEY (id)
         )
         """,
@@ -363,6 +364,27 @@ public static class Schema
         "CREATE INDEX IF NOT EXISTS ix_recurring_invoice_runs_invoice_id ON recurring_invoice_runs (invoice_id)",
     };
 
+    /// <summary>
+    /// 2.5 service dates for invoice lines. A side table rather than columns on 1.x's
+    /// invoice_lines, so 1.x keeps the exact table it knows. Keyed by line id and checked against
+    /// the invoice id and description on load, so a line id 1.x frees and reuses never inherits
+    /// dates; rows whose line is gone or changed are removed at start.
+    /// </summary>
+    private static readonly string[] ServiceDateTables =
+    {
+        """
+        CREATE TABLE IF NOT EXISTS invoice_line_service (
+        	line_id INTEGER NOT NULL,
+        	invoice_id INTEGER NOT NULL,
+        	description VARCHAR(500) NOT NULL,
+        	service_start DATE,
+        	service_end DATE,
+        	PRIMARY KEY (line_id)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_invoice_line_service_invoice_id ON invoice_line_service (invoice_id)",
+    };
+
     /// <summary>Run at every start. Safe to run any number of times.</summary>
     public static void Ensure(Database database)
     {
@@ -375,10 +397,17 @@ public static class Schema
             foreach (string sql in ExpenseTables) db.Execute(sql, transaction: tx);
             if (newCategories) Seed.ExpenseCategories(db, tx);
             foreach (string sql in RecurringInvoiceTables) db.Execute(sql, transaction: tx);
+            foreach (string sql in ServiceDateTables) db.Execute(sql, transaction: tx);
+            db.Execute("""
+                DELETE FROM invoice_line_service WHERE NOT EXISTS
+                    (SELECT 1 FROM invoice_lines l WHERE l.id = invoice_line_service.line_id AND l.invoice_id = invoice_line_service.invoice_id
+                        AND l.description = invoice_line_service.description)
+                """, transaction: tx);
             RunMigrations(db, tx);
             if (!db.ExecuteScalar<bool>("SELECT EXISTS (SELECT 1 FROM roles)", transaction: tx))
                 Seed.FirstRun(db, tx);
             Seed.EnsureSettings(db, tx);
+            Seed.ClearOldSamples(db, tx);
             Seed.EnsurePermissions(db, tx);
             Seed.ApplyBrandDefaults(db, tx);
         });
@@ -397,6 +426,10 @@ public static class Schema
 
         if (!Columns(db, tx, "invoices").Contains("credit_applied"))
             db.Execute("ALTER TABLE invoices ADD COLUMN credit_applied FLOAT NOT NULL DEFAULT 0", transaction: tx);
+
+        // 2.5 (a 2.4 table, not a 1.x one).
+        if (!Columns(db, tx, "recurring_invoice_lines").Contains("bill_period"))
+            db.Execute("ALTER TABLE recurring_invoice_lines ADD COLUMN bill_period BOOLEAN NOT NULL DEFAULT 0", transaction: tx);
     }
 
     private static bool TableExists(SqliteConnection db, SqliteTransaction tx, string table) =>

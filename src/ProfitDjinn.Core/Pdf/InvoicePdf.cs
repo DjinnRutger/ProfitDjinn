@@ -21,7 +21,7 @@ namespace ProfitDjinn.Core.Pdf;
 public static class InvoicePdf
 {
     private const double PageW = 210, PageH = 297, Margin = 15, CellMargin = 1;
-    private const double LineH = 5.5, RowPad = 1.5, RowMinH = 7.0, FooterReserve = 30.0;
+    private const double LineH = 5.5, RowPad = 1.5, RowMinH = 7.0, FooterReserve = 30.0, ServiceH = 4.5;
     private const string Font = "Arial";
 
     private static readonly XColor Navy = XColor.FromArgb(28, 52, 88);
@@ -106,7 +106,9 @@ public static class InvoicePdf
             n++;
             var wrapped = w.Wrap(item.Description ?? "", colDesc - 2 * CellMargin, 10, bold: false);
             if (wrapped.Count == 0) wrapped.Add("");
-            double rowH = Math.Max(RowMinH, wrapped.Count * LineH + RowPad);
+            // 2.5: service dates as a smaller grey line under the description.
+            string? service = item.ServiceText;
+            double rowH = Math.Max(RowMinH, wrapped.Count * LineH + (service is null ? 0 : ServiceH) + RowPad);
             if (y + rowH > PageH - FooterReserve)
             {
                 w.NewPage();
@@ -120,6 +122,8 @@ public static class InvoicePdf
             w.Cell(x0, ty, colNum, LineH, n.ToString(), 10, align: Align.Center);
             for (int i = 0; i < wrapped.Count; i++)
                 w.Cell(x0 + colNum, ty + i * LineH, colDesc, LineH, wrapped[i], 10);
+            if (service is not null)
+                w.Cell(x0 + colNum, ty + wrapped.Count * LineH, colDesc, ServiceH, service, 8.5, color: XColor.FromArgb(100, 100, 100));
             double xq = x0 + colNum + colDesc;
             w.Cell(xq, ty, colQty, LineH, PyMath.G(item.Quantity), 10, align: Align.Center);
             w.Cell(xq + colQty, ty, colUp, LineH, PyMath.Dollars(item.UnitPrice), 10, align: Align.Right);

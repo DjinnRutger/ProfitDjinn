@@ -11,6 +11,15 @@ namespace ProfitDjinn.Core.Data;
 /// </summary>
 internal static class Loader
 {
+    private sealed class ServiceRow
+    {
+        public long LineId { get; set; }
+        public long InvoiceId { get; set; }
+        public string Description { get; set; } = "";
+        public DateOnly? ServiceStart { get; set; }
+        public DateOnly? ServiceEnd { get; set; }
+    }
+
     internal static List<Invoice> Invoices(SqliteConnection db, string where = "1=1", object? args = null,
         SqliteTransaction? tx = null, bool withCustomers = true)
     {
@@ -18,8 +27,14 @@ internal static class Loader
         if (invoices.Count == 0) return invoices;
         var ids = invoices.Select(i => i.Id).ToList();
 
-        var lines = db.Query<InvoiceLine>("SELECT * FROM invoice_lines WHERE invoice_id IN @ids ORDER BY id", new { ids }, tx)
-            .ToLookup(l => l.InvoiceId);
+        var lineList = db.Query<InvoiceLine>("SELECT * FROM invoice_lines WHERE invoice_id IN @ids ORDER BY id", new { ids }, tx).ToList();
+        // 2.5 service dates, matched on line and invoice so a reused line id never picks up another's dates.
+        var service = db.Query<ServiceRow>(
+                "SELECT line_id, invoice_id, description, service_start, service_end FROM invoice_line_service WHERE invoice_id IN @ids", new { ids }, tx)
+            .ToDictionary(r => (r.LineId, r.InvoiceId));
+        foreach (var l in lineList)
+            if (service.TryGetValue((l.Id, l.InvoiceId), out var sd) && sd.Description == l.Description) { l.ServiceStart = sd.ServiceStart; l.ServiceEnd = sd.ServiceEnd; }
+        var lines = lineList.ToLookup(l => l.InvoiceId);
         var payments = db.Query<Payment>("SELECT * FROM payments WHERE invoice_id IN @ids ORDER BY date, id", new { ids }, tx)
             .ToLookup(p => p.InvoiceId);
         foreach (var inv in invoices)
