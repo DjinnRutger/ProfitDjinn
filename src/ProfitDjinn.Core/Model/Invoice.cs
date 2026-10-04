@@ -94,4 +94,27 @@ public sealed class InvoiceLine
     public double Amount { get; set; }
 
     public double UnitPrice => Quantity != 0 ? Amount / Quantity : Amount;
+
+    /// <summary>2.5. Optional service dates, kept in invoice_line_service (not a 1.x column).</summary>
+    public DateOnly? ServiceStart { get; set; }
+    public DateOnly? ServiceEnd { get; set; }
+
+    /// <summary>"Service: 09/01/26 - 09/30/26", "Service: 09/15/26", or null without dates.</summary>
+    public string? ServiceText => ServiceDates.Text(ServiceStart, ServiceEnd);
+}
+
+/// <summary>2.5. How service dates read on screen and on the PDF.</summary>
+public static class ServiceDates
+{
+    public static string? Text(DateOnly? start, DateOnly? end)
+    {
+        static string F(DateOnly d) => d.ToString("MM/dd/yy", System.Globalization.CultureInfo.InvariantCulture);
+        return (start, end) switch
+        {
+            ({ } s, { } e) when s != e => $"Service: {F(s)} - {F(e)}",
+            ({ } s, _) => $"Service: {F(s)}",
+            (null, { } e) => $"Service: through {F(e)}",
+            _ => null,
+        };
+    }
 }

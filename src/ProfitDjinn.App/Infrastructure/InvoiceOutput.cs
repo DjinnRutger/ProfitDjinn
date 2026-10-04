@@ -19,17 +19,26 @@ namespace ProfitDjinn.App.Infrastructure;
 /// </summary>
 public static class InvoiceOutput
 {
-    public static void SavePdf(Invoice invoice, CompanyInfoProvider company, Window owner)
+    public static void SavePdf(Invoice invoice, CompanyInfoProvider company, Window owner) =>
+        SavePdf(InvoicePdf.Render(invoice, company()), SafeFileName(invoice.InvoiceNumber) + ".pdf", owner);
+
+    /// <summary>2.5. Opens the invoice in the preview window; Save PDF and Print run from there.</summary>
+    public static void Preview(Invoice invoice, CompanyInfoProvider company, Window owner) =>
+        PdfPreviewWindow.Show(owner, InvoicePdf.Render(invoice, company()), $"Invoice {invoice.InvoiceNumber}",
+            save: (pdf, w) => SavePdf(pdf, SafeFileName(invoice.InvoiceNumber) + ".pdf", w),
+            print: (pdf, _) => Print(pdf, $"Invoice {invoice.InvoiceNumber}"));
+
+    /// <summary>Asks where to save <paramref name="pdf"/>, writes it and opens it. Returns the path, or null if cancelled.</summary>
+    public static string? SavePdf(byte[] pdf, string fileName, Window owner)
     {
-        byte[] pdf = InvoicePdf.Render(invoice, company());
         var dialog = new SaveFileDialog
         {
-            FileName = SafeFileName(invoice.InvoiceNumber) + ".pdf",
+            FileName = fileName,
             Filter = "PDF document (*.pdf)|*.pdf",
             InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) is { Length: > 0 } home && Directory.Exists(Path.Combine(home, "Downloads"))
                 ? Path.Combine(home, "Downloads") : null,
         };
-        if (dialog.ShowDialog(owner) != true) return;
+        if (dialog.ShowDialog(owner) != true) return null;
         try
         {
             File.WriteAllBytes(dialog.FileName, pdf);
@@ -40,11 +49,15 @@ public static class InvoiceOutput
         }
         try { Process.Start(new ProcessStartInfo(dialog.FileName) { UseShellExecute = true }); }
         catch (System.ComponentModel.Win32Exception) { /* no PDF viewer: the file is saved, which is what was asked */ }
+        return dialog.FileName;
     }
 
-    public static void Print(Invoice invoice, CompanyInfoProvider company)
+    public static void Print(Invoice invoice, CompanyInfoProvider company) =>
+        Print(InvoicePdf.Render(invoice, company()), $"Invoice {invoice.InvoiceNumber}");
+
+    /// <summary>Prints <paramref name="pdf"/> as drawn by PDFium, after the system print dialog.</summary>
+    public static void Print(byte[] pdf, string jobName)
     {
-        byte[] pdf = InvoicePdf.Render(invoice, company());
         var dialog = new PrintDialog { UserPageRangeEnabled = false };
         if (dialog.ShowDialog() != true) return;
 
@@ -61,7 +74,7 @@ public static class InvoiceOutput
             ((System.Windows.Markup.IAddChild)content).AddChild(page);
             doc.Pages.Add(content);
         }
-        dialog.PrintDocument(doc.DocumentPaginator, $"Invoice {invoice.InvoiceNumber}");
+        dialog.PrintDocument(doc.DocumentPaginator, jobName);
     }
 
     /// <summary>Draws every page of the PDF at <paramref name="dpi"/>.</summary>
@@ -75,7 +88,7 @@ public static class InvoiceOutput
             try
             {
                 IntPtr doc = Pdfium.FPDF_LoadMemDocument(handle.AddrOfPinnedObject(), pdf.Length, null);
-                if (doc == IntPtr.Zero) throw new UserFacingException("The invoice PDF could not be read back for printing. Use the PDF button and print the saved file instead.");
+                if (doc == IntPtr.Zero) throw new UserFacingException("The PDF could not be read back for display or printing. Save it and open the saved file instead.");
                 try
                 {
                     int count = Pdfium.FPDF_GetPageCount(doc);
@@ -94,7 +107,7 @@ public static class InvoiceOutput
         return pages;
     }
 
-    private static string SafeFileName(string name) =>
+    public static string SafeFileName(string name) =>
         string.Concat(name.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch));
 }
 

@@ -60,7 +60,7 @@ public sealed class ExpensesPage : AppPage
             sum.UnpaidCount > 0 ? Ui.Badge(sum.UnpaidCount.ToString(), "warningdark").Margin(6, 0, 0, 0) : null));
         tabs.Children.Add(Tab("Paid", "check-circle", "Btn.OutlineSuccess", ExpenseFilter.Paid, null));
 
-        var box = Ui.TextBox(search, "Search description, vendor or reference…", 280).Also(t => { t.Style = Ui.Style("Input.Small"); Input.SetPrefixGlyph(t, "search"); });
+        var box = Ui.TextBox(search, "Search vendor, description, ref…", 300).Also(t => { t.Style = Ui.Style("Input.Small"); Input.SetPrefixGlyph(t, "search"); });
         var cat = ExpenseUi.CategoryPicker(Store, categoryId, allowNone: true).Also(c => { c.MinWidth = 180; ((List<Choice>)c.ItemsSource)[0] = new Choice(null, "All categories"); c.Items.Refresh(); c.SelectedIndex = Math.Max(0, c.SelectedIndex); });
         cat.SelectionChanged += (_, _) => Run(_filter, box.Text, ExpenseUi.SelectedId(cat));
         box.KeyDown += (_, e) => { if (e.Key == Key.Enter) Run(_filter, box.Text, _category); };

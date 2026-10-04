@@ -26,7 +26,7 @@ New-Item -ItemType Directory -Force $DataDir | Out-Null
 if (Test-Path (Join-Path $DataDir 'app.db')) { throw "$DataDir already has an app.db. Give an empty folder." }
 
 $psi = New-Object System.Diagnostics.ProcessStartInfo $Exe
-$psi.Arguments = "--page settings:expenses"
+$psi.Arguments = "--page settings:features"
 $psi.UseShellExecute = $false
 $psi.EnvironmentVariables["PROFITDJINN_DATA_DIR"] = $DataDir
 $proc = [System.Diagnostics.Process]::Start($psi)
@@ -165,7 +165,7 @@ try {
   }
   Step "turn Expenses off" {
     Click "Settings"
-    Click "Expenses settings"
+    Click "Features settings"
     Toggle "Track expenses"
     Click "Save Changes"
     Wait-For "Settings saved." | Out-Null

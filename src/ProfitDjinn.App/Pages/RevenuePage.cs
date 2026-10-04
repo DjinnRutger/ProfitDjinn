@@ -63,6 +63,10 @@ public sealed class RevenuePage : AppPage
             object? pct = prev > 0 && r.YtdPercent is { } p ? Ui.Muted($"({p.ToString("0.0", CultureInfo.InvariantCulture)}%)", 12) : null;
             Tile((diff >= 0 ? "+" : "") + Ui.Money(diff), $"vs {selected - 1}", diff >= 0 ? "arrow-up-circle" : "arrow-down-circle", tone, pct);
         }
+        // Up to five tiles in one row (like the dashboard); more wrap to rows of three.
+        tiles.Columns = tiles.Children.Count <= 5 ? tiles.Children.Count : 3;
+        if (tiles.Children.Count <= 5)
+            foreach (var t in tiles.Children.OfType<StatTile>()) t.Margin = new Thickness(8, 0, 8, 0);
         page.Children.Add(tiles);
 
         // ---- charts
@@ -81,7 +85,7 @@ public sealed class RevenuePage : AppPage
         }
         else donutBody = Ui.Empty("pie-chart", "No data for this period.");
         var donutCard = Ui.Card(donutBody, "Revenue by Customer", "pie-chart-fill");
-        page.Children.Add(Ui.Columns(24, (Ui.Star(7), barCard), (Ui.Star(5), donutCard)).Margin(0, 0, 0, 24));
+        page.Children.Add(Ui.Columns(24, (Ui.Star(7), barCard), (Ui.Star(5), donutCard)).EqualHeight().Margin(0, 0, 0, 24));
 
         // ---- tables
         FrameworkElement leftTable;

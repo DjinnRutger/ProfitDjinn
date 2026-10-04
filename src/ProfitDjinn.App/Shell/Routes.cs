@@ -25,7 +25,7 @@ public static class Routes
     public static Func<AppPage> Invoice(MainWindow s, long id) => () => new InvoiceDetailPage(s, id);
     public static Func<AppPage> NewInvoice(MainWindow s, long? customerId = null) => () => new InvoiceFormPage(s, null, customerId);
     public static Func<AppPage> EditInvoice(MainWindow s, long id) => () => new InvoiceFormPage(s, id, null);
-    public static Func<AppPage> Bill(MainWindow s, long workOrderId, string? label = null) => () => new BillPage(s, workOrderId, label);
+    public static Func<AppPage> Bill(MainWindow s, long workOrderId, string? label = null) => Wo(s, () => new BillPage(s, workOrderId, label));
 
     // ---- 2.4 recurring invoices. No on/off switch: they only appear once a schedule exists.
     public static Func<AppPage> RecurringInvoices(MainWindow s) => () => new RecurringInvoicesPage(s);
@@ -34,9 +34,12 @@ public static class Routes
     /// <summary>A schedule's upcoming invoice, shown like an invoice. Without a date, its next one.</summary>
     public static Func<AppPage> Upcoming(MainWindow s, long recurringId, DateOnly? date = null) => () => new UpcomingInvoicePage(s, recurringId, date);
 
-    public static Func<AppPage> WorkOrders(MainWindow s, bool all = false, string search = "") => () => new WorkOrdersPage(s, all, search);
+    // 2.5: work orders can be switched off (Settings > Features); these then open the Dashboard.
+    private static Func<AppPage> Wo(MainWindow s, Func<AppPage> open) => () => s.Store.WorkOrders.Enabled ? open() : new DashboardPage(s);
+
+    public static Func<AppPage> WorkOrders(MainWindow s, bool all = false, string search = "") => Wo(s, () => new WorkOrdersPage(s, all, search));
     /// <summary>The customer's work order tab (created on first visit, as in 1.x).</summary>
-    public static Func<AppPage> WorkOrder(MainWindow s, long customerId) => () => new WorkOrderPage(s, customerId);
+    public static Func<AppPage> WorkOrder(MainWindow s, long customerId) => Wo(s, () => new WorkOrderPage(s, customerId));
 
     public static Func<AppPage> Revenue(MainWindow s, int? year = null, bool all = false) => () => new RevenuePage(s, year, all);
     /// <summary>Settings, scrolled to a category (e.g. "workorders").</summary>

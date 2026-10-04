@@ -22,7 +22,7 @@ public sealed class BillPage : AppPage
     private readonly string? _label;
     private readonly Dictionary<long, CheckBox> _picks = new();
     private readonly Dictionary<string, CheckBox> _labelToggles = new();
-    private readonly LineBuilder _lines = new("Select some work above to build the invoice.");
+    private readonly LineBuilder _lines = new("Select some work above to build the invoice.", LineDates.Dates);
     private readonly TextBlock _selectedTotal = new() { FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Right };
     private readonly TextBlock _summaryTotal = new() { FontWeight = FontWeights.Bold, FontSize = 24 };
     private readonly TextBlock _summaryCount = new() { FontWeight = FontWeights.SemiBold, FontSize = 14.4, HorizontalAlignment = HorizontalAlignment.Right };

@@ -253,7 +253,8 @@ public partial class MainWindow : Window
         BrandIcon.Visibility = image is null ? Visibility.Visible : Visibility.Collapsed;
         BrandIcon.Glyph = s.Get(SettingKeys.AppIcon, "lightning-charge-fill");
 
-        string company = s.Get(SettingKeys.CompanyName, "ProfitDjinn");
+        // 2.5: the business name starts empty (Settings shows a hint), so fall back to the app name.
+        string company = s.Get(SettingKeys.CompanyName).Trim() is { Length: > 0 } named ? named : s.Get(SettingKeys.AppName, "ProfitDjinn");
         UserName.Text = company;
         AvatarText.Text = Initials(company);
 
@@ -265,6 +266,7 @@ public partial class MainWindow : Window
         ShowUpdateBadge();
         var expenses = Store.Expenses.Enabled ? Visibility.Visible : Visibility.Collapsed;
         foreach (string key in ExpenseNav) if (_navButtons.TryGetValue(key, out var b)) b.Visibility = expenses;
+        if (_navButtons.TryGetValue("workorders", out var wo)) wo.Visibility = Store.WorkOrders.Enabled ? Visibility.Visible : Visibility.Collapsed;
         SidebarFooter.Visibility = LockButton.Visibility;
 
         DarkTitleBar.Apply(this, ThemeManager.Current != ThemeManager.Light);

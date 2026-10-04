@@ -89,7 +89,7 @@ public sealed class InvoiceService
     public InvoiceDraft NewDraft(long? customerId = null) => new(
         customerId, NextNumber(), _today(), "",
         _settings.Get(SettingKeys.InvoiceTerm1, "Payment Terms: Due within 30 days"),
-        _settings.Get(SettingKeys.InvoiceTerm2, "Make all checks payable to Your Name"),
+        _settings.Get(SettingKeys.InvoiceTerm2),
         false, Array.Empty<InvoiceLineDraft>());
 
     // ------------------------------------------------------------------ create / edit
@@ -151,9 +151,9 @@ public sealed class InvoiceService
             else if (!draft.Paid) invoice.PaidDate = null;
             invoice.Paid = draft.Paid;
 
-            db.Execute("DELETE FROM invoice_lines WHERE invoice_id = @id", new { id }, tx);
+            DeleteLines(db, tx, "invoice_id = @id", new { id });
             InsertLines(db, tx, id, draft.Lines, skipBlank: false, roundAmounts: false);
-            invoice.Lines = draft.Lines.Select(l => new InvoiceLine { Description = l.Description, Quantity = l.Quantity, Amount = l.Amount }).ToList();
+            invoice.Lines = draft.Lines.Select(l => new InvoiceLine { Description = l.Description, Quantity = l.Quantity, Amount = l.Amount, ServiceStart = l.ServiceStart, ServiceEnd = l.ServiceEnd }).ToList();
 
             if (invoice.CreditApplied > invoice.Total) invoice.CreditApplied = PyMath.Round(invoice.Total, 2);
             if (!draft.Paid) invoice.RecalcPaidStatus(_today());
@@ -172,7 +172,7 @@ public sealed class InvoiceService
             "UPDATE work_order_lines SET status = 'completed', invoice_id = NULL, billed_at = NULL WHERE invoice_id = @id",
             new { id }, tx);
         RecurringInvoiceService.ForgetInvoices(db, tx, "id = @id", new { id });
-        db.Execute("DELETE FROM invoice_lines WHERE invoice_id = @id", new { id }, tx);
+        DeleteLines(db, tx, "invoice_id = @id", new { id });
         db.Execute("DELETE FROM payments WHERE invoice_id = @id", new { id }, tx);
         db.Execute("DELETE FROM invoices WHERE id = @id", new { id }, tx);
         return restored > 0
@@ -289,9 +289,22 @@ public sealed class InvoiceService
         if (d.Date is null) checks.Add("date", Checks.Required);
         checks.MaxLength("term1", d.Term1, 300);
         checks.MaxLength("term2", d.Term2, 300);
+        CheckServiceDates(checks, d.Lines);
         checks.ThrowIfAny();
         if (d.Lines.Count == 0) throw new UserFacingException("At least one line item is required.");
         return d.InvoiceNumber.Trim().ToUpperInvariant();
+    }
+
+    /// <summary>2.5. A line's service end cannot be before its start.</summary>
+    internal static void CheckServiceDates(Checks checks, IEnumerable<InvoiceLineDraft> lines)
+    {
+        int n = 0;
+        foreach (var l in lines)
+        {
+            n++;
+            if (l.ServiceStart is { } a && l.ServiceEnd is { } b && b < a)
+                checks.Add("lines", $"Line {n}: the service end date is before its start date.");
+        }
     }
 
     private static void EnsureUniqueNumber(SqliteConnection db, SqliteTransaction tx, string number, string typed, long? exceptId)
@@ -320,9 +333,21 @@ public sealed class InvoiceService
             string description = (line.Description ?? "").Trim();
             if (skipBlank && description.Length == 0) continue;
             if (skipBlank && description.Length > 500) description = description[..500];
-            db.Execute("INSERT INTO invoice_lines (invoice_id, description, quantity, amount) VALUES (@invoiceId, @description, @quantity, @amount)",
-                new { invoiceId, description, quantity = line.Quantity, amount = roundAmounts ? PyMath.Round(line.Amount, 2) : line.Amount }, tx);
+            long lineId = db.ExecuteScalar<long>("""
+                INSERT INTO invoice_lines (invoice_id, description, quantity, amount) VALUES (@invoiceId, @description, @quantity, @amount);
+                SELECT last_insert_rowid();
+                """, new { invoiceId, description, quantity = line.Quantity, amount = roundAmounts ? PyMath.Round(line.Amount, 2) : line.Amount }, tx);
+            if (line.ServiceStart is not null || line.ServiceEnd is not null)
+                db.Execute("INSERT OR REPLACE INTO invoice_line_service (line_id, invoice_id, description, service_start, service_end) VALUES (@lineId, @invoiceId, @description, @ServiceStart, @ServiceEnd)",
+                    new { lineId, invoiceId, description, line.ServiceStart, line.ServiceEnd }, tx);
         }
+    }
+
+    /// <summary>Deletes invoice lines and their 2.5 service dates. <paramref name="where"/> is on invoice_lines.</summary>
+    internal static void DeleteLines(SqliteConnection db, SqliteTransaction tx, string where, object args)
+    {
+        db.Execute($"DELETE FROM invoice_line_service WHERE line_id IN (SELECT id FROM invoice_lines WHERE {where})", args, tx);
+        db.Execute($"DELETE FROM invoice_lines WHERE {where}", args, tx);
     }
 
     private static void SaveHeader(SqliteConnection db, SqliteTransaction tx, Invoice i) => db.Execute("""

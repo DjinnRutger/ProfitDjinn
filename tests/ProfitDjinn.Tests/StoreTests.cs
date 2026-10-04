@@ -24,10 +24,31 @@ public class StoreTests
         });
         Assert.Equal("ProfitDjinn", store.Settings.Get(SettingKeys.AppName));
         Assert.Equal("ProfitDjinn", store.Settings.Get(SettingKeys.FooterText));
-        Assert.Equal("Your Name", store.Settings.Get(SettingKeys.CompanyName));
+        Assert.Equal("", store.Settings.Get(SettingKeys.CompanyName));         // 2.5: hints in Settings, not sample text
+        Assert.Equal("", store.Settings.Get(SettingKeys.InvoiceTerm2));
+        Assert.Equal("Payment Terms: Due within 30 days", store.Settings.Get(SettingKeys.InvoiceTerm1));
+        Assert.True(store.Settings.GetBool(SettingKeys.WorkOrdersEnabled));
         Assert.False(store.Password.IsSet);
         Assert.Equal("light", store.Settings.Theme());
         Assert.Equal("INV1001", store.Invoices.NextNumber());
+    }
+
+    [Fact]
+    public void Old_sample_business_values_are_cleared_but_real_ones_are_kept()
+    {
+        var paths = Fixture.TempPaths();
+        var store = new Store(paths);
+        store.Settings.Set(SettingKeys.CompanyName, "Your Name");
+        store.Settings.Set(SettingKeys.CompanyCity, "Anytown");
+        store.Settings.Set(SettingKeys.InvoiceTerm2, "Make all checks payable to Your Name");
+        store.Settings.Set(SettingKeys.CompanyAddress, "77 Real Road");
+        store.Settings.Set(SettingKeys.CompanyState, "MT");
+        var reopened = new Store(paths);
+        Assert.Equal("", reopened.Settings.Get(SettingKeys.CompanyName));
+        Assert.Equal("", reopened.Settings.Get(SettingKeys.CompanyCity));
+        Assert.Equal("", reopened.Settings.Get(SettingKeys.InvoiceTerm2));
+        Assert.Equal("77 Real Road", reopened.Settings.Get(SettingKeys.CompanyAddress));
+        Assert.Equal("MT", reopened.Settings.Get(SettingKeys.CompanyState));
     }
 
     [Fact]

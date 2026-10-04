@@ -22,7 +22,7 @@ public static class SettingsDialog
         var head = new DockPanel { Margin = new Thickness(0, 0, 0, 16) };
         var avatar = new Border { Width = 48, Height = 48, CornerRadius = new CornerRadius(24), BorderThickness = new Thickness(2), Margin = new Thickness(0, 0, 12, 0) }
             .WithResource(Border.BackgroundProperty, "AvatarBg").WithResource(Border.BorderBrushProperty, "AvatarRing");
-        string company = shell.Store.Settings.Get(Core.Data.SettingKeys.CompanyName);
+        string company = shell.Store.Settings.Get(Core.Data.SettingKeys.CompanyName).Trim() is { Length: > 0 } named ? named : "Your business (set it in Settings)";
         avatar.Child = new TextBlock { Text = MainWindow.Initials(company), FontSize = 17.6, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
             .WithResource(TextBlock.ForegroundProperty, "AvatarFg");
         head.Children.Add(avatar);

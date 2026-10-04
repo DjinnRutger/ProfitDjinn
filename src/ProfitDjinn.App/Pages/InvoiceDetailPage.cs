@@ -29,6 +29,7 @@ public sealed class InvoiceDetailPage : AppPage
         lead.Children.Add(Ui.Text($"  ·  {Ui.LongDate(inv.Date)}", "Lead"));
         var actions = new List<UIElement>
         {
+            Ui.Button("Preview", "Btn.OutlineSecondary", "eye", () => Try(() => InvoiceOutput.Preview(inv, Store.Settings.Company, Shell))),
             Ui.Button("Print", "Btn.OutlineSecondary", "printer", () => Try(() => InvoiceOutput.Print(inv, Store.Settings.Company))),
             Ui.Button("PDF", "Btn.OutlineSecondary", "file-earmark-pdf", () => Try(() => InvoiceOutput.SavePdf(inv, Store.Settings.Company, Shell))),
             Ui.Button("Edit", "Btn.Primary", "pencil", () => Shell.Navigate(Routes.EditInvoice(Shell, inv.Id))),
@@ -46,7 +47,7 @@ public sealed class InvoiceDetailPage : AppPage
         // ---- line items
         var lineCols = new List<Column<InvoiceLine>>
         {
-            new("Description", Ui.Star(), l => Ui.Text(l.Description, "Body", wrap: true)),
+            new("Description", Ui.Star(), InvoiceDetailPage.DescriptionCell),
             new("Qty", Ui.Auto, l => Ui.Muted(QtyText(l.Quantity)), HorizontalAlignment.Center),
             new("Unit Price", Ui.Auto, l => Ui.Muted(Ui.Money(l.UnitPrice)), HorizontalAlignment.Right),
             new("Amount", Ui.Auto, l => Ui.Text(Ui.Money(l.Amount), "Body"), HorizontalAlignment.Right),
@@ -163,6 +164,11 @@ public sealed class InvoiceDetailPage : AppPage
         page.Children.Add(Ui.Columns(24, (Ui.Star(2), mainCol), (Ui.Star(1), side)));
         Content = page;
     }
+
+    /// <summary>A line's description, with its 2.5 service dates underneath when it has them.</summary>
+    public static FrameworkElement DescriptionCell(InvoiceLine l) => l.ServiceText is { } service
+        ? Ui.Stack(2, Ui.Text(l.Description, "Body", wrap: true), Ui.Muted(service, 12.8))
+        : Ui.Text(l.Description, "Body", wrap: true);
 
     /// <summary>1.x showed a whole-number quantity without decimals, otherwise the raw number.</summary>
     public static string QtyText(double q) =>

@@ -6,10 +6,16 @@ namespace ProfitDjinn.Core.Rules;
 /// One editable row of the invoice line builder: description, quantity and unit price as the
 /// user typed them. Shared by the invoice form and the bill screen.
 /// </summary>
-public sealed record InvoiceRowInput(string Description, string Quantity, string UnitPrice);
+/// <remarks>
+/// 2.5: optional service dates (invoice lines), or <paramref name="BillPeriod"/> on a recurring
+/// invoice line, which fills the service dates with the period each invoice covers.
+/// </remarks>
+public sealed record InvoiceRowInput(string Description, string Quantity, string UnitPrice,
+    DateOnly? ServiceStart = null, DateOnly? ServiceEnd = null, bool BillPeriod = false);
 
-/// <summary>An invoice line ready to save: quantity and extended amount.</summary>
-public sealed record InvoiceLineDraft(string Description, double Quantity, double Amount);
+/// <summary>An invoice line ready to save: quantity and extended amount (plus the 2.5 service dates).</summary>
+public sealed record InvoiceLineDraft(string Description, double Quantity, double Amount,
+    DateOnly? ServiceStart = null, DateOnly? ServiceEnd = null, bool BillPeriod = false);
 
 /// <summary>
 /// How 1.x's JavaScript turned the line builder's text boxes into numbers, because the
@@ -37,7 +43,8 @@ public static class InvoiceRows
     public static InvoiceLineDraft ToDraft(InvoiceRowInput row)
     {
         double qty = Quantity(row.Quantity);
-        return new InvoiceLineDraft((row.Description ?? "").Trim(), qty, qty * Price(row.UnitPrice));
+        return new InvoiceLineDraft((row.Description ?? "").Trim(), qty, qty * Price(row.UnitPrice),
+            row.ServiceStart, row.ServiceEnd, row.BillPeriod);
     }
 
     /// <summary>The live total under the line builder: sum of qty * price, plain addition.</summary>

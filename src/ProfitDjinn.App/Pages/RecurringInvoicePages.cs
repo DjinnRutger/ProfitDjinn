@@ -59,7 +59,7 @@ public sealed class RecurringInvoicesPage : AppPage
             var row = Ui.Row(4);
             if (t.IsActive && t.NextDate is not null)
                 row.Children.Add(Ui.IconButton("eye", "Btn.OutlineSecondary", "View the next invoice", () => shell.Navigate(Routes.Upcoming(shell, t.Id))));
-            row.Children.Add(Ui.IconButton("pencil", "Btn.OutlinePrimary", "Edit", () => shell.Navigate(Routes.EditRecurringInvoice(shell, t.Id))));
+            row.Children.Add(Ui.IconButton("pencil", "Btn.OutlinePrimary", "Edit schedule", () => shell.Navigate(Routes.EditRecurringInvoice(shell, t.Id))));
             row.Children.Add(Ui.IconButton(t.IsActive ? "pause-circle" : "play-circle", "Btn.OutlineSecondary", t.IsActive ? "Pause" : "Turn back on",
                 () => Run(shell, () => shell.Reload(shell.Store.RecurringInvoices.ToggleActive(t.Id)))));
             row.Children.Add(Ui.IconButton("trash", "Btn.OutlineDanger", "Delete", async () =>
@@ -124,20 +124,25 @@ public sealed class RecurringInvoiceFormPage : AppPage
         if (existing?.Customer is { } current && choices.All(c => c.Id != current.Id))
             choices.Add(new CustomerChoice(current.Id, current.Name + " (inactive)"));
         _customer = new ComboBox { ItemsSource = choices, MaxDropDownHeight = 400 };
-        long? selected = existing?.CustomerId ?? draft!.CustomerId;
+        long? selected = existing is not null ? existing.CustomerId : draft!.CustomerId;
         _customer.SelectedItem = choices.FirstOrDefault(c => c.Id == selected);
         Input.SetPlaceholder(_customer, "— Select customer —");
 
+        // Fill from the schedule when editing, from the new-schedule defaults otherwise. (2.4 wrote
+        // `existing?.X ?? draft!.X`, which reached the null draft whenever a saved value was null,
+        // e.g. no end date, and crashed the Edit page.)
+        var d = existing is null ? draft! : new RecurringInvoiceDraft(existing.CustomerId, existing.Interval, existing.StartDate, existing.DayOfMonth,
+            existing.EndDate, existing.Notes ?? "", existing.Term1 ?? "", existing.Term2 ?? "", existing.IsActive, Array.Empty<InvoiceLineDraft>());
         var freqs = new List<Freq> { new(BillingInterval.Month, "Every month"), new(BillingInterval.Year, "Every year") };
-        _frequency = new ComboBox { ItemsSource = freqs, SelectedIndex = (existing?.Interval ?? draft!.Interval) == BillingInterval.Year ? 1 : 0 };
-        _start = Ui.DateBox(existing?.StartDate ?? draft!.StartDate);
-        _day = Ui.TextBox((existing?.DayOfMonth ?? draft!.DayOfMonth ?? 1).ToString(CultureInfo.InvariantCulture))
+        _frequency = new ComboBox { ItemsSource = freqs, SelectedIndex = d.Interval == BillingInterval.Year ? 1 : 0 };
+        _start = Ui.DateBox(d.StartDate);
+        _day = Ui.TextBox((d.DayOfMonth ?? 1).ToString(CultureInfo.InvariantCulture))
             .Also(b => { b.MaxLength = 2; b.Width = 80; b.HorizontalAlignment = HorizontalAlignment.Left; });
-        _end = Ui.DateBox(existing?.EndDate ?? draft!.EndDate);
-        _active = new CheckBox { Content = "Active", IsChecked = existing?.IsActive ?? true, Margin = new Thickness(0, 4, 0, 0) };
-        _notes = Ui.TextArea(existing?.Notes ?? draft!.Notes, 56);
-        _term1 = Ui.TextBox(existing?.Term1 ?? draft!.Term1).Also(t => t.Style = Ui.Style("Input.Small"));
-        _term2 = Ui.TextBox(existing?.Term2 ?? draft!.Term2).Also(t => t.Style = Ui.Style("Input.Small"));
+        _end = Ui.DateBox(d.EndDate);
+        _active = new CheckBox { Content = "Active", IsChecked = d.IsActive, Margin = new Thickness(0, 4, 0, 0) };
+        _notes = Ui.TextArea(d.Notes, 56);
+        _term1 = Ui.TextBox(d.Term1).Also(t => t.Style = Ui.Style("Input.Small"));
+        _term2 = Ui.TextBox(d.Term2).Also(t => t.Style = Ui.Style("Input.Small"));
 
         // A new schedule's day follows its first date until the user types a day.
         _start.Changed += () =>
@@ -159,10 +164,10 @@ public sealed class RecurringInvoiceFormPage : AppPage
             (Ui.Star(), F("end_date", "Ending", _end).Also(f => f.Hint = "Optional."))));
         schedule.Children.Add(_active);
 
-        _lines = new LineBuilder("No line items yet. Click Add Line to get started.");
+        _lines = new LineBuilder("No line items yet. Click Add Line to get started.", LineDates.Period);
         _lines.Changed += () => _summaryTotal.Text = Ui.MoneyGrouped(_lines.Total);
         if (existing is not null)
-            _lines.SetRows(existing.Lines.Select(l => new InvoiceRowInput(l.Description, InvoiceDetailPage.QtyText(l.Quantity), PyMath.JsToFixedText(l.UnitPrice, 2))));
+            _lines.SetRows(existing.Lines.Select(l => new InvoiceRowInput(l.Description, InvoiceDetailPage.QtyText(l.Quantity), PyMath.JsToFixedText(l.UnitPrice, 2), BillPeriod: l.BillPeriod)));
         var headerTools = Ui.Row(8);
         var items = Store.Items.Active();
         if (items.Count > 0)
@@ -180,7 +185,7 @@ public sealed class RecurringInvoiceFormPage : AppPage
         }
         headerTools.Children.Add(Ui.Button("Add Line", "Btn.OutlinePrimary", "plus-lg", () => _lines.AddRow("", "1", "", focus: true), small: true).Margin(8, 0, 0, 0));
         var linesBody = Ui.Stack(0, _lines,
-            new Border { Padding = new Thickness(16, 10, 16, 12), Child = Ui.Muted("Tip: type {month} and {year} to show the billing period, e.g. \"Lawn care - {month} {year}\" prints as \"Lawn care - November 2026\". Works in Notes too.", 12.8)
+            new Border { Padding = new Thickness(16, 10, 16, 12), Child = Ui.Muted("Tip: type {month} and {year} to show the billing period, e.g. \"Lawn care - {month} {year}\" prints as \"Lawn care - November 2026\" (works in Notes too). The calendar button on a line prints the period as service dates.", 12.8)
                 .Also(t => t.TextWrapping = TextWrapping.Wrap) });
 
         var terms = Ui.Stack(0,
