@@ -9,8 +9,9 @@
   first date is two months back, confirms the three missed invoices, opens the next one from
   the customer page and issues it early. Then it closes the app and checks the database with
   Python's sqlite3: one paid invoice of $100.00, the work line billed onto it, one payment,
-  four recurring invoices with their period text and run rows. Exits 1 on the first step
-  that does not happen.
+  four recurring invoices with their period text and run rows. 2.5: edits the recurring
+  invoice (crashed in 2.4) to bill the period, gives an invoice line service dates, opens the
+  PDF preview, and switches work orders off. Exits 1 on the first step that does not happen.
 #>
 param(
   [Parameter(Mandatory)] [string] $Exe,
@@ -72,6 +73,11 @@ function Invoke-Link([string] $name) {
   $e = Wait-For $name -type ([System.Windows.Automation.ControlType]::Hyperlink)
   $e.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   Start-Sleep -Milliseconds 400
+}
+function Toggle([string] $name) {
+  $e = Wait-For $name -type ([System.Windows.Automation.ControlType]::CheckBox)
+  $e.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
+  Start-Sleep -Milliseconds 300
 }
 function Step([string] $what, [scriptblock] $do) {
   Write-Host -NoNewline "  $what ... "
@@ -161,6 +167,41 @@ try {
     Click "Issue Invoice"
     Wait-Like "Invoice INV1005 created from the recurring invoice, dated*" | Out-Null
   }
+  Step "give an invoice line service dates" {
+    Click "Edit"
+    Wait-For "Save Invoice" -type ([System.Windows.Automation.ControlType]::Button) | Out-Null
+    Start-Sleep -Milliseconds 500
+    Click "Service dates"
+    Type-Into "Service from" "2026-09-01"
+    Type-Into "Service to" "2026-09-30"
+    Click "Save Invoice"
+    Wait-For "Invoice INV1005 updated." | Out-Null
+    Wait-For "Service: 09/01/26 - 09/30/26" | Out-Null
+  }
+  Step "preview the PDF without saving it" {
+    Click "Preview"
+    Wait-For "Save PDF" -type ([System.Windows.Automation.ControlType]::Button) | Out-Null
+    Click "Close"
+  }
+  Step "edit the recurring invoice to bill the period" {
+    Invoke-Link "Smoke Test Co"
+    Click "Edit schedule"
+    Wait-For "Save Recurring Invoice" -type ([System.Windows.Automation.ControlType]::Button) | Out-Null
+    Start-Sleep -Milliseconds 500
+    Click "Bill the period"
+    Toggle "Show the period as service dates"
+    Click "Save Recurring Invoice"
+    Wait-For "Recurring invoice for Smoke Test Co updated." | Out-Null
+  }
+  Step "switch work orders off" {
+    Click "Settings"
+    Click "Features settings"
+    Toggle "Work orders"
+    Click "Save Changes"
+    Wait-For "Settings saved." | Out-Null
+    Start-Sleep -Milliseconds 500
+    if ((Find-All "Work Orders" ([System.Windows.Automation.ControlType]::Button)).Count -ne 0) { throw "Work Orders is still in the sidebar." }
+  }
 }
 catch {
   $shot = Join-Path $DataDir 'failure.png'
@@ -184,7 +225,13 @@ pays = c.execute("select amount, method from payments").fetchall()
 total = c.execute("select sum(amount) from invoice_lines").fetchone()[0]
 runs = c.execute("select count(*), count(invoice_id) from recurring_invoice_runs").fetchone()
 monthly = c.execute("select description from invoice_lines where description like 'Monthly support - %' order by id").fetchall()
+service = c.execute("select service_start, service_end from invoice_line_service").fetchall()
+period = c.execute("select bill_period from recurring_invoice_lines").fetchall()
+wo = c.execute("select value from settings where key = 'workorders_enabled'").fetchone()
 problems = []
+if service != [("2026-09-01", "2026-09-30")]: problems.append(f"service dates {service}")
+if period != [(1,)]: problems.append(f"bill period {period}")
+if wo != ("false",): problems.append(f"work orders setting {wo}")
 if inv != [("INV1001", 1), ("INV1002", 0), ("INV1003", 0), ("INV1004", 0), ("INV1005", 0)]: problems.append(f"invoices {inv}")
 if runs != (4, 4): problems.append(f"recurring runs {runs}")
 if len(monthly) != 4 or any("{" in d for (d,) in monthly): problems.append(f"recurring lines {monthly}")

@@ -35,6 +35,9 @@ public sealed class WorkOrderService
         _today = today;
     }
 
+    /// <summary>2.5. Settings > Features. Off hides work orders in the app; nothing is deleted.</summary>
+    public bool Enabled => _settings.GetBool(SettingKeys.WorkOrdersEnabled);
+
     /// <summary>
     /// The Work Orders page: one entry per customer, sorted by customer name. Unless
     /// <paramref name="includeIdle"/>, only tabs with pending or completed work. Search

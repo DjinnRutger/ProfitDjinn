@@ -69,6 +69,7 @@ public sealed class SettingsPage : AppPage
         var sections = new List<Section>
         {
             new("business", "Business", "building", "Your business details, printed at the top of every invoice.", Business),
+            new("features", "Features", "toggles", "Turn parts of ProfitDjinn on or off. Turning one off hides it; nothing is deleted.", Features),
             new("invoices", "Invoices", "receipt", "Invoice numbers and the payment terms printed on each invoice.", Invoices),
             new("workorders", "Work Orders", "clipboard-check", "Work order numbers and your default labor rate.", WorkOrders),
             new("expenses", "Expenses", "wallet2", "Vendors, bills, recurring costs and the Profit & Loss report.", Expenses),
@@ -261,16 +262,27 @@ public sealed class SettingsPage : AppPage
 
     // ------------------------------------------------------------------ sections
 
+    // 2.5: the examples are hints (grey placeholder text), not values to delete. A blank field
+    // is simply left off the invoice.
     private FrameworkElement Business() => Ui.Stack(0,
-        Text(SettingKeys.CompanyName, "Business name", "Your name, or your business's name, as customers should see it."),
-        Text(SettingKeys.CompanyAddress, "Street address"),
+        Text(SettingKeys.CompanyName, "Business name", "Your name, or your business's name, as customers should see it.", placeholder: "e.g. Summit Handyman Co."),
+        Text(SettingKeys.CompanyAddress, "Street address", placeholder: "e.g. 123 Main Street"),
         Ui.Columns(16,
-            (Ui.Star(2), Text(SettingKeys.CompanyCity, "City")),
-            (Ui.Star(), Text(SettingKeys.CompanyState, "State").Also(f => ((TextBox)f.Content).CharacterCasing = CharacterCasing.Upper)),
-            (Ui.Star(), Text(SettingKeys.CompanyZip, "ZIP"))),
+            (Ui.Star(2), Text(SettingKeys.CompanyCity, "City", placeholder: "e.g. Springfield")),
+            (Ui.Star(), Text(SettingKeys.CompanyState, "State", placeholder: "e.g. MT").Also(f => ((TextBox)f.Content).CharacterCasing = CharacterCasing.Upper)),
+            (Ui.Star(), Text(SettingKeys.CompanyZip, "ZIP", placeholder: "e.g. 59715"))),
         Ui.Columns(16,
-            (Ui.Star(), Text(SettingKeys.CompanyEmail, "Email")),
-            (Ui.Star(), Text(SettingKeys.CompanyPhone, "Phone"))));
+            (Ui.Star(), Text(SettingKeys.CompanyEmail, "Email", placeholder: "e.g. you@example.com")),
+            (Ui.Star(), Text(SettingKeys.CompanyPhone, "Phone", placeholder: "e.g. (555) 555-0100"))));
+
+    /// <summary>2.5. One switch per optional feature. The smoke tests find them by their titles.</summary>
+    private FrameworkElement Features() => Ui.Stack(0,
+        SwitchRow(SettingKeys.WorkOrdersEnabled, "Work orders",
+            "A running tab per customer: log work as you do it, then bill it onto an invoice. Off hides Work Orders, the customer page's Work Order button and the Unbilled Work tile.",
+            Switch(SettingKeys.WorkOrdersEnabled, Store.Settings.GetBool(SettingKeys.WorkOrdersEnabled))),
+        SwitchRow(SettingKeys.ExpensesEnabled, "Track expenses",
+            "Adds Vendors, Expenses and Profit & Loss to the sidebar.",
+            Switch(SettingKeys.ExpensesEnabled, Store.Expenses.Enabled)));
 
     private FrameworkElement Invoices() => Ui.Stack(0,
         Group("Numbering"),
@@ -291,8 +303,6 @@ public sealed class SettingsPage : AppPage
 
     private FrameworkElement Expenses()
     {
-        var sw = Switch(SettingKeys.ExpensesEnabled, Store.Expenses.Enabled);   // the smoke test finds it as "Track expenses"
-
         _shown.Add(SettingKeys.ReceiptsFolder);
         string setting = Store.Settings.Get(SettingKeys.ReceiptsFolder).Trim();
         var shown = Ui.TextBox(Store.Receipts.Effective(setting)).Also(t => { t.IsReadOnly = true; t.SetResourceReference(TextBox.FontFamilyProperty, "MonoFont"); t.FontSize = 13; });
@@ -313,8 +323,7 @@ public sealed class SettingsPage : AppPage
         _readers[SettingKeys.ReceiptsFolder] = () => setting;
 
         var body = Ui.Stack(0,
-            SwitchRow(SettingKeys.ExpensesEnabled, "Track expenses",
-                "Adds Vendors, Expenses and Profit & Loss to the sidebar. Turning it off hides them again; nothing is deleted.", sw),
+            Store.Expenses.Enabled ? new Border() : Ui.Muted("Expenses is off. Turn it on under Features.", 13.6).Also(t => t.Margin = new Thickness(0, 0, 0, 12)),
             Group("Receipts"),
             Ui.Field("Receipts folder", Ui.Stack(8, shown, Ui.Row(8, browse, reset)),
                 hint: "Where attached receipts are kept. Choose a OneDrive or network folder to have them backed up there; they are not inside a database backup."));
@@ -643,8 +652,6 @@ public sealed class SettingsPage : AppPage
         if (v.TryGetValue(SettingKeys.DefaultHourlyRate, out var rate) &&
             !(decimal.TryParse(rate.TrimStart('$'), NumberStyles.Number, CultureInfo.InvariantCulture, out var r) && r >= 0 && decimal.Round(r, 2) == r))
             bad[SettingKeys.DefaultHourlyRate] = "Enter an amount such as 75.00, or 0.00.";
-        if (v.TryGetValue(SettingKeys.CompanyName, out var name) && name.Length == 0)
-            bad[SettingKeys.CompanyName] = "Enter the name to print on your invoices.";
         return bad;
     }
 

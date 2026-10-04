@@ -34,7 +34,7 @@ setting values forward. Keep it: existing databases depend on it.
     `Table` (Bootstrap table look), `LineBuilder`, `SuggestBox`, `BarChart`, `DoughnutChart`.
   - `Themes/`: `Theme.Light/Dark/Terminal.xaml` (same keys each) and `Controls.xaml`.
     `ThemeManager` swaps them and derives the brand brushes from `primary_color`.
-- `tests/ProfitDjinn.Tests`: xUnit, 112 tests including the parity tests.
+- `tests/ProfitDjinn.Tests`: xUnit, 118 tests including the parity tests.
 - `docs/port-spec.md` (behaviour) and `docs/design-spec.md` (look). "Fixed in 2.0" in the
   port spec lists every 1.x bug deliberately not copied. Read them before changing a screen.
 
@@ -58,8 +58,8 @@ settings rows). `--page <name>` or `--page name:id` opens a screen at start.
 
 Tools (`tools/Smoke/`), all on throwaway data folders:
 - `Smoke-Flow.ps1 -Exe <exe>`: UI Automation run through create customer, log work, bill,
-  record payment, a recurring invoice that back-fills three and one issued early, then checks
-  the database. Inputs are found by their field label
+  record payment, a recurring invoice that back-fills three and one issued early, editing it,
+  service dates, the PDF preview and switching work orders off, then checks the database. Inputs are found by their field label
   (`Field` sets the accessible name) or placeholder.
 - `Capture.ps1` / `Shoot-Themes.ps1`: screenshots of a page in each theme on fixture copies.
 
@@ -178,6 +178,24 @@ No on/off switch: nothing shows until a schedule exists, except the dashboard's 
 - Customer delete removes its schedules (`RecurringInvoiceService.DeleteSchedules`).
 - `Ui.IconButton` sets the accessible name to its tooltip and `Link` is a UI Automation
   hyperlink: `Smoke-Flow.ps1` clicks both ("Smoke Test Co", "View the next invoice").
+
+## 2.5: features, service dates, PDF preview
+
+- **Settings > Features** holds the on/off switches (`workorders_enabled`, `expenses_enabled`).
+  Work order routes go through `Routes.Wo(...)` like expense routes go through `Exp(...)`;
+  anything new that shows work orders must check `Store.WorkOrders.Enabled`.
+- **Business settings default to empty** and show hints; `Seed.ClearOldSamples` clears the old
+  sample values at start. Never seed sample text into a real setting again: use a placeholder.
+- **Service dates** live in `invoice_line_service`, never on `invoice_lines` (a 1.x table;
+  `ParityTests` checks its columns). Every path that deletes invoice lines must use
+  `InvoiceService.DeleteLines`. `InvoiceLineDraft`/`InvoiceRowInput` carry the dates;
+  `LineBuilder(..., LineDates.Dates | Period)` edits them.
+- **PDF preview:** `PdfPreviewWindow.Show(owner, bytes, title, save, print)`. `InvoiceOutput`
+  has byte-level `SavePdf`/`Print` for any PDF.
+- **Layout helpers:** `Ui.Row` spaces children added later too (`GapRow`); `Ui.Empty` returns
+  a padded Border (do not cast it to StackPanel); `Grid.EqualHeight()` makes side-by-side cards
+  match. Don't write `existing?.X ?? draft!.X` in a form: it reaches the null draft whenever a
+  saved value is null (that crashed Edit Recurring Invoice in 2.4.0).
 
 ## 1.x reference (Flask, in legacy/)
 

@@ -38,6 +38,7 @@ public sealed class UpcomingInvoicePage : AppPage
         lead.Children.Add(Ui.Text($"  ·  {Ui.LongDate(inv.Date)}  ·  {_t.ScheduleLabel}", "Lead"));
         var actions = new UIElement[]
         {
+            Ui.Button("Preview", "Btn.OutlineSecondary", "eye", Preview),
             Ui.Button("Print", "Btn.OutlineSecondary", "printer", () => IssueThen(i => InvoiceOutput.Print(i, Store.Settings.Company))),
             Ui.Button("PDF", "Btn.OutlineSecondary", "file-earmark-pdf", () => IssueThen(i => InvoiceOutput.SavePdf(i, Store.Settings.Company, Shell))),
             Ui.Button("Issue Now", "Btn.Success", "send", () => IssueThen(null)),
@@ -64,7 +65,7 @@ public sealed class UpcomingInvoicePage : AppPage
         // ---- line items
         var lineCols = new List<Column<InvoiceLine>>
         {
-            new("Description", Ui.Star(), l => Ui.Text(l.Description, "Body", wrap: true)),
+            new("Description", Ui.Star(), InvoiceDetailPage.DescriptionCell),
             new("Qty", Ui.Auto, l => Ui.Muted(InvoiceDetailPage.QtyText(l.Quantity)), HorizontalAlignment.Center),
             new("Unit Price", Ui.Auto, l => Ui.Muted(Ui.Money(l.UnitPrice)), HorizontalAlignment.Right),
             new("Amount", Ui.Auto, l => Ui.Text(Ui.Money(l.Amount), "Body"), HorizontalAlignment.Right),
@@ -137,6 +138,15 @@ public sealed class UpcomingInvoicePage : AppPage
         page.Children.Add(Ui.Columns(24, (Ui.Star(2), mainCol), (Ui.Star(1), side)));
         Content = page;
     }
+
+    /// <summary>
+    /// The preview is of the invoice as it will be (with the next free number). Saving or printing
+    /// from the preview issues it first, like the page's own buttons, then closes the preview.
+    /// </summary>
+    private void Preview() => Try(() =>
+        PdfPreviewWindow.Show(Shell, Core.Pdf.InvoicePdf.Render(_preview, Store.Settings.Company()), $"Upcoming invoice {Ui.Date(_date)}",
+            save: (_, w) => { w.Close(); IssueThen(i => InvoiceOutput.SavePdf(i, Store.Settings.Company, Shell)); },
+            print: (_, w) => { w.Close(); IssueThen(i => InvoiceOutput.Print(i, Store.Settings.Company)); }));
 
     /// <summary>Creates the invoice, opens it, then prints or saves it if asked.</summary>
     private async void IssueThen(Action<Invoice>? output)

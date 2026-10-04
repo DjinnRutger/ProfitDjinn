@@ -53,16 +53,18 @@ public sealed class InvoiceFormPage : AppPage
         if (existing?.Customer is { } current && choices.All(c => c.Id != current.Id))
             choices.Add(new CustomerChoice(current.Id, current.Name + " (inactive)"));
         _customer = new ComboBox { ItemsSource = choices, MaxDropDownHeight = 400 };
-        long? selected = existing?.CustomerId ?? draft!.CustomerId;
+        // existing?.X ?? draft!.X would reach the null draft when a saved value is null (old rows
+        // can hold NULL notes and terms), so pick the source first.
+        long? selected = existing is not null ? existing.CustomerId : draft!.CustomerId;
         _customer.SelectedItem = choices.FirstOrDefault(c => c.Id == selected);
         Input.SetPlaceholder(_customer, "— Select customer —");
 
-        _invoiceNumber = Ui.TextBox(existing?.InvoiceNumber ?? draft!.InvoiceNumber).Also(t => { t.CharacterCasing = CharacterCasing.Upper; t.SetResourceReference(TextBox.FontFamilyProperty, "MonoFont"); });
-        _date = Ui.DateBox(existing?.Date ?? draft!.Date);
+        _invoiceNumber = Ui.TextBox(existing is not null ? existing.InvoiceNumber : draft!.InvoiceNumber).Also(t => { t.CharacterCasing = CharacterCasing.Upper; t.SetResourceReference(TextBox.FontFamilyProperty, "MonoFont"); });
+        _date = Ui.DateBox(existing is not null ? existing.Date : draft!.Date);
         _paid = new CheckBox { Content = Ui.Bold("Mark as Paid", 14), IsChecked = existing?.Paid ?? false, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 24) };
-        _notes = Ui.TextArea(existing?.Notes ?? draft!.Notes, 56);
-        _term1 = Ui.TextBox(existing?.Term1 ?? draft!.Term1).Also(t => t.Style = Ui.Style("Input.Small"));
-        _term2 = Ui.TextBox(existing?.Term2 ?? draft!.Term2).Also(t => t.Style = Ui.Style("Input.Small"));
+        _notes = Ui.TextArea((existing is not null ? existing.Notes ?? "" : draft!.Notes), 56);
+        _term1 = Ui.TextBox((existing is not null ? existing.Term1 ?? "" : draft!.Term1)).Also(t => t.Style = Ui.Style("Input.Small"));
+        _term2 = Ui.TextBox((existing is not null ? existing.Term2 ?? "" : draft!.Term2)).Also(t => t.Style = Ui.Style("Input.Small"));
 
         _customerField = Ui.Field("Customer", _customer, required: true);
         _numberField = Ui.Field("Invoice #", _invoiceNumber, required: true);
@@ -72,10 +74,10 @@ public sealed class InvoiceFormPage : AppPage
             Ui.Columns(16, (Ui.Star(1), _dateField), (Ui.Star(1), _paid), (Ui.Star(1), new Border())));
 
         // line items
-        _lines = new LineBuilder("No line items yet. Click Add Line to get started.");
+        _lines = new LineBuilder("No line items yet. Click Add Line to get started.", LineDates.Dates);
         _lines.Changed += () => _summaryTotal.Text = Ui.MoneyGrouped(_lines.Total);
         if (existing is not null)
-            _lines.SetRows(existing.Lines.Select(l => new InvoiceRowInput(l.Description, InvoiceDetailPage.QtyText(l.Quantity), PyMath.JsToFixedText(l.UnitPrice, 2))));
+            _lines.SetRows(existing.Lines.Select(l => new InvoiceRowInput(l.Description, InvoiceDetailPage.QtyText(l.Quantity), PyMath.JsToFixedText(l.UnitPrice, 2), l.ServiceStart, l.ServiceEnd)));
 
         var headerTools = Ui.Row(8);
         var items = Store.Items.Active();

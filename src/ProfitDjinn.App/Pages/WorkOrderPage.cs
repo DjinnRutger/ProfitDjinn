@@ -80,9 +80,10 @@ public sealed class WorkOrderPage : AppPage
         foreach (var g in groups) main.Children.Add(GroupCard(g).Margin(0, 0, 0, 24));
         if (groups.Count == 0)
         {
-            var empty = (StackPanel)Ui.Empty("clipboard-check", "Nothing on this tab yet.");
+            var emptyBox = (Border)Ui.Empty("clipboard-check", "Nothing on this tab yet.");
+            var empty = (StackPanel)emptyBox.Child;
             empty.Children.Add(Ui.Muted("Add a to-do above, or click Log Work… to record work you've already done.", 14).Also(t => { t.HorizontalAlignment = HorizontalAlignment.Center; t.Margin = new Thickness(0, 4, 0, 0); }));
-            main.Children.Add(Ui.Card(empty).Margin(0, 0, 0, 24));
+            main.Children.Add(Ui.Card(emptyBox).Margin(0, 0, 0, 24));
         }
 
         var billed = wo.GroupedBilled(Store.WorkOrders.BilledInvoices(wo));

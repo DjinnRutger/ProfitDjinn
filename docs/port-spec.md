@@ -467,7 +467,7 @@ new tables follow the 1.x conventions (no AUTOINCREMENT, money FLOAT, DATE text,
 - Pausing creates nothing; turning back on skips the paused dates. Editing changes future
   invoices only. Deleting a schedule keeps its invoices; deleting the customer deletes its
   schedules (with its invoices, as before).
-- **Dashboard:** the first tile is "Upcoming (30 days)": the number of invoices the active
+- **Dashboard:** the first tile is "Next 30 Days" (2.4.0 said "Upcoming (30 days)"): the number of invoices the active
   schedules will create from now through 30 days ahead (a date already due but not yet
   created counts), badge = their total; muted at 0; opens Invoices.
 - **Invoices page:** once any schedule exists, an **Upcoming** card (each active schedule's
@@ -476,3 +476,40 @@ new tables follow the 1.x conventions (no AUTOINCREMENT, money FLOAT, DATE text,
 - Accessibility: icon-only buttons take their tooltip as the accessible name, and text links
   are UI Automation hyperlinks that can be invoked (the smoke test relies on both).
 - Stripe readiness: see `docs/stripe-readiness.md`.
+
+## New in 2.5
+
+- **Business settings start empty.** 1.x and 2.0-2.4 seeded sample text ("Your Name",
+  "123 Main Street", "Anytown", "ST", "00000", "you@example.com", "(555) 555-0100", and
+  "Make all checks payable to Your Name" as terms line 2) that a new user had to delete. The
+  defaults are now empty and Settings > Business shows examples as placeholder hints. At every
+  start a setting still holding exactly its old sample is cleared (`Seed.ClearOldSamples`);
+  anything else is left alone. The business name is no longer required to save Settings; the
+  top bar falls back to the app name. Terms line 1 keeps its useful default.
+- **Settings > Features:** "Work orders" (`workorders_enabled`, default on) and "Track
+  expenses" (moved here from the Expenses section). Work orders off hides the sidebar item,
+  the customer page's Work Order button and card, and the dashboard's Unbilled Work tile;
+  work order routes open the Dashboard. Data is kept. The dashboard shows up to five tiles in
+  one row and six as two rows of three.
+- **Service dates per invoice line** (optional From/To, behind the calendar button on each
+  line in the invoice form and the bill screen). Stored in `invoice_line_service`
+  (line_id, invoice_id, description, service_start, service_end), not on 1.x's invoice_lines;
+  a row only applies while its line still has that id, invoice and description, and orphans
+  are removed at start, so a line 1.x deletes or edits loses its dates instead of passing them
+  to another line. Shown under the description: "Service: 09/01/26 - 09/30/26" (one date:
+  "Service: 09/15/26"), on screen and on the PDF (8.5 pt grey line). An end before the start
+  is refused ("Line N: ...").
+- **Recurring lines can bill the period** (`recurring_invoice_lines.bill_period`): each
+  invoice gets the period it covers as that line's service dates, from its date to the day
+  before the schedule's next date (monthly on the 1st: Nov 1 - Nov 30; yearly: 12 months).
+- **PDF preview:** Preview on the invoice, upcoming-invoice and Profit & Loss pages opens the
+  PDF in a ProfitDjinn window (PDFium at 150 dpi, zoom, Ctrl+wheel, Fit Width) with Save PDF
+  and Print; nothing is written to disk unless saved. On an upcoming invoice, Save and Print
+  from the preview issue it first, like the page's own buttons.
+- **Fixed:** Edit on a recurring invoice with no end date crashed (2.4.0); the invoice form had
+  the same fallback pattern for empty notes and terms. Empty states lost their top spacing
+  under a table header. Status pills made detail-page headers taller than the rest. P&L's
+  explanation ran under its export buttons. Revenue wrapped a fifth tile onto its own row.
+  Charts side by side are now the same height. Rows built up one button at a time had no gaps.
+  The collapsed sidebar's icons were off centre.
+

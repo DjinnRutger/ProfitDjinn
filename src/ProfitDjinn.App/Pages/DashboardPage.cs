@@ -25,7 +25,7 @@ public sealed class DashboardPage : AppPage
         var tiles = new UniformGrid { Columns = 5, Margin = new Thickness(-8, 0, -8, 24) };
         // 2.4: recurring invoices due in the next 30 days (replaced the Customers count).
         var (dueCount, dueTotal) = Store.RecurringInvoices.DueWithin(30);
-        var upcoming = Tile(dueCount.ToString(), "Upcoming (30 Days)", "calendar-event", "primary",
+        var upcoming = Tile(dueCount.ToString(), "Next 30 Days", "calendar-event", "primary",
             dueCount > 0 ? Ui.Badge(Ui.Money(dueTotal), "secondary") : null, Routes.Invoices(shell));
         upcoming.Muted = dueCount == 0;
         tiles.Children.Add(upcoming);
@@ -42,7 +42,7 @@ public sealed class DashboardPage : AppPage
             stats.OpenTodos > 0 ? Ui.Badge($"{stats.OpenTodos} to-do", "secondary") : null, Routes.WorkOrders(shell));
         unbilled.Muted = stats.UnbilledWork <= 0;
         if (stats.UnbilledWork > 0) unbilled.Accent = "danger";
-        tiles.Children.Add(unbilled);
+        if (Store.WorkOrders.Enabled) tiles.Children.Add(unbilled);
 
         var revenue = Tile(Ui.Money(stats.YearRevenue), $"{stats.Year} Revenue", "graph-up-arrow", "success", null, Routes.Revenue(shell));
         revenue.Accent = "bottom";
@@ -56,8 +56,11 @@ public sealed class DashboardPage : AppPage
                 Routes.Profit(shell, stats.Year));
             profit.Accent = "bottom";
             tiles.Children.Add(profit);
-            // Six tiles do not fit one row without breaking the labels: two rows of three.
-            tiles.Columns = 3;
+        }
+        // Up to five tiles fit one row; six do not without breaking the labels: two rows of three.
+        tiles.Columns = tiles.Children.Count <= 5 ? tiles.Children.Count : 3;
+        if (tiles.Children.Count > 5)
+        {
             foreach (var t in tiles.Children.OfType<StatTile>()) t.Margin = new Thickness(8, 0, 8, 16);
             tiles.Margin = new Thickness(-8, 0, -8, 8);
         }

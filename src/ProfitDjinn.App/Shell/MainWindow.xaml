@@ -33,6 +33,13 @@
               </StackPanel>
             </Grid>
             <ControlTemplate.Triggers>
+              <!-- Collapsed sidebar: no label, so centre the icon (the label's margin and the
+                   20px left inset used to push it off centre). -->
+              <Trigger Property="Content" Value="{x:Null}">
+                <Setter TargetName="Row" Property="Margin" Value="0" />
+                <Setter TargetName="Row" Property="HorizontalAlignment" Value="Center" />
+                <Setter TargetName="Label" Property="Visibility" Value="Collapsed" />
+              </Trigger>
               <Trigger Property="IsMouseOver" Value="True">
                 <Setter TargetName="Root" Property="Background" Value="{DynamicResource SidebarHoverBg}" />
                 <Setter Property="Foreground" Value="{DynamicResource SidebarTextHover}" />

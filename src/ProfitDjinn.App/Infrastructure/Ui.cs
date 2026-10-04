@@ -74,13 +74,31 @@ public static class Ui
 
     public static StackPanel Row(double gap, params UIElement[] children)
     {
-        var p = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        var p = new GapRow(gap) { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         for (int i = 0; i < children.Length; i++)
         {
             if (children[i] is FrameworkElement fe && i > 0) fe.Margin = new Thickness(gap, fe.Margin.Top, fe.Margin.Right, fe.Margin.Bottom);
             p.Children.Add(children[i]);
         }
         return p;
+    }
+
+    /// <summary>
+    /// 2.5. A row that also spaces children added after it was built (buttons added one by one,
+    /// a table's action icons). Before, only the children passed to <see cref="Row"/> got the gap,
+    /// so rows built up later had their buttons touching. A child with its own left margin keeps it.
+    /// </summary>
+    private sealed class GapRow : StackPanel
+    {
+        private readonly double _gap;
+        public GapRow(double gap) => _gap = gap;
+
+        protected override void OnVisualChildrenChanged(DependencyObject added, DependencyObject removed)
+        {
+            base.OnVisualChildrenChanged(added, removed);
+            if (added is FrameworkElement fe && Children.IndexOf(fe) > 0 && fe.Margin.Left == 0)
+                fe.Margin = new Thickness(_gap, fe.Margin.Top, fe.Margin.Right, fe.Margin.Bottom);
+        }
     }
 
     public static StackPanel Stack(double gap, params UIElement[] children)
@@ -128,7 +146,9 @@ public static class Ui
         if (glyph is not null)
             titleRow.Children.Add(new Icon { Glyph = glyph, Size = 21.6, Margin = new Thickness(0, 0, 8, 0) }.WithResource(Icon.ForegroundProperty, "BsPrimary"));
         titleRow.Children.Add(new TextBlock { Text = ThemeManager.Heading(title), Style = Style("H1"), VerticalAlignment = VerticalAlignment.Center });
-        if (pill is FrameworkElement p) { p.Margin = new Thickness(12, 0, 0, 0); titleRow.Children.Add(p); }
+        // Negative top/bottom margins: the big pill is taller than the title, and without them pages
+        // with a status pill started their content lower than every other page.
+        if (pill is FrameworkElement p) { p.Margin = new Thickness(12, -6, 0, -6); p.VerticalAlignment = VerticalAlignment.Center; titleRow.Children.Add(p); }
 
         var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         left.Children.Add(titleRow);
@@ -208,14 +228,25 @@ public static class Ui
 
     public static FrameworkElement Empty(string glyph, string text, string? linkText = null, Action? link = null)
     {
-        var p = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(16, 48, 16, 48) };
+        // Padding on a wrapper, not Margin: Ui.Stack overwrites each child's top margin.
+        var p = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
         p.Children.Add(new Icon { Glyph = glyph, Size = 40, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 12) }
             .WithResource(Icon.ForegroundProperty, "TextMuted"));
         var line = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center };
         line.Children.Add(Muted(text, 15));
         if (linkText is not null && link is not null) line.Children.Add(Link(" " + linkText, link, bold: false).Also(l => l.FontSize = 15));
         p.Children.Add(line);
-        return p;
+        return new Border { Padding = new Thickness(16, 40, 16, 40), Child = p };
+    }
+
+    /// <summary>
+    /// Cards side by side in <see cref="Columns"/> stretched to the same height, so a row of
+    /// charts or tables ends on one line instead of leaving a gap under the shorter card.
+    /// </summary>
+    public static Grid EqualHeight(this Grid row)
+    {
+        foreach (var child in row.Children.OfType<FrameworkElement>()) child.VerticalAlignment = VerticalAlignment.Stretch;
+        return row;
     }
 
     // ------------------------------------------------------------------ inputs

@@ -60,11 +60,13 @@ public sealed class ProfitLossPage : AppPage
         var exports = Ui.Row(8,
             Ui.Button("P&L CSV", "Btn.OutlineSecondary", "file-earmark-spreadsheet", ExportSummary, small: true),
             Ui.Button("Expenses CSV", "Btn.OutlineSecondary", "file-earmark-spreadsheet", ExportExpenses, small: true),
+            Ui.Button("Preview", "Btn.OutlineSecondary", "eye", PreviewPdf, small: true),
             Ui.Button("PDF", "Btn.OutlinePrimary", "file-earmark-pdf", ExportPdf, small: true));
         DockPanel.SetDock(exports, Dock.Right);
         toolbar.Children.Add(exports);
-        toolbar.Children.Add(Ui.Row(12, Ui.Row(0, cash, accrual), Ui.Muted(explain, 13).Also(t => { t.TextWrapping = TextWrapping.Wrap; t.VerticalAlignment = VerticalAlignment.Center; t.MaxWidth = 560; })));
-        page.Children.Add(Ui.Card(toolbar, bodyPadding: new Thickness(16)).Margin(0, 0, 0, 24));
+        toolbar.Children.Add(Ui.Row(0, cash, accrual));
+        var explainLine = new Border { Padding = new Thickness(0, 10, 0, 0), Child = Ui.Muted(explain, 13).Also(t => t.TextWrapping = TextWrapping.Wrap) };
+        page.Children.Add(Ui.Card(Ui.Stack(0, toolbar, explainLine), bodyPadding: new Thickness(16)).Margin(0, 0, 0, 24));
 
         // ---- tiles
         var tiles = new UniformGrid { Columns = 4, Margin = new Thickness(-8, 0, -8, 24) };
@@ -90,7 +92,7 @@ public sealed class ProfitLossPage : AppPage
         }
         else donutBody = Ui.Empty("pie-chart", "No expenses in this year.");
         var donutCard = Ui.Card(donutBody, "Expenses by Category", "pie-chart-fill");
-        page.Children.Add(Ui.Columns(24, (Ui.Star(7), chartCard), (Ui.Star(5), donutCard)).Margin(0, 0, 0, 24));
+        page.Children.Add(Ui.Columns(24, (Ui.Star(7), chartCard), (Ui.Star(5), donutCard)).EqualHeight().Margin(0, 0, 0, 24));
 
         // ---- tables
         TextBlock R(string t, string style = "Body") => Ui.Text(t, style, 14.4).Also(x => x.HorizontalAlignment = HorizontalAlignment.Right);
@@ -168,23 +170,20 @@ public sealed class ProfitLossPage : AppPage
     private void ExportExpenses() => SaveText($"expenses-{_r.Year}-{BasisWord}.csv", "CSV file (*.csv)|*.csv",
         () => Store.Profit.ExpensesCsv(_r.Year, _r.Basis));
 
-    private void ExportPdf()
+    private byte[] RenderPdf() => ProfitPdf.Render(_r, Store.Settings.Company(), DateOnly.FromDateTime(DateTime.Today));
+
+    private string PdfName => $"profit-loss-{_r.Year}-{BasisWord}.pdf";
+
+    private void ExportPdf() => Try(() =>
     {
-        var dialog = SaveDialog($"profit-loss-{_r.Year}-{BasisWord}.pdf", "PDF document (*.pdf)|*.pdf");
-        if (dialog.ShowDialog(Shell) != true) return;
-        try
-        {
-            File.WriteAllBytes(dialog.FileName, ProfitPdf.Render(_r, Store.Settings.Company(), DateOnly.FromDateTime(DateTime.Today)));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            Shell.ShowError($"The PDF could not be saved to\n{dialog.FileName}\n\n{ex.Message}\n\nIf it is open in a PDF viewer, close it and try again.");
-            return;
-        }
-        try { Process.Start(new ProcessStartInfo(dialog.FileName) { UseShellExecute = true }); }
-        catch (System.ComponentModel.Win32Exception) { /* no PDF viewer: the file is saved */ }
-        Shell.ShowNotice(Notice.Success($"Saved {dialog.FileName}"));
-    }
+        if (InvoiceOutput.SavePdf(RenderPdf(), PdfName, Shell) is { } path) Shell.ShowNotice(Notice.Success($"Saved {path}"));
+    });
+
+    /// <summary>2.5. The P&amp;L PDF in the preview window, nothing written unless saved from there.</summary>
+    private void PreviewPdf() => Try(() =>
+        PdfPreviewWindow.Show(Shell, RenderPdf(), $"Profit & Loss {_r.Year}",
+            save: (pdf, w) => { if (InvoiceOutput.SavePdf(pdf, PdfName, w) is { } path) Shell.ShowNotice(Notice.Success($"Saved {path}")); },
+            print: (pdf, _) => InvoiceOutput.Print(pdf, $"Profit & Loss {_r.Year}")));
 
     /// <summary>Writes CSV as UTF-8 with a byte-order mark, so Excel reads accents and symbols correctly.</summary>
     private void SaveText(string name, string filter, Func<string> make)

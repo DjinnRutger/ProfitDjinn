@@ -21,12 +21,15 @@ public sealed class CustomerDetailPage : AppPage
         var c = _c;
 
         var page = new StackPanel();
-        page.Children.Add(Ui.PageHeader(c.Name, string.IsNullOrEmpty(c.Attn) ? null : $"Attn: {c.Attn}", null,
-            Ui.Button("Work Order", "Btn.OutlinePrimary", "clipboard-check", () => Shell.Navigate(Routes.WorkOrder(Shell, c.Id))),
+        bool workOrders = Store.WorkOrders.Enabled;
+        page.Children.Add(Ui.PageHeader(c.Name, string.IsNullOrEmpty(c.Attn) ? null : $"Attn: {c.Attn}", null, new UIElement?[]
+        {
+            workOrders ? Ui.Button("Work Order", "Btn.OutlinePrimary", "clipboard-check", () => Shell.Navigate(Routes.WorkOrder(Shell, c.Id))) : null,
             Ui.Button("New Invoice", "Btn.Success", "receipt", () => Shell.Navigate(Routes.NewInvoice(Shell, c.Id))),
             Ui.Button("Recurring Invoice", "Btn.OutlineSuccess", "arrow-repeat", () => Shell.Navigate(Routes.NewRecurringInvoice(Shell, c.Id))),
             Ui.Button("Edit", "Btn.Primary", "pencil", () => Shell.Navigate(Routes.EditCustomer(Shell, c.Id))),
-            Ui.Button("Delete", "Btn.OutlineDanger", "trash", Delete)));
+            Ui.Button("Delete", "Btn.OutlineDanger", "trash", Delete),
+        }.OfType<UIElement>().ToArray()));
 
         // ---- left column
         var left = new StackPanel();
@@ -98,7 +101,7 @@ public sealed class CustomerDetailPage : AppPage
         woBody.Children.Add(Ui.Button("Open Work Order", "Btn.OutlinePrimary", "box-arrow-up-right", () => Shell.Navigate(Routes.WorkOrder(Shell, c.Id)), small: true)
             .Also(b => b.HorizontalAlignment = HorizontalAlignment.Stretch));
         object? woBadge = wo is { ReadyToBillTotal: > 0 } ? Ui.Badge($"{Ui.Money(wo.ReadyToBillTotal)} ready", "warningdark") : null;
-        left.Children.Add(Ui.Card(woBody, "Work Order", "clipboard-check", headerRight: woBadge).Margin(0, 24, 0, 0));
+        if (workOrders) left.Children.Add(Ui.Card(woBody, "Work Order", "clipboard-check", headerRight: woBadge).Margin(0, 24, 0, 0));
 
         var notes = Ui.TextArea(c.Notes, 100, "Add notes about this customer…").Also(t => t.FontSize = 14);
         var notesBody = Ui.Stack(8, notes, Ui.Button("Save Notes", "Btn.Primary", "save", () =>
