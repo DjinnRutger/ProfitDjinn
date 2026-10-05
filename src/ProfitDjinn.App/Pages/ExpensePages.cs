@@ -51,6 +51,13 @@ public sealed class ExpensesPage : AppPage
         tiles.Children.Add(Tile(Ui.Money(sum.OverdueTotal), "Overdue", "exclamation-triangle", "danger",
             sum.OverdueCount > 0 ? Ui.Badge(sum.OverdueCount.ToString(), "danger") : null, muted: sum.OverdueCount == 0, accent: sum.OverdueCount > 0 ? "danger" : "",
             () => Run(ExpenseFilter.Unpaid, "", null)));
+        // 2.6: what the business owes the owner for expenses paid from personal funds.
+        if (sum.OwedToOwnerCount > 0)
+        {
+            tiles.Columns = 4;
+            tiles.Children.Add(Tile(Ui.Money(sum.OwedToOwnerTotal), "Owed to You", "person-check", "info",
+                Ui.Badge(sum.OwedToOwnerCount.ToString(), "info"), muted: false, accent: "info", () => Run(ExpenseFilter.OwnerPaid, "", null)));
+        }
         page.Children.Add(tiles);
 
         // ---- tabs, search, category
@@ -59,6 +66,9 @@ public sealed class ExpensesPage : AppPage
         tabs.Children.Add(Tab("Unpaid / Partial", "exclamation-circle", "Btn.OutlineWarning", ExpenseFilter.Unpaid,
             sum.UnpaidCount > 0 ? Ui.Badge(sum.UnpaidCount.ToString(), "warningdark").Margin(6, 0, 0, 0) : null));
         tabs.Children.Add(Tab("Paid", "check-circle", "Btn.OutlineSuccess", ExpenseFilter.Paid, null));
+        if (sum.OwedToOwnerCount > 0 || _filter == ExpenseFilter.OwnerPaid)
+            tabs.Children.Add(Tab("Owner-paid", "person-check", "Btn.OutlineInfo", ExpenseFilter.OwnerPaid,
+                sum.OwedToOwnerCount > 0 ? Ui.Badge(sum.OwedToOwnerCount.ToString(), "info").Margin(6, 0, 0, 0) : null));
 
         var box = Ui.TextBox(search, "Search vendor, description, ref…", 300).Also(t => { t.Style = Ui.Style("Input.Small"); Input.SetPrefixGlyph(t, "search"); });
         var cat = ExpenseUi.CategoryPicker(Store, categoryId, allowNone: true).Also(c => { c.MinWidth = 180; ((List<Choice>)c.ItemsSource)[0] = new Choice(null, "All categories"); c.Items.Refresh(); c.SelectedIndex = Math.Max(0, c.SelectedIndex); });
@@ -114,6 +124,7 @@ public sealed class ExpensesPage : AppPage
             {
                 "Btn.OutlineWarning" => "Warning",
                 "Btn.OutlineSuccess" => "Success",
+                "Btn.OutlineInfo" => "Info",
                 _ => "Secondary",
             });
             b.Foreground = style == "Btn.OutlineWarning" ? System.Windows.Media.Brushes.Black : System.Windows.Media.Brushes.White;
@@ -132,10 +143,11 @@ public sealed class ExpenseFormPage : AppPage
     private readonly string _desc;
     private readonly Dictionary<string, Field> _fields = new();
     private readonly RecordPicker _vendor;
-    private readonly ComboBox _category, _method;
+    private readonly ComboBox _category, _method, _paidFrom;
     private readonly DateBox _date, _due, _paidOn;
-    private readonly TextBox _description, _reference, _amount, _notes, _check;
-    private readonly CheckBox _paid;
+    private readonly TextBox _description, _reference, _amount, _notes, _check, _miles;
+    private readonly CheckBox _paid, _mileage;
+    private readonly TextBlock _mileageAmount = Ui.Muted("", 13.6);
     private readonly Dictionary<long, long?> _vendorDefaults;
 
     public override string NavKey => "expenses";
@@ -173,6 +185,22 @@ public sealed class ExpenseFormPage : AppPage
         _method = ExpenseUi.MethodPicker(null);
         _paidOn = Ui.DateBox(today);
         _check = Ui.TextBox(null, "e.g. 1042").Also(t => t.MaxLength = 50);
+        _paidFrom = ExpenseUi.PaidFromPicker(Store);
+        // 2.6 mileage: miles times the rate in Settings, paid with no cash.
+        bool isMileage = e.Miles is not null;
+        double rate = e.MileageRate ?? Store.Expenses.MileageRate;
+        _mileage = ExpenseUi.Switch("Mileage (miles driven for the business)", isMileage);
+        _miles = Ui.TextBox(e.Miles is { } mi ? mi.ToString("0.##", CultureInfo.InvariantCulture) : "", "e.g. 42");
+        System.Windows.Automation.AutomationProperties.SetName(_miles, "Miles");
+        void ShowMileageAmount()
+        {
+            bool ok = decimal.TryParse(_miles.Text.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var m) && m > 0;
+            _mileageAmount.Text = ok
+                ? $"{m:0.##} mi × {Ui.Money(rate)} = {Ui.Money(Core.Rules.PyMath.Round((double)m * rate, 2))} (no cash: a deduction, recorded as paid)"
+                : $"At {Ui.Money(rate)} a mile (Settings > Expenses). Recorded as paid with no cash.";
+        }
+        _miles.TextChanged += (_, _) => ShowMileageAmount();
+        ShowMileageAmount();
 
         _vendor.SelectionChanged += () =>
         {
@@ -184,35 +212,61 @@ public sealed class ExpenseFormPage : AppPage
         };
 
         var form = new StackPanel();
+        if (id is null) form.Children.Add(_mileage.Margin(0, 0, 0, 16));
         form.Children.Add(Ui.Columns(16, (Ui.Star(), F("vendor_id", "Vendor", _vendor)), (Ui.Star(), F("category_id", "Category", _category, required: true))));
         form.Children.Add(F("description", "Description", _description, required: true));
+        var amountField = F("amount", "Amount", _amount, required: true);
+        var milesField = F("miles", "Miles", Ui.Stack(6, _miles, _mileageAmount), required: true);
+        var dueField = F("due_date", "Due Date", _due).Also(f => f.Hint = "Optional. When the bill must be paid by.");
+        var amountHolder = new Grid();
+        amountHolder.Children.Add(amountField);
+        amountHolder.Children.Add(milesField);
         form.Children.Add(Ui.Columns(16,
-            (Ui.Star(), F("amount", "Amount", _amount, required: true)),
+            (Ui.Star(), amountHolder),
             (Ui.Star(), F("date", "Date", _date, required: true)),
-            (Ui.Star(), F("due_date", "Due Date", _due).Also(f => f.Hint = "Optional. When the bill must be paid by."))));
+            (Ui.Star(), dueField)));
         form.Children.Add(F("reference", "Reference", _reference));
         form.Children.Add(F("notes", "Notes", _notes));
 
+        UIElement? paidSwitch = null;
+        FrameworkElement? paidRow = null;
         if (id is null)
         {
-            var paidRow = Ui.Columns(16,
+            paidRow = Ui.Columns(16,
+                (Ui.Star(1.4), F("paid_from", "Paid From", _paidFrom)),
                 (Ui.Star(), F("paid_method", "Paid With", _method)),
                 (Ui.Star(), F("paid_date", "Paid On", _paidOn)),
                 (Ui.Star(), F("check_number", "Check Number", _check)));
-            var checkField = _fields["check_number"];
-            void Sync()
-            {
-                paidRow.Visibility = _paid.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-                checkField.Visibility = ExpenseUi.SelectedMethod(_method) == PaymentMethods.Check ? Visibility.Visible : Visibility.Hidden;
-            }
-            _paid.Checked += (_, _) => Sync();
-            _paid.Unchecked += (_, _) => Sync();
-            _method.SelectionChanged += (_, _) => Sync();
-            Sync();
-            form.Children.Add(_paid.Margin(0, 4, 0, 12));
+            paidSwitch = _paid.Margin(0, 4, 0, 12);
+            form.Children.Add(paidSwitch);
             form.Children.Add(paidRow);
         }
-        else if (e.AmountPaid > 0)
+        void Sync()
+        {
+            bool m = _mileage.IsChecked == true;
+            amountField.Visibility = m ? Visibility.Collapsed : Visibility.Visible;
+            milesField.Visibility = m ? Visibility.Visible : Visibility.Collapsed;
+            dueField.Visibility = m ? Visibility.Hidden : Visibility.Visible;
+            if (paidSwitch is not null) paidSwitch.Visibility = m ? Visibility.Collapsed : Visibility.Visible;
+            if (paidRow is not null) paidRow.Visibility = !m && _paid.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            if (_fields.TryGetValue("check_number", out var checkField))
+                checkField.Visibility = ExpenseUi.SelectedMethod(_method) == PaymentMethods.Check ? Visibility.Visible : Visibility.Hidden;
+        }
+        _paid.Checked += (_, _) => Sync();
+        _paid.Unchecked += (_, _) => Sync();
+        _method.SelectionChanged += (_, _) => Sync();
+        _mileage.Checked += (_, _) =>
+        {
+            Sync();
+            // A trip usually belongs under Car & Truck.
+            int car = ((List<Choice>)_category.ItemsSource).FindIndex(c => c.Label == "Car & Truck");
+            if (car >= 0 && _category.SelectedIndex < 0) _category.SelectedIndex = car;
+            if (_description.Text.Trim().Length == 0) _description.Text = "Mileage";
+            _miles.Focus();
+        };
+        _mileage.Unchecked += (_, _) => Sync();
+        Sync();
+        if (id is not null && e.AmountPaid > 0 && e.Miles is null)
             form.Children.Add(Ui.Muted($"Payments so far: {Ui.Money(e.AmountPaid)}. Record or delete payments on the expense page.", 13.6).Also(t => t.TextWrapping = TextWrapping.Wrap));
 
         form.Children.Add(new Border { Style = Ui.Style("Rule"), Margin = new Thickness(0, 24, 0, 24) });
@@ -249,8 +303,16 @@ public sealed class ExpenseFormPage : AppPage
         foreach (var f in _fields.Values) { f.Error = null; if (f.Content is TextBox t) Input.SetInvalid(t, false); }
         _vendor.Invalid = false;
         if (ExpenseUi.VendorProblem(_vendor) is { } vendorProblem) { ShowFieldErrors(new Dictionary<string, string> { ["vendor_id"] = vendorProblem }); Shell.ShowError(vendorProblem); return; }
+        bool mileage = _mileage.IsChecked == true;
+        double? miles = null;
+        if (mileage)
+        {
+            if (!decimal.TryParse(_miles.Text.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var m) || m <= 0)
+            { ShowFieldErrors(new Dictionary<string, string> { ["miles"] = "Enter the miles driven, more than zero." }); Shell.ShowError("Enter the miles driven."); return; }
+            miles = (double)m;
+        }
         double? amount = null;
-        if (_amount.Text.Trim().Length > 0)
+        if (!mileage && _amount.Text.Trim().Length > 0)
         {
             if (!Ui.TryParseCents(_amount.Text, out decimal dec)) { ShowFieldErrors(new Dictionary<string, string> { ["amount"] = Ui.CentsError }); return; }
             amount = (double)dec;
@@ -259,17 +321,18 @@ public sealed class ExpenseFormPage : AppPage
         if (!_date.IsBlank && _date.Date is null) bad["date"] = "Enter a date like 2026-03-15.";
         if (!_due.IsBlank && _due.Date is null) bad["due_date"] = "Enter a date like 2026-03-15.";
         PaidNow? paid = null;
-        if (_id is null && _paid.IsChecked == true)
+        if (_id is null && _paid.IsChecked == true && !mileage)
         {
             string method = ExpenseUi.SelectedMethod(_method);
             if (_paidOn.Date is null) bad["paid_date"] = "Enter the date it was paid.";
             if (method == PaymentMethods.Check && _check.Text.Trim().Length == 0) bad["check_number"] = "Enter the check number.";
-            paid = new PaidNow(method, _paidOn.Date, _check.Text);
+            var source = ExpenseUi.SourceOf(_paidFrom, method);
+            paid = new PaidNow(method, _paidOn.Date, _check.Text, source.PaidFrom, source.AccountId);
         }
         if (bad.Count > 0) { ShowFieldErrors(bad); Shell.ShowError(string.Join(" ", bad.Values.Distinct())); return; }
 
         var draft = new ExpenseDraft(_vendor.SelectedId, ExpenseUi.SelectedId(_category), _date.Date, _due.Date,
-            _description.Text, _reference.Text, amount, _notes.Text, paid);
+            _description.Text, _reference.Text, amount, _notes.Text, paid, miles);
         Try(() =>
         {
             if (_id is { } id) Shell.Navigate(Routes.Expense(Shell, id), Store.Expenses.Update(id, draft));
@@ -330,10 +393,19 @@ public sealed class ExpenseDetailPage : AppPage
         {
             new("Date", Ui.Auto, p => Ui.Text(Ui.Date(p.Date), "Body", 14.4)),
             new("Method", Ui.Auto, p => Ui.Text(p.MethodLabel, "Body", 14.4)),
+            new("Paid From", Ui.Auto, PaidFromCell),
             new("Check #", Ui.Auto, p => Ui.Muted(string.IsNullOrEmpty(p.CheckNumber) ? "—" : p.CheckNumber, 14.4).Also(t => t.SetResourceReference(TextBlock.FontFamilyProperty, "MonoFont"))),
             new("Notes", Ui.Star(), p => Ui.Muted(p.Notes, 14.4).Also(t => t.TextWrapping = TextWrapping.Wrap)),
             new("Amount", Ui.Auto, p => Ui.Text(Ui.Money(p.Amount), "Money", 14.4).WithResource(TextBlock.ForegroundProperty, "SuccessText"), HorizontalAlignment.Right),
-            new("", Ui.Auto, p => Ui.IconButton("trash", "Btn.OutlineDanger", "Delete payment", () => DeletePayment(p)), HorizontalAlignment.Right),
+            new("", Ui.Auto, p =>
+            {
+                var row = Ui.Row(4);
+                if (p.OwedToOwner) row.Children.Add(Ui.IconButton("arrow-return-left", "Btn.OutlineInfo", "Mark paid back", () => MarkPaidBack(p)));
+                else if (p.PaidFrom == PaidFrom.Owner) row.Children.Add(Ui.IconButton("arrow-counterclockwise", "Btn.OutlineSecondary", "Undo paid back",
+                    () => Try(() => Shell.Reload(Store.Expenses.UndoReimbursed(p.Id)))));
+                row.Children.Add(Ui.IconButton("trash", "Btn.OutlineDanger", "Delete payment", () => DeletePayment(p)));
+                return row;
+            }, HorizontalAlignment.Right),
         };
         FrameworkElement payBody;
         if (e.Payments.Count == 0)
@@ -342,10 +414,10 @@ public sealed class ExpenseDetailPage : AppPage
         {
             var payFooter = new List<UIElement?[]>
             {
-                new UIElement?[] { null, null, null, Right("Total Paid").Also(t => t.FontWeight = FontWeights.Bold), Right(Ui.Money(e.AmountPaid)).Also(t => t.FontWeight = FontWeights.Bold).WithResource(TextBlock.ForegroundProperty, "SuccessText"), null },
+                new UIElement?[] { null, null, null, null, Right("Total Paid").Also(t => t.FontWeight = FontWeights.Bold), Right(Ui.Money(e.AmountPaid)).Also(t => t.FontWeight = FontWeights.Bold).WithResource(TextBlock.ForegroundProperty, "SuccessText"), null },
             };
             if (e.BalanceDue > 0)
-                payFooter.Add(new UIElement?[] { null, null, null, Right("Balance Due", "Muted"), Right(Ui.Money(e.BalanceDue), "Strong").WithResource(TextBlock.ForegroundProperty, "DangerText"), null });
+                payFooter.Add(new UIElement?[] { null, null, null, null, Right("Balance Due", "Muted"), Right(Ui.Money(e.BalanceDue), "Strong").WithResource(TextBlock.ForegroundProperty, "DangerText"), null });
             payBody = Table.Build(payCols, e.Payments, footer: payFooter, footerShaded: f => f == 0);
         }
         mainCol.Children.Add(Ui.Card(payBody, "Payment History", "cash-stack", "Success",
@@ -402,6 +474,7 @@ public sealed class ExpenseDetailPage : AppPage
         if (e.DueDate is { } due) Row("Due", Strong(Ui.Date(due), e.IsOverdue(today) ? "DangerText" : null));
         if (!string.IsNullOrEmpty(e.Reference)) Row("Reference", Ui.Text(e.Reference, "Body", 14.4).WithResource(TextBlock.FontFamilyProperty, "MonoFont"));
         Row("Amount", Strong(Ui.Money(e.Amount)));
+        if (e.Miles is { } miles) Row("Mileage", Ui.Text($"{miles:0.##} mi × {Ui.Money(e.MileageRate ?? 0)}", "Body", 14.4));
         if (e.AmountPaid > 0) Row("Paid", Strong(Ui.Money(e.AmountPaid), "SuccessText"));
         if (e.BalanceDue > 0) Row("Balance Due", Strong(Ui.Money(e.BalanceDue), "DangerText"));
         if (e.Payments.Count > 0) Row("Paid Via", Ui.Text(e.PaidVia, "Body", 14.4).Also(t => t.TextWrapping = TextWrapping.Wrap));
@@ -467,6 +540,39 @@ public sealed class ExpenseDetailPage : AppPage
     }
 
     private static string Fmt(int n) => n == 1 ? "file" : "files";
+
+    /// <summary>2.6. Business, the account it came from, personal funds (owed back or paid back), or no cash.</summary>
+    private UIElement PaidFromCell(ExpensePayment p)
+    {
+        if (p.PaidFrom == PaidFrom.Owner)
+            return p.ReimbursedOn is { } back
+                ? Ui.Stack(2, Ui.Text("Personal funds", "Body", 14.4), Ui.Muted($"Paid back {Ui.Date(back)}", 12.8))
+                : Ui.Stack(2, Ui.Text("Personal funds", "Body", 14.4), Ui.Badge("Owed to you", "info"));
+        if (p.PaidFrom == PaidFrom.NoCash) return Ui.Muted("No cash", 14.4);
+        string? account = p.AccountId is { } id ? Store.Banking.Accounts(includeInactive: true).FirstOrDefault(a => a.Id == id)?.Name : null;
+        return Ui.Text(account ?? "Business", "Body", 14.4);
+    }
+
+    private async void MarkPaidBack(ExpensePayment p)
+    {
+        var date = Ui.DateBox(DateOnly.FromDateTime(DateTime.Today));
+        var from = ExpenseUi.DepositPicker(Store);
+        var body = Ui.Stack(0,
+            Ui.Muted($"{Ui.Money(p.Amount)} you paid from your own money for this expense.", 13.6).Also(t => { t.TextWrapping = TextWrapping.Wrap; t.Margin = new Thickness(0, 0, 0, 12); }),
+            Ui.Field("Paid Back On", date, required: true));
+        if (from is not null) body.Children.Add(Ui.Field("From Account", from, hint: "Optional. Records the money leaving that account on the Banking page."));
+        await Shell.OpenDialog("Mark Paid Back", "arrow-return-left", body, "Mark Paid Back", () =>
+        {
+            if (date.Date is null) return false;
+            try
+            {
+                var notice = Store.Expenses.MarkReimbursed(p.Id, date.Date, (from?.SelectedItem as ExpenseUi.SourceChoice)?.AccountId);
+                Shell.Reload(notice);
+                return true;
+            }
+            catch (Core.UserFacingException ex) { Shell.ShowError(ex.Message); return false; }
+        }, primaryGlyph: "check-lg", maxWidth: 440);
+    }
 
     private async void DeletePayment(ExpensePayment p)
     {

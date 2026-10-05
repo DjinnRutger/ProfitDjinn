@@ -218,12 +218,15 @@ public sealed class BankService
         var from = ActiveAccount(db, tx, draft.FromAccountId);
         var to = ActiveAccount(db, tx, draft.ToAccountId);
         string status = draft.Cleared ? TxnStatus.Cleared : TxnStatus.Pending;
-        string desc = string.IsNullOrWhiteSpace(draft.Description)
-            ? (from.IsProcessor ? $"Payout from {from.Name}" : "Transfer")
-            : draft.Description.Trim();
+        // Each side reads from its own account's point of view: "Payout to Checking" on Stripe,
+        // "Payout from Stripe" on Checking. A typed description is used as is on both sides.
+        string word = from.IsProcessor ? "Payout" : "Transfer";
+        bool typed = !string.IsNullOrWhiteSpace(draft.Description);
+        string outDesc = typed ? draft.Description.Trim() : $"{word} to {to.Name}";
+        string inDesc = typed ? draft.Description.Trim() : $"{word} from {from.Name}";
         double amount = draft.Amount!.Value;
-        long outId = Insert(db, tx, from.Id, draft.Date!.Value, $"{desc} to {to.Name}", -amount, TxnKind.Transfer, status, null, draft.Reference, "");
-        long inId = Insert(db, tx, to.Id, draft.Date!.Value, $"{desc} from {from.Name}", amount, TxnKind.Transfer, status, null, draft.Reference, "");
+        long outId = Insert(db, tx, from.Id, draft.Date!.Value, outDesc, -amount, TxnKind.Transfer, status, null, draft.Reference, "");
+        long inId = Insert(db, tx, to.Id, draft.Date!.Value, inDesc, amount, TxnKind.Transfer, status, null, draft.Reference, "");
         db.Execute("UPDATE bank_transactions SET transfer_id = @outId WHERE id IN (@outId, @inId)", new { outId, inId }, tx);
         return new Created(outId, Notice.Success($"${Fmt.F2(amount)} moved from '{from.Name}' to '{to.Name}'."));
     });
@@ -295,8 +298,10 @@ public sealed class BankService
 
     internal static void LinkInvoicePayment(SqliteConnection db, SqliteTransaction tx, long accountId, long paymentId, DateOnly date, double amount, string description)
     {
-        ActiveAccount(db, tx, accountId);
-        long id = Insert(db, tx, accountId, date, description, amount, TxnKind.CustomerPayment, TxnStatus.Pending, null, "", "");
+        var account = ActiveAccount(db, tx, accountId);
+        // A card payment lands in the processor's balance at once; at a bank it waits to clear.
+        string status = account.IsProcessor ? TxnStatus.Cleared : TxnStatus.Pending;
+        long id = Insert(db, tx, accountId, date, description, amount, TxnKind.CustomerPayment, status, null, "", "");
         db.Execute("UPDATE bank_transactions SET invoice_payment_id = @paymentId WHERE id = @id", new { paymentId, id }, tx);
         db.Execute("INSERT OR REPLACE INTO payment_accounts (payment_id, account_id, bank_transaction_id) VALUES (@paymentId, @accountId, @id)",
             new { paymentId, accountId, id }, tx);

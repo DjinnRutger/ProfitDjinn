@@ -282,7 +282,10 @@ public sealed class SettingsPage : AppPage
             Switch(SettingKeys.WorkOrdersEnabled, Store.Settings.GetBool(SettingKeys.WorkOrdersEnabled))),
         SwitchRow(SettingKeys.ExpensesEnabled, "Track expenses",
             "Adds Vendors, Expenses and Profit & Loss to the sidebar.",
-            Switch(SettingKeys.ExpensesEnabled, Store.Expenses.Enabled)));
+            Switch(SettingKeys.ExpensesEnabled, Store.Expenses.Enabled)),
+        SwitchRow(SettingKeys.BankingEnabled, "Bank accounts",
+            "Adds Banking to the sidebar: your bank, card and payment-processor accounts, transfers, payouts and reconciling to your statements. Payments can then say which account the money went to. Never changes invoices or the Profit & Loss.",
+            Switch(SettingKeys.BankingEnabled, Store.Banking.Enabled)));
 
     private FrameworkElement Invoices() => Ui.Stack(0,
         Group("Numbering"),
@@ -324,6 +327,8 @@ public sealed class SettingsPage : AppPage
 
         var body = Ui.Stack(0,
             Store.Expenses.Enabled ? new Border() : Ui.Muted("Expenses is off. Turn it on under Features.", 13.6).Also(t => t.Margin = new Thickness(0, 0, 0, 12)),
+            Group("Mileage"),
+            Money(SettingKeys.MileageRate, "Mileage rate (per mile)", "Used for new mileage expenses. Keep it at the current IRS standard mileage rate; check it each January."),
             Group("Receipts"),
             Ui.Field("Receipts folder", Ui.Stack(8, shown, Ui.Row(8, browse, reset)),
                 hint: "Where attached receipts are kept. Choose a OneDrive or network folder to have them backed up there; they are not inside a database backup."));
@@ -649,6 +654,9 @@ public sealed class SettingsPage : AppPage
         foreach (string key in new[] { SettingKeys.InvoiceNextNumber, SettingKeys.WorkOrderNextNumber })
             if (v.TryGetValue(key, out var n) && (n.Length == 0 || !n.All(char.IsAsciiDigit)))
                 bad[key] = "Enter a whole number, e.g. 1001.";
+        if (v.TryGetValue(SettingKeys.MileageRate, out var mileage) &&
+            !(decimal.TryParse(mileage.TrimStart('$'), NumberStyles.Number, CultureInfo.InvariantCulture, out var mr) && mr > 0 && mr < 100))
+            bad[SettingKeys.MileageRate] = "Enter dollars per mile, such as 0.70.";
         if (v.TryGetValue(SettingKeys.DefaultHourlyRate, out var rate) &&
             !(decimal.TryParse(rate.TrimStart('$'), NumberStyles.Number, CultureInfo.InvariantCulture, out var r) && r >= 0 && decimal.Round(r, 2) == r))
             bad[SettingKeys.DefaultHourlyRate] = "Enter an amount such as 75.00, or 0.00.";

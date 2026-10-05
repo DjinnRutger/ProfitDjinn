@@ -65,6 +65,13 @@ public static class Routes
     public static Func<AppPage> ExpenseCategories(MainWindow s) => Exp(s, () => new ExpenseCategoriesPage(s));
     public static Func<AppPage> Profit(MainWindow s, int? year = null, ProfitBasis basis = ProfitBasis.Cash) => Exp(s, () => new ProfitLossPage(s, year, basis));
 
+    // ---- 2.6 Bank Accounts (Settings > Features, off by default): these open the Dashboard while off.
+    private static Func<AppPage> Bank(MainWindow s, Func<AppPage> open) => () => s.Store.Banking.Enabled ? open() : new DashboardPage(s);
+
+    public static Func<AppPage> Banking(MainWindow s) => Bank(s, () => new BankingPage(s));
+    public static Func<AppPage> BankAccount(MainWindow s, long id) => Bank(s, () => new BankAccountPage(s, id));
+    public static Func<AppPage> Reconcile(MainWindow s, long id) => Bank(s, () => new ReconcilePage(s, id));
+
     /// <summary>
     /// A sidebar key, or "name:id" for one record (customer:3, invoice:7, workorder:3 by customer,
     /// bill:2 by work order, upcoming:4 by recurring invoice). The --page start argument uses this.
@@ -93,6 +100,8 @@ public static class Routes
                 "newrecurringinvoice" => NewRecurringInvoice(s, id),
                 "editrecurringinvoice" => EditRecurringInvoice(s, id),
                 "upcoming" => Upcoming(s, id),
+                "bankaccount" => BankAccount(s, id),
+                "reconcile" => Reconcile(s, id),
                 _ => Dashboard(s),
             };
         return Named(s, key);
@@ -118,6 +127,7 @@ public static class Routes
         "newexpense" => NewExpense(s),
         "recurring" => Recurring(s),
         "recurringinvoices" => RecurringInvoices(s),
+        "banking" => Banking(s),
         "newrecurringinvoice" => NewRecurringInvoice(s),
         "newrecurring" => NewRecurring(s),
         "expensecategories" => ExpenseCategories(s),

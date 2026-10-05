@@ -31,22 +31,23 @@ public static class PaymentDialog
         double Credit,
         bool CapAtBalance,
         string? CustomerNote,
-        Func<double, string, string?, DateOnly?, string?, Notice> Record);
+        bool IsExpense,
+        Func<double, string, string?, DateOnly?, string?, PaymentSource, Notice> Record);
 
     public static void Open(MainWindow shell, Invoice invoice)
     {
         double credit = shell.Store.Invoices.AvailableCredit(invoice.CustomerId);
         Show(shell, new Target($"Record Payment — {invoice.InvoiceNumber}", invoice.BalanceDue, credit, CapAtBalance: false,
-            CustomerNote: "This customer has ",
-            (amount, method, check, date, notes) => shell.Store.Invoices.RecordPayment(invoice.Id, amount, method, check, date, notes)));
+            CustomerNote: "This customer has ", IsExpense: false,
+            (amount, method, check, date, notes, source) => shell.Store.Invoices.RecordPayment(invoice.Id, amount, method, check, date, notes, source.AccountId)));
     }
 
     /// <summary>2.2: pay an expense, all or part of its balance.</summary>
     public static void Open(MainWindow shell, Expense expense)
     {
         string name = string.IsNullOrEmpty(expense.VendorName) ? expense.Description : expense.VendorName;
-        Show(shell, new Target($"Record Payment — {name}", expense.BalanceDue, 0, CapAtBalance: true, CustomerNote: null,
-            (amount, method, check, date, notes) => shell.Store.Expenses.RecordPayment(expense.Id, amount, method, check, date, notes)));
+        Show(shell, new Target($"Record Payment — {name}", expense.BalanceDue, 0, CapAtBalance: true, CustomerNote: null, IsExpense: true,
+            (amount, method, check, date, notes, source) => shell.Store.Expenses.RecordPayment(expense.Id, amount, method, check, date, notes, source.PaidFrom, source.AccountId)));
     }
 
     private static async void Show(MainWindow shell, Target target)
@@ -93,6 +94,12 @@ public static class PaymentDialog
         var dateField = Ui.Field("Date", date, required: true);
         var creditHint = "Applies account credit against this invoice — not recorded as a money payment.";
         body.Children.Add(Ui.Field("Payment Method", method, required: true));
+        // 2.6: an expense says who paid it; with Bank Accounts on, either says which account.
+        ComboBox? source = target.IsExpense ? ExpenseUi.PaidFromPicker(shell.Store) : ExpenseUi.DepositPicker(shell.Store);
+        Field? sourceField = source is null ? null
+            : Ui.Field(target.IsExpense ? "Paid From" : "Deposited To", source,
+                hint: target.IsExpense ? null : "Optional. Records the money arriving in that account on the Banking page.");
+        if (sourceField is not null) body.Children.Add(sourceField);
         body.Children.Add(amountField);
         body.Children.Add(checkField);
         body.Children.Add(dateField);
@@ -105,6 +112,8 @@ public static class PaymentDialog
             string m = ((MethodChoice)method.SelectedItem).Value;
             checkField.Visibility = m == PaymentMethods.Check ? Visibility.Visible : Visibility.Collapsed;
             amountField.Hint = m == PaymentMethods.AccountCredit ? creditHint : null;
+            // Applying account credit moves no money, so there is no account to deposit to.
+            if (sourceField is not null && !target.IsExpense) sourceField.Visibility = m == PaymentMethods.AccountCredit ? Visibility.Collapsed : Visibility.Visible;
             if (m == PaymentMethods.AccountCredit)
             {
                 bool ok = double.TryParse(amount.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out double a);
@@ -143,7 +152,7 @@ public static class PaymentDialog
             }
             try
             {
-                var notice = target.Record((double)dec, m, check.Text, date.Date, notes.Text);
+                var notice = target.Record((double)dec, m, check.Text, date.Date, notes.Text, ExpenseUi.SourceOf(source, m));
                 shell.Reload(notice);
                 return true;
             }
