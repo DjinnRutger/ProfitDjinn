@@ -28,6 +28,10 @@ public sealed class Expense
     public Vendor? Vendor { get; set; }
     public ExpenseCategory? Category { get; set; }
 
+    /// <summary>2.6. Miles and the rate used, for a mileage expense (null otherwise).</summary>
+    public double? Miles { get; set; }
+    public double? MileageRate { get; set; }
+
     public double AmountPaid => PyMath.Sum(Payments, p => p.Amount);
 
     public double BalanceDue => Math.Max(0.0, PyMath.Round(Amount - AmountPaid, 2));

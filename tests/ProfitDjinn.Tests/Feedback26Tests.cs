@@ -100,6 +100,61 @@ public class Feedback26Tests
         Assert.Empty(s.Invoices.List());                                     // read only
     }
 
+    // ------------------------------------------------------------------ who paid
+
+    [Fact]
+    public void Owner_paid_amounts_are_owed_back_until_marked_reimbursed()
+    {
+        var s = Open();
+        long a = Expense(s, "Supplies", 80, new DateOnly(2026, 9, 1), new PaidNow("credit_card", null, null, PaidFrom.Owner));
+        long b = Expense(s, "Supplies", 20, new DateOnly(2026, 9, 2));
+        s.Expenses.RecordPayment(b, 20, "cash", null, new DateOnly(2026, 9, 3), null, PaidFrom.Owner);
+        Expense(s, "Advertising", 15, new DateOnly(2026, 9, 4), new PaidNow("cash", null, null));   // business
+
+        var sum = s.Expenses.Summary();
+        Assert.Equal((2, 100.0), (sum.OwedToOwnerCount, sum.OwedToOwnerTotal));
+        Assert.Equal(2, s.Expenses.List(ExpenseFilter.OwnerPaid).Count);
+
+        long pay = s.Expenses.Get(a).Payments.Single().Id;
+        Assert.Contains("paid back", s.Expenses.MarkReimbursed(pay, new DateOnly(2026, 9, 30)).Message);
+        Assert.Throws<UserFacingException>(() => s.Expenses.MarkReimbursed(pay, null));
+        Assert.Equal(20, s.Expenses.Summary().OwedToOwnerTotal);
+        s.Expenses.UndoReimbursed(pay);
+        Assert.Equal(100, s.Expenses.Summary().OwedToOwnerTotal);
+
+        // Who paid never changes what the expense costs on the P&L.
+        Assert.Equal(115, s.Profit.Report(2026, ProfitBasis.Cash).Expenses);
+        var business = s.Expenses.List().Single(e => e.Category!.Name == "Advertising").Payments.Single();
+        Assert.Throws<UserFacingException>(() => s.Expenses.MarkReimbursed(business.Id, null));
+    }
+
+    // ------------------------------------------------------------------ mileage
+
+    [Fact]
+    public void Mileage_is_miles_times_the_rate_paid_with_no_cash_and_recomputes_on_edit()
+    {
+        var s = Open();
+        s.Settings.Set(SettingKeys.MileageRate, "0.70");
+        long car = Category(s, "Car & Truck");
+        var made = s.Expenses.Create(new ExpenseDraft(null, car, new DateOnly(2026, 10, 1), null, "Client visits", "", null, "", Miles: 120));
+        Assert.Contains("120.00 miles at $0.70 = $84.00", made.Notice.Message);
+        var e = s.Expenses.Get(made.Id);
+        Assert.Equal((84.0, 120.0, 0.70), (e.Amount, e.Miles!.Value, e.MileageRate!.Value));
+        var p = Assert.Single(e.Payments);
+        Assert.Equal((PaidFrom.NoCash, 84.0, "No cash"), (p.PaidFrom, p.Amount, p.MethodLabel));
+        Assert.Equal(InvoiceStatus.Paid, e.Status);
+
+        s.Settings.Set(SettingKeys.MileageRate, "0.75");                      // the saved rate stays with the trip
+        s.Expenses.Update(made.Id, new ExpenseDraft(null, car, new DateOnly(2026, 10, 1), null, "Client visits", "", null, "", Miles: 10));
+        e = s.Expenses.Get(made.Id);
+        Assert.Equal(7, e.Amount);
+        Assert.Equal(7, Assert.Single(e.Payments).Amount);
+        Assert.Throws<ValidationException>(() => s.Expenses.Create(new ExpenseDraft(null, car, Today, null, "x", "", null, "", Miles: 0)));
+
+        s.Expenses.Delete(made.Id);
+        Assert.Equal(0, s.Database.Run(db => db.ExecuteScalar<int>("SELECT COUNT(*) FROM expense_mileage")));
+    }
+
     [Fact]
     public void New_settings_rows_have_their_defaults()
     {

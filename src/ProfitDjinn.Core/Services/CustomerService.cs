@@ -75,6 +75,7 @@ public sealed class CustomerService
     {
         string name = db.ExecuteScalar<string?>("SELECT name FROM customers WHERE id = @id", new { id }, tx) ?? throw NotFound();
         InvoiceService.DeleteLines(db, tx, "invoice_id IN (SELECT id FROM invoices WHERE customer_id = @id)", new { id });
+        BankService.UnlinkInvoicePayments(db, tx, "invoice_id IN (SELECT id FROM invoices WHERE customer_id = @id)", new { id });
         db.Execute("DELETE FROM payments WHERE invoice_id IN (SELECT id FROM invoices WHERE customer_id = @id)", new { id }, tx);
         db.Execute("DELETE FROM work_order_lines WHERE work_order_id IN (SELECT id FROM work_orders WHERE customer_id = @id)", new { id }, tx);
         // Lines on another customer's tab that point at these invoices lose the link (SQLAlchemy nulled it).

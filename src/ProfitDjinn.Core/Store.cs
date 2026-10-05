@@ -27,6 +27,7 @@ public sealed class Store
     public ReceiptStore Receipts { get; }
     public RecurringService Recurring { get; }
     public RecurringInvoiceService RecurringInvoices { get; }
+    public BankService Banking { get; }
     public ProfitService Profit { get; }
     public UpdateService Updates { get; }
 
@@ -63,6 +64,7 @@ public sealed class Store
         Recurring = new RecurringService(Database, Settings, today);
         // Recurring invoices too: the app calls RecurringInvoiceService.GenerateDue at start.
         RecurringInvoices = new RecurringInvoiceService(Database, Settings, Invoices, today);
+        Banking = new BankService(Database, Settings, today);
         Profit = new ProfitService(Database, today);
         Updates = new UpdateService(Settings, today, appVersion);
     }

@@ -105,6 +105,10 @@ internal static class Loader
             .ToLookup(p => p.ExpenseId);
         var receipts = db.Query<ExpenseReceipt>("SELECT * FROM expense_receipts WHERE expense_id IN @ids ORDER BY id", new { ids }, tx)
             .ToLookup(r => r.ExpenseId);
+        var mileage = db.Query<(long ExpenseId, double Miles, double Rate)>("SELECT expense_id, CAST(miles AS REAL), CAST(rate AS REAL) FROM expense_mileage WHERE expense_id IN @ids", new { ids }, tx)
+            .ToDictionary(m => m.ExpenseId);
+        foreach (var e in expenses)
+            if (mileage.TryGetValue(e.Id, out var m)) { e.Miles = m.Miles; e.MileageRate = m.Rate; }
         var categories = db.Query<ExpenseCategory>("SELECT * FROM expense_categories", transaction: tx).ToDictionary(c => c.Id);
         Dictionary<long, Vendor> vendors = new();
         if (withVendors)
