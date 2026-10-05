@@ -34,7 +34,7 @@ setting values forward. Keep it: existing databases depend on it.
     `Table` (Bootstrap table look), `LineBuilder`, `SuggestBox`, `BarChart`, `DoughnutChart`.
   - `Themes/`: `Theme.Light/Dark/Terminal.xaml` (same keys each) and `Controls.xaml`.
     `ThemeManager` swaps them and derives the brand brushes from `primary_color`.
-- `tests/ProfitDjinn.Tests`: xUnit, 118 tests including the parity tests.
+- `tests/ProfitDjinn.Tests`: xUnit, 133 tests including the parity tests.
 - `docs/port-spec.md` (behaviour) and `docs/design-spec.md` (look). "Fixed in 2.0" in the
   port spec lists every 1.x bug deliberately not copied. Read them before changing a screen.
 
@@ -209,6 +209,34 @@ No on/off switch: nothing shows until a schedule exists, except the dashboard's 
   popup (no title) when a picker has focus at start; wait for the titled window.
 - Smoke tests type into pickers with `Type-Into` (exact names) and use real keystrokes
   (`SendKeys`, window brought to the front) for the fill-in.
+
+## 2.6: bookkeeping feedback (expenses, banking)
+
+Jon's rule for these: never disturb invoicing, keep it simple. Everything is either inside
+Expenses or behind **Bank accounts** (Settings > Features, `banking_enabled`, off by default).
+
+- **Cost of revenue:** `expense_categories.cost_of_revenue` (Categories page "Counts As").
+  `ProfitReport.ShowGross` is true only once a category is flagged; only then do the P&L page,
+  PDF and CSV show cost of revenue, gross profit and operating expenses.
+- **MRR/ARR:** `RecurringInvoiceService.Revenue()` (read only), tiles on Recurring Invoices.
+- **Who paid:** `expense_payments.paid_from` (business / owner / noncash), `account_id`,
+  `reimbursed_on`. `ExpenseService.InsertPayment` is the only writer; owner payments never
+  carry an account. Mark Paid Back can record the payback from an account.
+- **Mileage:** `expense_mileage` (miles, rate at the time); amount = miles x rate, paid with a
+  no-cash payment. `ExpenseDraft.Miles`. The rate is the `mileage_rate` setting.
+- **Banking:** `BankService`, tables `bank_accounts`, `bank_transactions`, `payment_accounts`.
+  - The P&L never reads bank tables, so contributions, draws and transfers are never revenue.
+  - A payment recorded with an account creates one linked row (invoice payments through the
+    `payment_accounts` side table: `payments` is a 1.x table). Every path that deletes payments
+    calls `BankService.UnlinkInvoicePayments` / `UnlinkExpensePayments` **before** the delete.
+  - `InvoiceService.RecordPayment(..., depositedTo: null)` writes exactly what 2.5 wrote
+    (BankTests checks it); the dialog only shows "Deposited To" with Bank Accounts on.
+  - Transfers are two rows sharing `transfer_id`; a processor payout is a transfer.
+    `Bridge` shows what a payout pays out; differences are shown, never fixed.
+  - Reconcile finishes only at a zero difference; reconciled rows are locked.
+  - SQLite returns an integer 0 for an empty or all-integer SUM: cast to REAL when Dapper maps it
+    to a double (that crashed the account list once).
+- Smoke: `tools/Smoke/Smoke-Banking.ps1`; Smoke-Expenses covers mileage, owner-paid, COGS.
 
 ## 1.x reference (Flask, in legacy/)
 

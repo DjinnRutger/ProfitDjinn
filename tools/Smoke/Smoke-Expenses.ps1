@@ -62,6 +62,15 @@ function Type-Into([string] $name, [string] $text) {
   $e = Wait-For $name -type $CT::Edit
   $e.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($text)
 }
+function Wait-Like([string] $pattern, [int] $seconds = 10) {
+  for ($i = 0; $i -lt $seconds * 4; $i++) {
+    foreach ($e in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)) {
+      if ($e.Current.Name -like $pattern) { return $e }
+    }
+    Start-Sleep -Milliseconds 250
+  }
+  throw "Timed out waiting for text like '$pattern'."
+}
 function Toggle([string] $name) {
   $e = Wait-For $name -type $CT::CheckBox
   $e.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
@@ -199,6 +208,44 @@ try {
     $spent = 40 + 500 * @($dates | Where-Object { $_.Year -eq $today.Year }).Count
     Wait-For ("-`$" + $spent.ToString("0.00", $inv)) | Out-Null
   }
+  # 2.6: mileage, an owner-paid expense paid back, and a cost-of-revenue category.
+  Step "log mileage" {
+    Click "Expenses"
+    Click "New Expense"
+    Wait-For "Save Expense" -type $CT::Button | Out-Null
+    Start-Sleep -Milliseconds 500
+    Toggle "Mileage (miles driven for the business)"
+    Type-Into "Miles" "100"
+    Type-Into "Description" "Smoke trip"
+    Click "Save Expense"
+    Wait-For "Mileage 'Smoke trip' saved: 100.00 miles at `$0.70 = `$70.00." | Out-Null
+  }
+  Step "pay an expense from personal funds, then mark it paid back" {
+    Click "Expenses"
+    Click "New Expense"
+    Wait-For "Save Expense" -type $CT::Button | Out-Null
+    Start-Sleep -Milliseconds 500
+    Pick "Category" "Supplies"
+    Type-Into "Description" "Smoke gloves"
+    Type-Into "Amount" "25"
+    Toggle "Already paid"
+    Pick "Paid From" "Personal funds (owner, to be paid back)"
+    Click "Save Expense"
+    Wait-For "Expense 'Smoke gloves' saved and marked paid." | Out-Null
+    Click "Mark paid back"
+    Wait-For "Paid Back On" | Out-Null
+    Click "Mark Paid Back"
+    Wait-For "`$25.00 for 'Smoke gloves' marked as paid back to you." | Out-Null
+  }
+  Step "count a category as cost of revenue" {
+    Click "Expenses"
+    Click "Categories"
+    Click "Software & Subscriptions counts as"
+    Wait-For "'Software & Subscriptions' now counts as cost of revenue. The Profit & Loss shows gross profit." | Out-Null
+    Click "Profit & Loss"
+    Wait-For "P&L CSV" -type $CT::Button | Out-Null
+    Wait-Like "operating" | Out-Null           # the month table's Operating column (tile labels are inside buttons)
+  }
   Step "turn Expenses off" {
     Click "Settings"
     Click "Features settings"
@@ -239,6 +286,12 @@ if paper != [(100.0, "Supplies", 40.0)]: problems.append(f"paper {paper}")
 rent = c.execute("select e.date, e.amount, p.amount, p.method from expenses e join expense_payments p on p.expense_id = e.id where e.recurring_id is not null order by e.date").fetchall()
 want = [(d, 500.0, 500.0, "credit_card") for d in sys.argv[2].split(",")]
 if rent != want: problems.append(f"rent {rent} != {want}")
+trip = c.execute("select e.amount, m.miles, m.rate, p.paid_from from expenses e join expense_mileage m on m.expense_id = e.id join expense_payments p on p.expense_id = e.id where e.description = 'Smoke trip'").fetchall()
+if trip != [(70.0, 100.0, 0.7, "noncash")]: problems.append(f"mileage {trip}")
+gloves = c.execute("select p.paid_from, p.reimbursed_on is not null from expenses e join expense_payments p on p.expense_id = e.id where e.description = 'Smoke gloves'").fetchall()
+if gloves != [("owner", 1)]: problems.append(f"owner-paid {gloves}")
+cogs = c.execute("select name from expense_categories where cost_of_revenue = 1").fetchall()
+if cogs != [("Software & Subscriptions",)]: problems.append(f"cost of revenue {cogs}")
 print("; ".join(problems) if problems else "OK")
 "@
 $result = $check | python - (Join-Path $DataDir 'app.db') (($dates | ForEach-Object { $_.ToString('yyyy-MM-dd', $inv) }) -join ",")

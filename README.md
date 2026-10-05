@@ -48,8 +48,16 @@ Windows SmartScreen may warn because the file is not code-signed; choose More in
   in the sidebar). It keeps casual eyes out on a shared PC; it does not encrypt the data.
 - **Themes**: Light, Dark and Terminal, from the button at the top right or **Settings >
   Appearance**.
-- **Settings > Features** turns Work Orders and Expenses on or off; off hides them and keeps
-  the data.
+- **Settings > Features** turns Work Orders, Expenses and Bank Accounts on or off; off hides
+  them and keeps the data.
+- **Expenses extras**: mark categories as cost of revenue (the P&L then shows gross profit),
+  say who paid (business, your own money to be paid back, or no cash), and log mileage
+  (miles x your rate).
+- **Bank accounts** (optional): checking, card and payment-processor accounts, owner
+  contributions and draws, transfers and payouts, pending versus cleared, and reconciling to
+  your statement. Payments can say which account the money went to. Never changes invoices.
+- **Recurring revenue**: the Recurring Invoices page shows monthly and yearly recurring
+  revenue and active clients.
 - **Settings** is grouped into sections (Business, Features, Invoices, Work Orders, Expenses,
   Appearance, Security, Backup, Updates). Changes are saved with the **Save Changes** bar that
   appears at the bottom when you change something.
