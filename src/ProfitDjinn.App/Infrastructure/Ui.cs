@@ -70,6 +70,13 @@ public static class Ui
 
     public const string CentsError = "Enter an amount in dollars and cents, at least $0.01.";
 
+    /// <summary>2.6. A balance: dollars and cents that may be zero or negative ("-120.50" or "$-120.50").</summary>
+    public static bool TryParseSigned(string? text, out decimal value)
+    {
+        string t = (text ?? "").Trim().Replace("$", "").Replace(",", "");
+        return decimal.TryParse(t, NumberStyles.Number | NumberStyles.AllowLeadingSign, Inv, out value) && decimal.Round(value, 2) == value;
+    }
+
     // ------------------------------------------------------------------ layout
 
     public static StackPanel Row(double gap, params UIElement[] children)

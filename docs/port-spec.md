@@ -513,3 +513,40 @@ new tables follow the 1.x conventions (no AUTOINCREMENT, money FLOAT, DATE text,
   Charts side by side are now the same height. Rows built up one button at a time had no gaps.
   The collapsed sidebar's icons were off centre.
 
+## New in 2.6
+
+- **Customer and vendor boxes are type-to-pick** (invoice, recurring invoice, expense and
+  recurring expense forms). Typing lists names containing the text, names starting with it
+  first, and fills in the rest of the best match (selected, so typing on replaces it; Tab or
+  Enter accepts; Backspace/Delete never fill in). An exact name, any case, picks the record.
+  The arrow, or focusing an empty box, lists everyone. An inactive customer or vendor already
+  on an edited record stays listed, marked "(inactive)". Vendor stays optional: an empty box
+  means no vendor.
+- Text that matches no one shows **Add Customer "X"** / **Add Vendor "X"** under the box. It
+  opens a dialog with the name filled in (customer: contact, email, phone, address; vendor:
+  contact, email, phone, default category), creates the record and picks it, without leaving
+  the form. A quick-added vendor's default category is applied to the expense. Saving with
+  unmatched text is refused with a field error naming the Add button.
+- **Cost of revenue:** a category can count as cost of revenue (Categories, "Counts As"). Once
+  any does, the P&L shows Income, Cost of Revenue, Gross Profit (with gross margin), Operating
+  Expenses, Net Profit and Net Margin, the month table gains Cost / Gross / Operating, and the
+  PDF and CSV follow. Net profit is the same either way.
+- **Recurring revenue:** the Recurring Invoices page shows Monthly Recurring (active schedules
+  with invoices to come; a yearly one counts a twelfth), Yearly Recurring (x12) and Active
+  Clients. Read only.
+- **Who paid an expense:** each payment is Business (optionally from a bank account), Personal
+  funds (owner, to be paid back) or No cash. Owner-paid amounts show as "Owed to You" (tile and
+  Owner-paid tab) until Mark Paid Back, which can record the payback from an account. Who paid
+  never changes the P&L.
+- **Mileage:** New Expense > Mileage: miles x the mileage rate (Settings > Expenses, default
+  0.70; the user keeps it at the IRS rate), paid in full with no cash. The trip keeps its rate;
+  editing the miles recomputes the amount.
+- **Bank accounts** (Settings > Features, off by default): checking, savings, credit card,
+  personal and payment-processor accounts with an opening balance. Money In (owner
+  contribution, other deposit), Money Out (fee, owner draw, other), transfers and processor
+  payouts (two linked rows), pending / cleared / reconciled, a running-balance register, and
+  Reconcile (statement date and balance, tick rows, finish at a zero difference). A fee can
+  also be recorded as an expense (one row). Payments can name an account: "Deposited To" on
+  invoice payments (Bank Accounts on only), "Paid From" on expense payments; the linked row
+  goes when the payment goes. The P&L never reads bank data.
+

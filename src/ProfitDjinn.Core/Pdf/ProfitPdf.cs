@@ -59,24 +59,41 @@ public static class ProfitPdf
         y += 9;
 
         // ---- totals
-        double col = effW / 4;
-        var totals = new (string Label, string Value, XColor Color)[]
-        {
-            ("Income", Money(r.Income), Green),
-            ("Expenses", Money(r.Expenses), Red),
-            ("Net Profit", Money(r.Net), r.Net >= 0 ? Navy : Red),
-            ("Margin", r.Margin is { } m ? m.ToString("0.0", CultureInfo.InvariantCulture) + "%" : "—", Navy),
-        };
+        string Pct(double? v) => v is { } x ? x.ToString("0.0", CultureInfo.InvariantCulture) + "%" : "—";
+        // 2.6: with a cost-of-revenue category, two rows of three: the gross profit line first.
+        var totals = r.ShowGross
+            ? new (string Label, string Value, XColor Color)[]
+            {
+                ("Income", Money(r.Income), Green),
+                ("Cost of Revenue", Money(r.CostOfRevenue), Red),
+                ($"Gross Profit ({Pct(r.GrossMargin)})", Money(r.GrossProfit), r.GrossProfit >= 0 ? Navy : Red),
+                ("Operating Expenses", Money(r.OperatingExpenses), Red),
+                ("Net Profit", Money(r.Net), r.Net >= 0 ? Navy : Red),
+                ("Net Margin", Pct(r.Margin), Navy),
+            }
+            : new (string Label, string Value, XColor Color)[]
+            {
+                ("Income", Money(r.Income), Green),
+                ("Expenses", Money(r.Expenses), Red),
+                ("Net Profit", Money(r.Net), r.Net >= 0 ? Navy : Red),
+                ("Margin", Pct(r.Margin), Navy),
+            };
+        int perRow = r.ShowGross ? 3 : 4;
+        double col = effW / perRow;
         for (int i = 0; i < totals.Length; i++)
         {
-            Text(Margin + col * i, y, totals[i].Value, 15, bold: true, color: totals[i].Color);
-            Text(Margin + col * i, y + 5, totals[i].Label.ToUpperInvariant(), 8, color: Grey);
+            double ty = y + (i / perRow) * 14;
+            Text(Margin + col * (i % perRow), ty, totals[i].Value, 15, bold: true, color: totals[i].Color);
+            Text(Margin + col * (i % perRow), ty + 5, totals[i].Label.ToUpperInvariant(), 8, color: Grey);
         }
-        y += 14;
+        y += 14 * ((totals.Length + perRow - 1) / perRow);
 
         // ---- months
-        double[] cw = { 40, 45, 45, 50 };
-        string[] head = { "Month", "Income", "Expenses", "Net" };
+        double[] cw = r.ShowGross ? new double[] { 28, 30, 30, 30, 32, 30 } : new double[] { 40, 45, 45, 50 };
+        string[] head = r.ShowGross ? new[] { "Month", "Income", "Cost", "Gross", "Operating", "Net" } : new[] { "Month", "Income", "Expenses", "Net" };
+        // One row of the month table: the figures in the columns above.
+        double[] Figures(double income, double expenses, double cost, double gross, double operating, double net) =>
+            r.ShowGross ? new[] { income, cost, gross, operating, net } : new[] { income, expenses, net };
         void Header(string[] titles, double[] widths)
         {
             Fill(y - 4.5, 7);
@@ -91,25 +108,26 @@ public static class ProfitPdf
         Text(Margin, y, "By month", 11, bold: true, color: Navy);
         y += 6;
         Header(head, cw);
-        foreach (var mo in r.Months)
+        void Row(string label, double[] values, bool bold)
         {
             double x = Margin;
-            Text(x + 1, y, mo.Name, 9.5); x += cw[0];
-            Text(x, y, Money(mo.Income), 9.5, right: true, w: cw[1] - 1); x += cw[1];
-            Text(x, y, Money(mo.Expenses), 9.5, right: true, w: cw[2] - 1); x += cw[2];
-            Text(x, y, Money(mo.Net), 9.5, color: mo.Net < 0 ? Red : null, right: true, w: cw[3] - 1);
+            Text(x + 1, y, label, 9.5, bold: bold); x += cw[0];
+            for (int i = 0; i < values.Length; i++)
+            {
+                bool last = i == values.Length - 1;
+                Text(x, y, Money(values[i]), 9.5, bold: bold, color: last && values[i] < 0 ? Red : null, right: true, w: cw[i + 1] - 1);
+                x += cw[i + 1];
+            }
+        }
+        foreach (var mo in r.Months)
+        {
+            Row(mo.Name, Figures(mo.Income, mo.Expenses, mo.CostOfRevenue, mo.GrossProfit, mo.OperatingExpenses, mo.Net), bold: false);
             y += 5.6;
         }
         Line(y - 3.6);
-        {
-            double x = Margin;
-            y += 1.5;
-            Text(x + 1, y, "Total", 9.5, bold: true); x += cw[0];
-            Text(x, y, Money(r.Income), 9.5, bold: true, right: true, w: cw[1] - 1); x += cw[1];
-            Text(x, y, Money(r.Expenses), 9.5, bold: true, right: true, w: cw[2] - 1); x += cw[2];
-            Text(x, y, Money(r.Net), 9.5, bold: true, color: r.Net < 0 ? Red : null, right: true, w: cw[3] - 1);
-            y += 11;
-        }
+        y += 1.5;
+        Row("Total", Figures(r.Income, r.Expenses, r.CostOfRevenue, r.GrossProfit, r.OperatingExpenses, r.Net), bold: true);
+        y += 11;
 
         // ---- categories
         double[] kw = { 110, 40, 30 };
@@ -131,7 +149,7 @@ public static class ProfitPdf
                 y = Margin + 6;
                 Header(new[] { "Category", "Amount", "Share" }, kw);
             }
-            Text(Margin + 1, y, c.Name, 9.5);
+            Text(Margin + 1, y, c.Name + (r.ShowGross && c.CostOfRevenue ? "  (cost of revenue)" : ""), 9.5);
             Text(Margin + kw[0], y, Money(c.Amount), 9.5, right: true, w: kw[1] - 1);
             Text(Margin + kw[0] + kw[1], y, c.Share.ToString("0.0", CultureInfo.InvariantCulture) + "%", 9.5, color: Grey, right: true, w: kw[2] - 1);
             y += 5.6;

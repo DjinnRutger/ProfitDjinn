@@ -62,6 +62,16 @@ public sealed class ExpenseCategoryService
         return Notice.Success($"Category '{old.Name}' renamed to '{clean}'.");
     }
 
+    /// <summary>2.6. Marks a category as cost of revenue (above gross profit on the P&amp;L), or back to operating.</summary>
+    public Notice ToggleCostOfRevenue(long id)
+    {
+        var c = Get(id);
+        _db.Run(db => db.Execute("UPDATE expense_categories SET cost_of_revenue = @on WHERE id = @id", new { on = !c.CostOfRevenue, id }));
+        return Notice.Success(c.CostOfRevenue
+            ? $"'{c.Name}' is an operating expense again."
+            : $"'{c.Name}' now counts as cost of revenue. The Profit & Loss shows gross profit.");
+    }
+
     public Notice ToggleActive(long id)
     {
         var c = Get(id);

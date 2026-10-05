@@ -24,6 +24,7 @@ public static class PaymentMethods
     public const string AccountCredit = "account_credit";
 
     public const string Check = "check";
+    public const string Other = "other";
 
     public static readonly IReadOnlyList<(string Value, string Label)> All = new[]
     {

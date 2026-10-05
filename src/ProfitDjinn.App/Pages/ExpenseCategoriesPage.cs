@@ -43,6 +43,15 @@ public sealed class ExpenseCategoriesPage : AppPage
             }),
             new("Used", Ui.Px(110), u => Ui.Muted(u.InUse ? $"{u.Expenses + u.Recurring}" : "—", 13.6), HorizontalAlignment.Center),
             new("Status", Ui.Px(100), u => u.Category.IsActive ? Ui.Badge("Shown", "success75") : Ui.Badge("Hidden", "secondary"), HorizontalAlignment.Center),
+            // 2.6: where it lands on the P&L. Click to switch.
+            new("Counts As", Ui.Px(170), u =>
+            {
+                var b = Ui.Button(u.Category.CostOfRevenue ? "Cost of revenue" : "Operating", u.Category.CostOfRevenue ? "Btn.OutlineInfo" : "Btn.OutlineSecondary", null,
+                    () => Try(() => Shell.Reload(Store.Categories.ToggleCostOfRevenue(u.Category.Id))), small: true,
+                    tooltip: "Cost of revenue is what it costs to deliver what you sell (hosting, domains, payment processing). It shows above gross profit on the Profit & Loss. Click to switch.");
+                System.Windows.Automation.AutomationProperties.SetName(b, $"{u.Category.Name} counts as");
+                return b;
+            }, HorizontalAlignment.Center),
             new("", Ui.Px(140), u =>
             {
                 var delete = Ui.IconButton("trash", "Btn.OutlineDanger", u.InUse ? "In use — hide it instead" : "Delete", () => Delete(u));

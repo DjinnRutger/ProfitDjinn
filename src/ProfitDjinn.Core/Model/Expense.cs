@@ -28,6 +28,10 @@ public sealed class Expense
     public Vendor? Vendor { get; set; }
     public ExpenseCategory? Category { get; set; }
 
+    /// <summary>2.6. Miles and the rate used, for a mileage expense (null otherwise).</summary>
+    public double? Miles { get; set; }
+    public double? MileageRate { get; set; }
+
     public double AmountPaid => PyMath.Sum(Payments, p => p.Amount);
 
     public double BalanceDue => Math.Max(0.0, PyMath.Round(Amount - AmountPaid, 2));
@@ -59,7 +63,34 @@ public sealed class ExpensePayment
     public string? Notes { get; set; } = "";
     public string? CreatedAt { get; set; }
 
-    public string MethodLabel => PaymentMethods.Label(Method);
+    /// <summary>2.6. Who funded it: the business, the owner's own money (to be paid back), or no cash at all.</summary>
+    public string PaidFrom { get; set; } = Model.PaidFrom.Business;
+
+    /// <summary>2.6. The bank account it was paid from, when Bank Accounts is used.</summary>
+    public long? AccountId { get; set; }
+
+    /// <summary>2.6. When an owner-paid amount was paid back to the owner.</summary>
+    public DateOnly? ReimbursedOn { get; set; }
+
+    public string MethodLabel => PaidFrom == Model.PaidFrom.NoCash ? "No cash" : PaymentMethods.Label(Method);
+
+    public bool OwedToOwner => PaidFrom == Model.PaidFrom.Owner && ReimbursedOn is null;
+}
+
+/// <summary>2.6. Who paid for an expense.</summary>
+public static class PaidFrom
+{
+    public const string Business = "business";
+    public const string Owner = "owner";
+    public const string NoCash = "noncash";
+    public static bool IsValid(string? v) => v is Business or Owner or NoCash;
+
+    public static string Label(string? v) => v switch
+    {
+        Owner => "Personal funds (owner)",
+        NoCash => "No cash",
+        _ => "Business",
+    };
 }
 
 /// <summary>A receipt file. <see cref="RelPath"/> is relative to the receipts folder; <see cref="Folder"/> is the folder it was saved under.</summary>
@@ -81,6 +112,9 @@ public sealed class ExpenseCategory
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }
     public string? CreatedAt { get; set; }
+
+    /// <summary>2.6. Counted as cost of revenue (above gross profit) on the P&amp;L, not as an operating expense.</summary>
+    public bool CostOfRevenue { get; set; }
 }
 
 public sealed class Vendor

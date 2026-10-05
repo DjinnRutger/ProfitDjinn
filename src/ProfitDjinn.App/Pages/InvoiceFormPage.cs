@@ -13,14 +13,9 @@ namespace ProfitDjinn.App.Pages;
 /// <summary>New Invoice and Edit Invoice, with the line builder (1.x invoices/form.html).</summary>
 public sealed class InvoiceFormPage : AppPage
 {
-    private sealed record CustomerChoice(long Id, string Label)
-    {
-        public override string ToString() => Label;
-    }
-
     private readonly long? _id;
     private readonly string _number;
-    private readonly ComboBox _customer;
+    private readonly RecordPicker _customer;
     private readonly TextBox _invoiceNumber, _notes, _term1, _term2;
     private readonly DateBox _date;
     private readonly CheckBox _paid;
@@ -48,16 +43,12 @@ public sealed class InvoiceFormPage : AppPage
         var draft = existing is null ? Store.Invoices.NewDraft(customerId) : null;
         _number = existing?.InvoiceNumber ?? "";
 
-        // customers: active ones, plus the invoice's own customer if it has since been made inactive (fixed in 2.0)
-        var choices = Store.Customers.ActiveForPicker().Select(c => new CustomerChoice(c.Id, string.IsNullOrEmpty(c.Attn) ? c.Name : $"{c.Name} ({c.Attn})")).ToList();
-        if (existing?.Customer is { } current && choices.All(c => c.Id != current.Id))
-            choices.Add(new CustomerChoice(current.Id, current.Name + " (inactive)"));
-        _customer = new ComboBox { ItemsSource = choices, MaxDropDownHeight = 400 };
         // existing?.X ?? draft!.X would reach the null draft when a saved value is null (old rows
         // can hold NULL notes and terms), so pick the source first.
         long? selected = existing is not null ? existing.CustomerId : draft!.CustomerId;
-        _customer.SelectedItem = choices.FirstOrDefault(c => c.Id == selected);
-        Input.SetPlaceholder(_customer, "— Select customer —");
+        // 2.6: type to pick, Add Customer for a new name. The invoice's own customer stays listed
+        // if it has since been made inactive (fixed in 2.0).
+        _customer = QuickAdd.CustomerPicker(Shell, selected, existing?.Customer);
 
         _invoiceNumber = Ui.TextBox(existing is not null ? existing.InvoiceNumber : draft!.InvoiceNumber).Also(t => { t.CharacterCasing = CharacterCasing.Upper; t.SetResourceReference(TextBox.FontFamilyProperty, "MonoFont"); });
         _date = Ui.DateBox(existing is not null ? existing.Date : draft!.Date);
@@ -135,14 +126,20 @@ public sealed class InvoiceFormPage : AppPage
 
     public override void OnShown()
     {
-        if (_customer.SelectedItem is null) _customer.Focus();
+        if (_customer.SelectedId is null) _customer.FocusBox();
         else _invoiceNumber.Focus();
     }
 
     private void Save()
     {
         _customerField.Error = _numberField.Error = _dateField.Error = null;
-        Input.SetInvalid(_customer, false); Input.SetInvalid(_invoiceNumber, false); _date.Invalid = false;
+        _customer.Invalid = false; Input.SetInvalid(_invoiceNumber, false); _date.Invalid = false;
+        if (_customer.HasUnmatchedText)
+        {
+            ShowFieldErrors(new Dictionary<string, string> { ["customer"] = QuickAdd.CustomerProblem });
+            Shell.ShowError(QuickAdd.CustomerProblem);
+            return;
+        }
         if (_lines.Count == 0)
         {
             Shell.ShowError("Please add at least one line item before saving.");
@@ -155,7 +152,7 @@ public sealed class InvoiceFormPage : AppPage
             return;
         }
         var draft = new InvoiceDraft(
-            (_customer.SelectedItem as CustomerChoice)?.Id, _invoiceNumber.Text, _date.Date, _notes.Text,
+            _customer.SelectedId, _invoiceNumber.Text, _date.Date, _notes.Text,
             _term1.Text, _term2.Text, _paid.IsChecked == true, _lines.Rows.Select(InvoiceRows.ToDraft).ToList());
         Try(() =>
         {
@@ -174,7 +171,7 @@ public sealed class InvoiceFormPage : AppPage
 
     protected override void ShowFieldErrors(IReadOnlyDictionary<string, string> errors)
     {
-        if (errors.TryGetValue("customer", out var c)) { _customerField.Error = c; Input.SetInvalid(_customer, true); }
+        if (errors.TryGetValue("customer", out var c)) { _customerField.Error = c == "Not a valid choice." ? "Choose a customer." : c; _customer.Invalid = true; }
         if (errors.TryGetValue("invoice_number", out var n)) { _numberField.Error = n; Input.SetInvalid(_invoiceNumber, true); }
         if (errors.TryGetValue("date", out var d)) { _dateField.Error = d; _date.Invalid = true; }
     }

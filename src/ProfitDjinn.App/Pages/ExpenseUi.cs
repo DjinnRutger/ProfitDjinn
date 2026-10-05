@@ -8,6 +8,9 @@ using ProfitDjinn.Core.Model;
 
 namespace ProfitDjinn.App.Pages;
 
+/// <summary>2.6. Who paid and from which account, as the payment dialogs submit it.</summary>
+public sealed record PaymentSource(string PaidFrom, long? AccountId);
+
 /// <summary>A pick-list entry with an id (null = none).</summary>
 public sealed record Choice(long? Id, string Label)
 {
@@ -31,20 +34,25 @@ public static class ExpenseUi
     }
 
     /// <summary>
-    /// The vendor picker: "— None —", then active vendors. A current vendor that has been made
-    /// inactive stays listed (marked) so editing an old expense does not drop it.
+    /// 2.6. The vendor picker: type to pick, empty for no vendor, Add Vendor for a new name. A
+    /// current vendor that has been made inactive stays listed (marked) so editing an old
+    /// expense does not drop it.
     /// </summary>
-    public static ComboBox VendorPicker(Store store, long? current)
+    public static RecordPicker VendorPicker(Store store, long? current)
     {
-        var choices = new List<Choice> { new(null, "— None —") };
-        choices.AddRange(store.Vendors.ActiveForPicker().Select(v => new Choice(v.Id, v.Name)));
-        if (current is { } id && choices.All(c => c.Id != id))
+        var items = store.Vendors.ActiveForPicker().Select(v => new PickItem(v.Id, v.Name, v.Contact)).ToList();
+        if (current is { } id && items.All(i => i.Id != id))
         {
-            try { choices.Add(new Choice(id, store.Vendors.Get(id).Name + " (inactive)")); }
+            try { items.Add(new PickItem(id, store.Vendors.Get(id).Name + " (inactive)")); }
             catch (UserFacingException) { }
         }
-        return new ComboBox { ItemsSource = choices, SelectedIndex = Math.Max(0, choices.FindIndex(c => c.Id == current)) };
+        return new RecordPicker(items, current, "Type a vendor name, or leave empty", "Add Vendor");
     }
+
+    /// <summary>"Choose a vendor..." when the box holds a name that is not a vendor; null when it is fine.</summary>
+    public static string? VendorProblem(RecordPicker picker) => picker.HasUnmatchedText
+        ? "No vendor has that name. Pick one from the list, click Add Vendor, or clear the box for no vendor."
+        : null;
 
     /// <summary>The category picker: shown categories, plus a hidden current one (marked).</summary>
     public static ComboBox CategoryPicker(Store store, long? current, bool allowNone = false)
@@ -62,6 +70,45 @@ public static class ExpenseUi
     }
 
     public static long? SelectedId(ComboBox box) => (box.SelectedItem as Choice)?.Id;
+
+    /// <summary>2.6. A "who paid" choice: business (optionally from a bank account), personal funds, or no cash.</summary>
+    public sealed record SourceChoice(string PaidFrom, long? AccountId, string Label)
+    {
+        public override string ToString() => Label;
+    }
+
+    /// <summary>
+    /// 2.6. Paid From for an expense payment. With Bank Accounts on, each open business account is
+    /// a choice of its own; the owner's personal accounts are not, since that money is "personal funds".
+    /// </summary>
+    public static ComboBox PaidFromPicker(Store store, string? paidFrom = null, long? accountId = null)
+    {
+        var items = new List<SourceChoice>();
+        if (store.Banking.Enabled)
+            items.AddRange(store.Banking.Accounts().Where(a => a.Kind != AccountKind.Personal)
+                .Select(a => new SourceChoice(PaidFrom.Business, a.Id, $"Business: {a.Name}")));
+        items.Add(new SourceChoice(PaidFrom.Business, null, store.Banking.Enabled ? "Business (no account)" : "Business"));
+        items.Add(new SourceChoice(PaidFrom.Owner, null, "Personal funds (owner, to be paid back)"));
+        items.Add(new SourceChoice(PaidFrom.NoCash, null, "No cash (e.g. mileage)"));
+        int at = items.FindIndex(i => i.PaidFrom == (paidFrom ?? PaidFrom.Business) && i.AccountId == accountId);
+        if (at < 0) at = items.FindIndex(i => i.PaidFrom == PaidFrom.Business && i.AccountId is null);
+        return new ComboBox { ItemsSource = items, SelectedIndex = at };
+    }
+
+    /// <summary>2.6. Deposited To for an invoice payment: only with Bank Accounts on and an open account.</summary>
+    public static ComboBox? DepositPicker(Store store)
+    {
+        if (!store.Banking.Enabled) return null;
+        var accounts = store.Banking.Accounts().Where(a => a.Kind != AccountKind.Personal).ToList();
+        if (accounts.Count == 0) return null;
+        var items = new List<SourceChoice> { new(PaidFrom.Business, null, "— Not tracked —") };
+        items.AddRange(accounts.Select(a => new SourceChoice(PaidFrom.Business, a.Id, a.Name)));
+        return new ComboBox { ItemsSource = items, SelectedIndex = 0 };
+    }
+
+    /// <summary>What a Paid From / Deposited To box says; business with no account when there is none.</summary>
+    internal static PaymentSource SourceOf(ComboBox? box, string method) =>
+        box?.SelectedItem is SourceChoice c && method != PaymentMethods.AccountCredit ? new(c.PaidFrom, c.AccountId) : new(PaidFrom.Business, null);
 
     /// <summary>Payment method choices, as the payment dialog lists them.</summary>
     public static ComboBox MethodPicker(string? current)

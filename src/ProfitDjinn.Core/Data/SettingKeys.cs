@@ -49,6 +49,12 @@ public static class SettingKeys
     /// <summary>2.5. Work orders on/off (on by default). Off hides them everywhere; the data is kept.</summary>
     public const string WorkOrdersEnabled = "workorders_enabled";
 
+    /// <summary>2.6. Dollars per mile for mileage expenses (the user keeps it at the current IRS rate).</summary>
+    public const string MileageRate = "mileage_rate";
+
+    /// <summary>2.6. Bank Accounts on/off (off by default): accounts, transfers, reconciliation.</summary>
+    public const string BankingEnabled = "banking_enabled";
+
     /// <summary>2.3. Daily check for a newer release on GitHub (on by default), and what it last found.</summary>
     public const string UpdateCheckEnabled = "update_check_enabled";
     public const string UpdateLastCheck = "update_last_check";

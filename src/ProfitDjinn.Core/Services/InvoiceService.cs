@@ -172,6 +172,7 @@ public sealed class InvoiceService
             "UPDATE work_order_lines SET status = 'completed', invoice_id = NULL, billed_at = NULL WHERE invoice_id = @id",
             new { id }, tx);
         RecurringInvoiceService.ForgetInvoices(db, tx, "id = @id", new { id });
+        BankService.UnlinkInvoicePayments(db, tx, "invoice_id = @id", new { id });
         DeleteLines(db, tx, "invoice_id = @id", new { id });
         db.Execute("DELETE FROM payments WHERE invoice_id = @id", new { id }, tx);
         db.Execute("DELETE FROM invoices WHERE id = @id", new { id }, tx);
@@ -186,8 +187,11 @@ public sealed class InvoiceService
     /// Records a payment. The "account_credit" method applies the customer's unused credit
     /// against this invoice instead of recording money: it raises the invoice's applied credit
     /// so the customer's credit balance draws down.
+    /// 2.6: <paramref name="depositedTo"/> (Bank Accounts only) also records the money arriving in
+    /// that account. Without it the payment is written exactly as before.
     /// </summary>
-    public Notice RecordPayment(long invoiceId, double amount, string method, string? checkNumber, DateOnly? date, string? notes)
+    public Notice RecordPayment(long invoiceId, double amount, string method, string? checkNumber, DateOnly? date, string? notes,
+        long? depositedTo = null)
     {
         if (!(amount > 0)) throw new UserFacingException("Payment amount must be greater than zero.");
         method = string.IsNullOrEmpty(method) ? "cash" : method;
@@ -222,10 +226,14 @@ public sealed class InvoiceService
                 Date = paymentDate,
                 Notes = (notes ?? "").Trim(),
             };
-            db.Execute("""
+            long paymentId = db.ExecuteScalar<long>("""
                 INSERT INTO payments (invoice_id, customer_id, amount, method, check_number, date, notes, created_at)
-                VALUES (@InvoiceId, @CustomerId, @Amount, @Method, @CheckNumber, @Date, @Notes, @now)
+                VALUES (@InvoiceId, @CustomerId, @Amount, @Method, @CheckNumber, @Date, @Notes, @now);
+                SELECT last_insert_rowid();
                 """, new { payment.InvoiceId, payment.CustomerId, payment.Amount, payment.Method, payment.CheckNumber, payment.Date, payment.Notes, now = SqlFormat.NowUtc() }, tx);
+            if (depositedTo is { } account)
+                BankService.LinkInvoicePayment(db, tx, account, paymentId, paymentDate, amount,
+                    $"Payment on {invoice.InvoiceNumber} ({invoice.Customer?.Name ?? "customer"})");
             invoice.Payments = db.Query<Payment>("SELECT * FROM payments WHERE invoice_id = @invoiceId ORDER BY date, id", new { invoiceId }, tx).ToList();
 
             double newPaid = PyMath.Sum(invoice.Payments, p => p.Amount);
@@ -253,6 +261,7 @@ public sealed class InvoiceService
     public Notice DeletePayment(long invoiceId, long paymentId) => _db.InTransaction((db, tx) =>
     {
         var invoice = Loader.Invoice(db, invoiceId, tx) ?? throw NotFound();
+        BankService.UnlinkInvoicePayments(db, tx, "id = @paymentId AND invoice_id = @invoiceId", new { paymentId, invoiceId });
         if (db.Execute("DELETE FROM payments WHERE id = @paymentId AND invoice_id = @invoiceId", new { paymentId, invoiceId }, tx) == 0)
             throw new UserFacingException("That payment is not on this invoice. It may already have been deleted.");
 
@@ -271,6 +280,7 @@ public sealed class InvoiceService
     public Notice MarkUnpaid(long invoiceId) => _db.InTransaction((db, tx) =>
     {
         var invoice = Loader.Invoice(db, invoiceId, tx) ?? throw NotFound();
+        BankService.UnlinkInvoicePayments(db, tx, "invoice_id = @invoiceId", new { invoiceId });
         db.Execute("DELETE FROM payments WHERE invoice_id = @invoiceId", new { invoiceId }, tx);
         invoice.Paid = false;
         invoice.PaidDate = null;

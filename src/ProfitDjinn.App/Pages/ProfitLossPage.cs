@@ -69,14 +69,24 @@ public sealed class ProfitLossPage : AppPage
         page.Children.Add(Ui.Card(Ui.Stack(0, toolbar, explainLine), bodyPadding: new Thickness(16)).Margin(0, 0, 0, 24));
 
         // ---- tiles
-        var tiles = new UniformGrid { Columns = 4, Margin = new Thickness(-8, 0, -8, 24) };
+        // 2.6: once a category counts as cost of revenue, the tiles become the gross profit layout
+        // (two rows of three); otherwise they are as before.
+        var tiles = new UniformGrid { Columns = r.ShowGross ? 3 : 4, Margin = new Thickness(-8, 0, -8, r.ShowGross ? 8 : 24) };
+        double tileBottom = r.ShowGross ? 16 : 0;
         void Tile(string value, string label, string glyph, string tone, object? badge = null) =>
-            tiles.Children.Add(new StatTile { Value = value, Label = label, Glyph = glyph, Tone = tone, Accent = "left-" + tone, Badge = badge, Margin = new Thickness(8, 0, 8, 0), Focusable = false, Cursor = System.Windows.Input.Cursors.Arrow });
-        Tile(Ui.Money(r.Income), "Income", "cash-stack", "success");
-        Tile(Ui.Money(r.Expenses), "Expenses", "wallet2", "danger");
-        Tile(Signed(r.Net), r.Net >= 0 ? "Net Profit" : "Net Loss", r.Net >= 0 ? "graph-up-arrow" : "graph-down-arrow", r.Net >= 0 ? "primary" : "danger");
+            tiles.Children.Add(new StatTile { Value = value, Label = label, Glyph = glyph, Tone = tone, Accent = "left-" + tone, Badge = badge, Margin = new Thickness(8, 0, 8, tileBottom), Focusable = false, Cursor = System.Windows.Input.Cursors.Arrow });
+        string Pct(double? v) => v is { } x ? x.ToString("0.0", CultureInfo.InvariantCulture) + "%" : "—";
         object? vs = r.PreviousNet is { } prev ? Ui.Muted($"{Signed(prev)} in {r.Year - 1}", 12) : null;
-        Tile(r.Margin is { } m ? m.ToString("0.0", CultureInfo.InvariantCulture) + "%" : "—", "Profit Margin", "percent", "info", vs);
+        Tile(Ui.Money(r.Income), "Income", "cash-stack", "success");
+        if (r.ShowGross)
+        {
+            Tile(Ui.Money(r.CostOfRevenue), "Cost of Revenue", "box-seam", "danger");
+            Tile(Signed(r.GrossProfit), "Gross Profit", "graph-up", r.GrossProfit >= 0 ? "primary" : "danger", Ui.Badge($"{Pct(r.GrossMargin)} margin", "info75"));
+            Tile(Ui.Money(r.OperatingExpenses), "Operating Expenses", "wallet2", "warning");
+        }
+        else Tile(Ui.Money(r.Expenses), "Expenses", "wallet2", "danger");
+        Tile(Signed(r.Net), r.Net >= 0 ? "Net Profit" : "Net Loss", r.Net >= 0 ? "graph-up-arrow" : "graph-down-arrow", r.Net >= 0 ? "primary" : "danger");
+        Tile(Pct(r.Margin), r.ShowGross ? "Net Margin" : "Profit Margin", "percent", "info", vs);
         page.Children.Add(tiles);
 
         // ---- charts
@@ -98,23 +108,36 @@ public sealed class ProfitLossPage : AppPage
         TextBlock R(string t, string style = "Body") => Ui.Text(t, style, 14.4).Also(x => x.HorizontalAlignment = HorizontalAlignment.Right);
         TextBlock Net(double v, bool bold = false) => R(Signed(v), bold ? "Strong" : "Body").WithResource(TextBlock.ForegroundProperty, v < 0 ? "DangerText" : "SuccessText")
             .Also(t => { if (bold) t.FontWeight = FontWeights.Bold; });
+        UIElement Amount(double v) => v != 0 ? R(Ui.Money(v)) : Ui.Muted("—", 14.4);
+        TextBlock Bold(double v) => R(Ui.Money(v), "Strong").Also(t => t.FontWeight = FontWeights.Bold);
         var monthCols = new List<Column<ProfitMonth>>
         {
             new("Month", Ui.Star(), mo => Ui.Text(mo.Name, "Strong", 14.4)),
-            new("Income", Ui.Auto, mo => mo.Income > 0 ? R(Ui.Money(mo.Income)) : Ui.Muted("—", 14.4), HorizontalAlignment.Right),
-            new("Expenses", Ui.Auto, mo => mo.Expenses > 0 ? R(Ui.Money(mo.Expenses)) : Ui.Muted("—", 14.4), HorizontalAlignment.Right),
-            new("Net", Ui.Auto, mo => mo.Income == 0 && mo.Expenses == 0 ? Ui.Muted("—", 14.4) : Net(mo.Net), HorizontalAlignment.Right),
+            new("Income", Ui.Auto, mo => Amount(mo.Income), HorizontalAlignment.Right),
         };
-        var monthFooter = new List<UIElement?[]>
+        var totalRow = new List<UIElement?> { Ui.Bold("Total", 14.4), Bold(r.Income) };
+        if (r.ShowGross)
         {
-            new UIElement?[] { Ui.Bold("Total", 14.4), R(Ui.Money(r.Income), "Strong").Also(t => t.FontWeight = FontWeights.Bold),
-                R(Ui.Money(r.Expenses), "Strong").Also(t => t.FontWeight = FontWeights.Bold), Net(r.Net, bold: true) },
-        };
+            monthCols.Add(new("Cost", Ui.Auto, mo => Amount(mo.CostOfRevenue), HorizontalAlignment.Right));
+            monthCols.Add(new("Gross", Ui.Auto, mo => mo.Income == 0 && mo.CostOfRevenue == 0 ? Ui.Muted("—", 14.4) : R(Signed(mo.GrossProfit)), HorizontalAlignment.Right));
+            monthCols.Add(new("Operating", Ui.Auto, mo => Amount(mo.OperatingExpenses), HorizontalAlignment.Right));
+            totalRow.AddRange(new UIElement?[] { Bold(r.CostOfRevenue), R(Signed(r.GrossProfit), "Strong").Also(t => t.FontWeight = FontWeights.Bold), Bold(r.OperatingExpenses) });
+        }
+        else
+        {
+            monthCols.Add(new("Expenses", Ui.Auto, mo => Amount(mo.Expenses), HorizontalAlignment.Right));
+            totalRow.Add(Bold(r.Expenses));
+        }
+        monthCols.Add(new("Net", Ui.Auto, mo => mo.Income == 0 && mo.Expenses == 0 ? Ui.Muted("—", 14.4) : Net(mo.Net), HorizontalAlignment.Right));
+        totalRow.Add(Net(r.Net, bold: true));
+        var monthFooter = new List<UIElement?[]> { totalRow.ToArray() };
         var monthCard = Ui.Card(Table.Build(monthCols, r.Months, footer: monthFooter), "Monthly Breakdown", "table", bodyPadding: new Thickness(0));
 
         var catCols = new List<Column<CategoryTotal>>
         {
-            new("Category", Ui.Star(), c => Ui.Text(c.Name, "Body", 14.4)),
+            new("Category", Ui.Star(), c => r.ShowGross && c.CostOfRevenue
+                ? Ui.Row(8, Ui.Text(c.Name, "Body", 14.4), Ui.Badge("Cost of revenue", "info75"))
+                : Ui.Text(c.Name, "Body", 14.4)),
             new("Share", Ui.Auto, c => Ui.Muted(c.Share.ToString("0.0", CultureInfo.InvariantCulture) + "%", 13.6), HorizontalAlignment.Right),
             new("Amount", Ui.Auto, c => R(Ui.Money(c.Amount), "Strong"), HorizontalAlignment.Right),
         };

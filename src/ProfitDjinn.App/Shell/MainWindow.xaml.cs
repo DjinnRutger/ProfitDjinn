@@ -31,6 +31,7 @@ public partial class MainWindow : Window
         ("expenses", "Expenses", "wallet2"),
         ("revenue", "Revenue", "graph-up-arrow"),
         ("profit", "Profit & Loss", "bar-chart-line"),   // 2.2, shown only while Expenses is on
+        ("banking", "Banking", "bank"),                  // 2.6, shown only while Bank Accounts is on
         ("items", "Items", "box-seam"),
     };
 
@@ -267,6 +268,7 @@ public partial class MainWindow : Window
         var expenses = Store.Expenses.Enabled ? Visibility.Visible : Visibility.Collapsed;
         foreach (string key in ExpenseNav) if (_navButtons.TryGetValue(key, out var b)) b.Visibility = expenses;
         if (_navButtons.TryGetValue("workorders", out var wo)) wo.Visibility = Store.WorkOrders.Enabled ? Visibility.Visible : Visibility.Collapsed;
+        if (_navButtons.TryGetValue("banking", out var bank)) bank.Visibility = Store.Banking.Enabled ? Visibility.Visible : Visibility.Collapsed;
         SidebarFooter.Visibility = LockButton.Visibility;
 
         DarkTitleBar.Apply(this, ThemeManager.Current != ThemeManager.Light);
