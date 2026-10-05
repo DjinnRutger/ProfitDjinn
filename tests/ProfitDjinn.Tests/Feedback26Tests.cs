@@ -77,6 +77,29 @@ public class Feedback26Tests
         Assert.Equal(0, s.Profit.Report(2026, ProfitBasis.Cash).CostOfRevenue);
     }
 
+    // ------------------------------------------------------------------ MRR / ARR
+
+    [Fact]
+    public void Recurring_revenue_counts_active_schedules_with_yearly_ones_as_a_twelfth()
+    {
+        DateOnly day = new(2026, 10, 4);
+        var s = new Store(Fixture.TempPaths(), () => day);
+        long a = s.Customers.Create(new CustomerDraft("A", "", "", "", "", "", "", "", "", true)).Id;
+        long b = s.Customers.Create(new CustomerDraft("B", "", "", "", "", "", "", "", "", true)).Id;
+        RecurringInvoiceDraft D(long c, string interval, double amount, DateOnly? end = null) =>
+            new(c, interval, new DateOnly(2026, 11, 1), 1, end, "", "", "", true, new[] { new InvoiceLineDraft("Plan", 1, amount) });
+        s.RecurringInvoices.Create(D(a, BillingInterval.Month, 515));
+        s.RecurringInvoices.Create(D(a, BillingInterval.Year, 120));         // 10 a month
+        long paused = s.RecurringInvoices.Create(D(b, BillingInterval.Month, 99)).Id;
+        s.RecurringInvoices.ToggleActive(paused);
+        var r = s.RecurringInvoices.Revenue();
+        Assert.Equal(525, r.Monthly);
+        Assert.Equal(6300, r.Yearly);
+        Assert.Equal(1, r.ActiveClients);
+        Assert.Equal(2, r.Schedules);
+        Assert.Empty(s.Invoices.List());                                     // read only
+    }
+
     [Fact]
     public void New_settings_rows_have_their_defaults()
     {

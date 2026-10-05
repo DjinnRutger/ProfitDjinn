@@ -25,6 +25,23 @@ public sealed class RecurringInvoicesPage : AppPage
         page.Children.Add(Ui.PageHeaderWithGlyph("arrow-repeat", "Recurring Invoices",
             "Each one creates an invoice on its day, every month or year, when ProfitDjinn opens.", null,
             Ui.Button("New Recurring Invoice", "Btn.Primary", "plus-lg", () => Shell.Navigate(Routes.NewRecurringInvoice(Shell)))));
+        // 2.6: recurring revenue (MRR / ARR) from the schedules that are on.
+        if (all.Count > 0)
+        {
+            var rev = Store.RecurringInvoices.Revenue();
+            var tiles = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Margin = new Thickness(-8, 0, -8, 24) };
+            StatTile Tile(string value, string label, string glyph, string tone, string tip) => new()
+            {
+                Value = value, Label = label, Glyph = glyph, Tone = tone, Margin = new Thickness(8, 0, 8, 0), Focusable = false,
+                Cursor = System.Windows.Input.Cursors.Arrow, ToolTip = tip,
+            };
+            tiles.Children.Add(Tile(Ui.Money(rev.Monthly), "Monthly Recurring", "arrow-repeat", "success",
+                "What the active recurring invoices bill per month on average (MRR). A yearly invoice counts a twelfth. One-time invoices are not included."));
+            tiles.Children.Add(Tile(Ui.Money(rev.Yearly), "Yearly Recurring", "calendar3", "primary", "Monthly recurring times 12 (ARR)."));
+            tiles.Children.Add(Tile(rev.ActiveClients.ToString(System.Globalization.CultureInfo.InvariantCulture), "Active Clients", "people", "info",
+                $"Customers with a recurring invoice that is on ({rev.Schedules} {(rev.Schedules == 1 ? "schedule" : "schedules")})."));
+            page.Children.Add(tiles);
+        }
         page.Children.Add(Ui.Card(all.Count == 0
             ? Ui.Stack(0, Table(Shell, all, showCustomer: true),
                 Ui.Empty("arrow-repeat", "No recurring invoices yet.", "Set one up.", () => Shell.Navigate(Routes.NewRecurringInvoice(Shell))))

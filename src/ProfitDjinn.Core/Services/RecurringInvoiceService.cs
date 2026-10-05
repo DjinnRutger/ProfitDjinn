@@ -29,6 +29,12 @@ public sealed record UpcomingInvoice(RecurringInvoice Schedule, DateOnly Date)
     public double Total => Schedule.Total;
 }
 
+/// <summary>
+/// 2.6. Recurring revenue from the active schedules: what they bill per month on average
+/// (a yearly invoice counts a twelfth), the same per year, and how many clients they cover.
+/// </summary>
+public sealed record RecurringRevenue(double Monthly, double Yearly, int ActiveClients, int Schedules);
+
 /// <summary>What a generation run did: the invoices made, and schedules held back with the reason.</summary>
 public sealed record RecurringInvoiceRun(IReadOnlyList<IssuedInvoice> Created, IReadOnlyList<string> Problems);
 
@@ -105,6 +111,19 @@ public sealed class RecurringInvoiceService
             foreach (var _ in t.Schedule.Occurrences(from, through)) amounts.Add(t.Total);
         }
         return (amounts.Count, PyMath.Sum(amounts, a => a));
+    }
+
+    /// <summary>
+    /// 2.6. Monthly and yearly recurring revenue (MRR, ARR) from schedules that are on and still
+    /// have invoices to come. Read only: nothing here creates or changes an invoice. One-time
+    /// invoices are never counted.
+    /// </summary>
+    public RecurringRevenue Revenue()
+    {
+        var live = List().Where(t => t.IsActive && t.NextDate is not null).ToList();
+        double monthly = PyMath.Sum(live, t => t.Total / ((t.Interval == BillingInterval.Year ? 12 : 1) * Math.Max(1, t.IntervalCount)));
+        double mrr = PyMath.Round(monthly, 2);
+        return new RecurringRevenue(mrr, PyMath.Round(monthly * 12, 2), live.Select(t => t.CustomerId).Distinct().Count(), live.Count);
     }
 
     /// <summary>
