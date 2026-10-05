@@ -17,6 +17,8 @@ Windows SmartScreen may warn because the file is not code-signed; choose More in
 - **Work Orders**: each customer has one rolling tab. Add to-dos, log work (hours x rate, or
   parts and services), mark lines no-charge, then **Bill** them onto an invoice as one line,
   grouped by type, or line by line. Anything not billed stays on the tab.
+- **Customer and vendor boxes**: type part of a name and it fills in the rest; a new name
+  gets an **Add Customer** / **Add Vendor** button that adds it without leaving the form.
 - **Invoices**: line items, optional service dates per line ("Service: 09/01/26 -
   09/30/26"), partial payments, overpayments that become account credit, applying credit to
   another invoice, Preview (see the PDF without saving it), Print and PDF.

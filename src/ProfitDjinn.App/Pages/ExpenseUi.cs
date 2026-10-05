@@ -31,20 +31,25 @@ public static class ExpenseUi
     }
 
     /// <summary>
-    /// The vendor picker: "— None —", then active vendors. A current vendor that has been made
-    /// inactive stays listed (marked) so editing an old expense does not drop it.
+    /// 2.6. The vendor picker: type to pick, empty for no vendor, Add Vendor for a new name. A
+    /// current vendor that has been made inactive stays listed (marked) so editing an old
+    /// expense does not drop it.
     /// </summary>
-    public static ComboBox VendorPicker(Store store, long? current)
+    public static RecordPicker VendorPicker(Store store, long? current)
     {
-        var choices = new List<Choice> { new(null, "— None —") };
-        choices.AddRange(store.Vendors.ActiveForPicker().Select(v => new Choice(v.Id, v.Name)));
-        if (current is { } id && choices.All(c => c.Id != id))
+        var items = store.Vendors.ActiveForPicker().Select(v => new PickItem(v.Id, v.Name, v.Contact)).ToList();
+        if (current is { } id && items.All(i => i.Id != id))
         {
-            try { choices.Add(new Choice(id, store.Vendors.Get(id).Name + " (inactive)")); }
+            try { items.Add(new PickItem(id, store.Vendors.Get(id).Name + " (inactive)")); }
             catch (UserFacingException) { }
         }
-        return new ComboBox { ItemsSource = choices, SelectedIndex = Math.Max(0, choices.FindIndex(c => c.Id == current)) };
+        return new RecordPicker(items, current, "Type a vendor name, or leave empty", "Add Vendor");
     }
+
+    /// <summary>"Choose a vendor..." when the box holds a name that is not a vendor; null when it is fine.</summary>
+    public static string? VendorProblem(RecordPicker picker) => picker.HasUnmatchedText
+        ? "No vendor has that name. Pick one from the list, click Add Vendor, or clear the box for no vendor."
+        : null;
 
     /// <summary>The category picker: shown categories, plus a hidden current one (marked).</summary>
     public static ComboBox CategoryPicker(Store store, long? current, bool allowNone = false)

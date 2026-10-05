@@ -197,6 +197,19 @@ No on/off switch: nothing shows until a schedule exists, except the dashboard's 
   match. Don't write `existing?.X ?? draft!.X` in a form: it reaches the null draft whenever a
   saved value is null (that crashed Edit Recurring Invoice in 2.4.0).
 
+## 2.6: type-to-pick customers and vendors
+
+- `Controls/RecordPicker.cs` replaces the customer and vendor ComboBoxes (invoice, recurring
+  invoice, expense, recurring expense forms): type to filter, the rest of the best name fills
+  in (selected; Tab/Enter accept), an exact name picks the record, and unknown text shows an
+  "Add Customer"/"Add Vendor" button. `SelectedId`, `HasUnmatchedText`, `SelectionChanged`.
+- `Pages/QuickAdd.cs` builds the pickers and the add dialogs (`shell.OpenDialog`). It must never
+  `Reload`: that rebuilds the form from the database and loses what was typed.
+- The suggestion list is a Popup window, so a process's `MainWindowHandle` can briefly be the
+  popup (no title) when a picker has focus at start; wait for the titled window.
+- Smoke tests type into pickers with `Type-Into` (exact names) and use real keystrokes
+  (`SendKeys`, window brought to the front) for the fill-in.
+
 ## 1.x reference (Flask, in legacy/)
 
 Everything below describes the 1.x code in `legacy/`. It stays accurate for that code.

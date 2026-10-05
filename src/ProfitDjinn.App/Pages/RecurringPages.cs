@@ -74,7 +74,8 @@ public sealed class RecurringFormPage : AppPage
 {
     private readonly long? _id;
     private readonly Dictionary<string, Field> _fields = new();
-    private readonly ComboBox _vendor, _category, _frequency, _method;
+    private readonly RecordPicker _vendor;
+    private readonly ComboBox _category, _frequency, _method;
     private readonly TextBox _description, _amount, _day, _notes;
     private readonly DateBox _start, _end;
     private readonly RadioButton _modePaid, _modeBill;
@@ -98,7 +99,7 @@ public sealed class RecurringFormPage : AppPage
         var t = id is { } rid ? Store.Recurring.Get(rid) : new RecurringExpense { StartDate = today, DayOfMonth = today.Day, Mode = RecurringMode.Paid, Method = "credit_card" };
         _vendorDefaults = Store.Vendors.ActiveForPicker().ToDictionary(v => v.Id, v => v.DefaultCategoryId);
 
-        _vendor = ExpenseUi.VendorPicker(Store, t.VendorId);
+        _vendor = QuickAdd.VendorPicker(Shell, t.VendorId, (added, def) => _vendorDefaults![added] = def);
         _category = ExpenseUi.CategoryPicker(Store, id is null ? null : t.CategoryId);
         _description = Ui.TextBox(t.Description, "e.g. Office rent, Adobe subscription");
         _amount = Ui.TextBox(id is null ? "" : t.Amount.ToString("0.00", CultureInfo.InvariantCulture));
@@ -114,9 +115,9 @@ public sealed class RecurringFormPage : AppPage
         _notes = Ui.TextArea(t.Notes, 60);
         _active = new CheckBox { Content = "Active", IsChecked = t.IsActive };
 
-        _vendor.SelectionChanged += (_, _) =>
+        _vendor.SelectionChanged += () =>
         {
-            if (ExpenseUi.SelectedId(_vendor) is { } v && _vendorDefaults.GetValueOrDefault(v) is { } def)
+            if (_vendor.SelectedId is { } v && _vendorDefaults.GetValueOrDefault(v) is { } def)
             {
                 int at = ((List<Choice>)_category.ItemsSource).FindIndex(c => c.Id == def);
                 if (at >= 0) _category.SelectedIndex = at;
@@ -171,6 +172,8 @@ public sealed class RecurringFormPage : AppPage
     private async void Save()
     {
         foreach (var f in _fields.Values) { f.Error = null; if (f.Content is TextBox tb) Input.SetInvalid(tb, false); }
+        _vendor.Invalid = false;
+        if (ExpenseUi.VendorProblem(_vendor) is { } vendorProblem) { ShowFieldErrors(new Dictionary<string, string> { ["vendor_id"] = vendorProblem }); Shell.ShowError(vendorProblem); return; }
         var bad = new Dictionary<string, string>();
         double? amount = null;
         if (_amount.Text.Trim().Length > 0)
@@ -188,7 +191,7 @@ public sealed class RecurringFormPage : AppPage
         if (!_end.IsBlank && _end.Date is null) bad["end_date"] = "Enter a date like 2027-03-01.";
         if (bad.Count > 0) { ShowFieldErrors(bad); Shell.ShowError(string.Join(" ", bad.Values.Distinct())); return; }
 
-        var draft = new RecurringDraft(ExpenseUi.SelectedId(_vendor), ExpenseUi.SelectedId(_category), _description.Text, amount,
+        var draft = new RecurringDraft(_vendor.SelectedId, ExpenseUi.SelectedId(_category), _description.Text, amount,
             ((Freq)_frequency.SelectedItem).Value, _start.Date, day, _end.Date,
             _modePaid.IsChecked == true ? RecurringMode.Paid : RecurringMode.Bill, ExpenseUi.SelectedMethod(_method), _notes.Text, _active.IsChecked == true);
 
@@ -217,6 +220,7 @@ public sealed class RecurringFormPage : AppPage
             {
                 f.Error = message;
                 if (f.Content is TextBox t) Input.SetInvalid(t, true);
+                if (f.Content is Controls.RecordPicker rp) rp.Invalid = true;
             }
     }
 }

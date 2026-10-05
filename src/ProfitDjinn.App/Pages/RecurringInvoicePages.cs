@@ -84,13 +84,13 @@ public sealed class RecurringInvoicesPage : AppPage
 /// <summary>2.4. New and Edit Recurring Invoice: the invoice's lines plus when it repeats.</summary>
 public sealed class RecurringInvoiceFormPage : AppPage
 {
-    private sealed record CustomerChoice(long Id, string Label) { public override string ToString() => Label; }
     private sealed record Freq(string Value, string Label) { public override string ToString() => Label; }
 
     private readonly long? _id;
     private readonly long? _fromCustomer;
     private readonly Dictionary<string, Field> _fields = new();
-    private readonly ComboBox _customer, _frequency;
+    private readonly ComboBox _frequency;
+    private readonly RecordPicker _customer;
     private readonly DateBox _start, _end;
     private readonly TextBox _day, _notes, _term1, _term2;
     private readonly CheckBox _active;
@@ -120,13 +120,8 @@ public sealed class RecurringInvoiceFormPage : AppPage
         var existing = id is { } rid ? Store.RecurringInvoices.Get(rid) : null;
         var draft = existing is null ? Store.RecurringInvoices.NewDraft(customerId) : null;
 
-        var choices = Store.Customers.ActiveForPicker().Select(c => new CustomerChoice(c.Id, string.IsNullOrEmpty(c.Attn) ? c.Name : $"{c.Name} ({c.Attn})")).ToList();
-        if (existing?.Customer is { } current && choices.All(c => c.Id != current.Id))
-            choices.Add(new CustomerChoice(current.Id, current.Name + " (inactive)"));
-        _customer = new ComboBox { ItemsSource = choices, MaxDropDownHeight = 400 };
         long? selected = existing is not null ? existing.CustomerId : draft!.CustomerId;
-        _customer.SelectedItem = choices.FirstOrDefault(c => c.Id == selected);
-        Input.SetPlaceholder(_customer, "— Select customer —");
+        _customer = QuickAdd.CustomerPicker(Shell, selected, existing?.Customer);
 
         // Fill from the schedule when editing, from the new-schedule defaults otherwise. (2.4 wrote
         // `existing?.X ?? draft!.X`, which reached the null draft whenever a saved value was null,
@@ -223,7 +218,7 @@ public sealed class RecurringInvoiceFormPage : AppPage
 
     public override void OnShown()
     {
-        if (_customer.SelectedItem is null) _customer.Focus();
+        if (_customer.SelectedId is null) _customer.FocusBox();
         else if (_lines.Count == 0) _lines.AddRow("", "1", "", focus: true, byUser: false);
     }
 
@@ -258,7 +253,9 @@ public sealed class RecurringInvoiceFormPage : AppPage
     private async void Save()
     {
         foreach (var f in _fields.Values) { f.Error = null; if (f.Content is TextBox tb) Input.SetInvalid(tb, false); }
+        _customer.Invalid = false;
         var bad = new Dictionary<string, string>();
+        if (_customer.HasUnmatchedText) bad["customer"] = QuickAdd.CustomerProblem;
         int? day = null;
         if (_day.Text.Trim().Length > 0)
         {
@@ -269,7 +266,7 @@ public sealed class RecurringInvoiceFormPage : AppPage
         if (!_end.IsBlank && _end.Date is null) bad["end_date"] = "Enter a date like 2027-11-01.";
         if (bad.Count > 0) { ShowFieldErrors(bad); Shell.ShowError(string.Join(" ", bad.Values.Distinct())); return; }
 
-        var draft = new RecurringInvoiceDraft((_customer.SelectedItem as CustomerChoice)?.Id, ((Freq)_frequency.SelectedItem).Value,
+        var draft = new RecurringInvoiceDraft(_customer.SelectedId, ((Freq)_frequency.SelectedItem).Value,
             _start.Date, day, _end.Date, _notes.Text, _term1.Text, _term2.Text, _active.IsChecked == true,
             _lines.Rows.Select(InvoiceRows.ToDraft).ToList());
 
@@ -301,6 +298,7 @@ public sealed class RecurringInvoiceFormPage : AppPage
                 f.Error = message;
                 if (f.Content is TextBox t) Input.SetInvalid(t, true);
                 if (f.Content is ComboBox c) Input.SetInvalid(c, true);
+                if (f.Content is RecordPicker rp) rp.Invalid = true;
             }
     }
 }

@@ -144,6 +144,7 @@ public sealed class Field : ContentControl
         {
             ProfitDjinn.App.Infrastructure.DateBox d => d.TextBox,
             SuggestBox sb => sb.Box,
+            RecordPicker rp => rp.Box,
             DependencyObject other => other,
             _ => null,
         };

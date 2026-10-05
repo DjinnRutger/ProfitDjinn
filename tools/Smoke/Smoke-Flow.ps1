@@ -11,7 +11,9 @@
   Python's sqlite3: one paid invoice of $100.00, the work line billed onto it, one payment,
   four recurring invoices with their period text and run rows. 2.5: edits the recurring
   invoice (crashed in 2.4) to bill the period, gives an invoice line service dates, opens the
-  PDF preview, and switches work orders off. Exits 1 on the first step that does not happen.
+  PDF preview, and switches work orders off. 2.6: a new invoice for a customer added from the
+  invoice form (Add Customer), and one picked by typing part of a name (real keystrokes: the
+  window is brought to the front). Exits 1 on the first step that does not happen.
 #>
 param(
   [Parameter(Mandatory)] [string] $Exe,
@@ -79,6 +81,10 @@ function Toggle([string] $name) {
   $e.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
   Start-Sleep -Milliseconds 300
 }
+function Value-Of([string] $name) {
+  $e = Wait-For $name -type ([System.Windows.Automation.ControlType]::Edit)
+  return $e.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
+}
 function Step([string] $what, [scriptblock] $do) {
   Write-Host -NoNewline "  $what ... "
   & $do
@@ -91,6 +97,7 @@ using System;
 using System.Runtime.InteropServices;
 public static class SmokeWin {
   [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT r);
   public struct RECT { public int Left, Top, Right, Bottom; }
 }
@@ -193,6 +200,42 @@ try {
     Click "Save Recurring Invoice"
     Wait-For "Recurring invoice for Smoke Test Co updated." | Out-Null
   }
+  Step "new invoice for a customer added from the invoice form" {
+    Click "Invoices"
+    Click "New Invoice"
+    Wait-For "Save Invoice" -type ([System.Windows.Automation.ControlType]::Button) | Out-Null
+    Start-Sleep -Milliseconds 500
+    Type-Into "Customer" "Walk-in Client"
+    Click "Add Customer"
+    Wait-For "Company / Name" -type ([System.Windows.Automation.ControlType]::Edit) | Out-Null
+    Type-Into "Email" "walkin@smoke.example"
+    Click "Add Customer"          # the dialog's button (the last one found)
+    Wait-For "Customer 'Walk-in Client' created." | Out-Null
+    if ((Value-Of "Customer") -ne "Walk-in Client") { throw "The new customer was not filled in." }
+    Click "Add Line"
+    Type-Into "Description" "Drop-off repair"
+    Type-Into "0.00" "25"
+    Click "Save Invoice"
+    Wait-For "Invoice INV1006 created." | Out-Null
+  }
+  Step "pick a customer by typing part of the name" {
+    Click "Invoices"
+    Click "New Invoice"
+    Wait-For "Save Invoice" -type ([System.Windows.Automation.ControlType]::Button) | Out-Null
+    Start-Sleep -Milliseconds 500
+    [SmokeWin]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
+    (Wait-For "Customer" -type ([System.Windows.Automation.ControlType]::Edit)).SetFocus()
+    Start-Sleep -Milliseconds 300
+    Add-Type -AssemblyName System.Windows.Forms
+    [System.Windows.Forms.SendKeys]::SendWait("Smo{TAB}")
+    Start-Sleep -Milliseconds 500
+    if ((Value-Of "Customer") -ne "Smoke Test Co") { throw "Typing 'Smo' did not fill in Smoke Test Co (got '$(Value-Of "Customer")')." }
+    Click "Add Line"
+    Type-Into "Description" "Quick fix"
+    Type-Into "0.00" "10"
+    Click "Save Invoice"
+    Wait-For "Invoice INV1007 created." | Out-Null
+  }
   Step "switch work orders off" {
     Click "Settings"
     Click "Features settings"
@@ -232,12 +275,14 @@ problems = []
 if service != [("2026-09-01", "2026-09-30")]: problems.append(f"service dates {service}")
 if period != [(1,)]: problems.append(f"bill period {period}")
 if wo != ("false",): problems.append(f"work orders setting {wo}")
-if inv != [("INV1001", 1), ("INV1002", 0), ("INV1003", 0), ("INV1004", 0), ("INV1005", 0)]: problems.append(f"invoices {inv}")
+if inv != [("INV1001", 1), ("INV1002", 0), ("INV1003", 0), ("INV1004", 0), ("INV1005", 0), ("INV1006", 0), ("INV1007", 0)]: problems.append(f"invoices {inv}")
+owners = c.execute("select i.invoice_number, c.name, c.email from invoices i join customers c on c.id = i.customer_id where i.invoice_number in ('INV1006', 'INV1007') order by 1").fetchall()
+if owners != [("INV1006", "Walk-in Client", "walkin@smoke.example"), ("INV1007", "Smoke Test Co", "billing@smoke.example")]: problems.append(f"picked customers {owners}")
 if runs != (4, 4): problems.append(f"recurring runs {runs}")
 if len(monthly) != 4 or any("{" in d for (d,) in monthly): problems.append(f"recurring lines {monthly}")
 if lines != [("Check backups", "pending", None, 0.0), ("Network setup", "billed", 1, 100.0)]: problems.append(f"work lines {lines}")
 if pays != [(100.0, "cash")]: problems.append(f"payments {pays}")
-if total != 400.0: problems.append(f"invoice total {total}")
+if total != 435.0: problems.append(f"invoice total {total}")
 print("; ".join(problems) if problems else "OK")
 "@
 $result = $check | python - (Join-Path $DataDir 'app.db')

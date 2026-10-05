@@ -89,6 +89,7 @@ using System;
 using System.Runtime.InteropServices;
 public static class SmokeWinExp {
   [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT r);
   public struct RECT { public int Left, Top, Right, Bottom; }
 }
@@ -143,6 +144,41 @@ try {
     Click "Record Payment"       # the dialog's button (the last one found)
     Wait-For "Partial payment of `$40.00 recorded. Balance remaining: `$60.00." | Out-Null
   }
+  # 2.6: the vendor box is type-to-pick. Real keystrokes for the fill-in (window to the front).
+  Step "pick the vendor by typing part of its name" {
+    Click "Expenses"
+    Click "New Expense"
+    Wait-For "Save Expense" -type $CT::Button | Out-Null
+    Start-Sleep -Milliseconds 500
+    [SmokeWinExp]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
+    (Wait-For "Vendor" -type $CT::Edit).SetFocus()
+    Start-Sleep -Milliseconds 300
+    Add-Type -AssemblyName System.Windows.Forms
+    [System.Windows.Forms.SendKeys]::SendWait("Smo{TAB}")
+    Start-Sleep -Milliseconds 500
+    $got = (Wait-For "Vendor" -type $CT::Edit).GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
+    if ($got -ne "Smoke Supply") { throw "Typing 'Smo' did not fill in Smoke Supply (got '$got')." }
+    Type-Into "Description" "Smoke tape"
+    Type-Into "Amount" "12"
+    Click "Save Expense"
+    Wait-For "Expense 'Smoke tape' saved." | Out-Null
+  }
+  Step "add a vendor from the expense form" {
+    Click "Expenses"
+    Click "New Expense"
+    Wait-For "Save Expense" -type $CT::Button | Out-Null
+    Start-Sleep -Milliseconds 500
+    Type-Into "Vendor" "Fresh Vendor"
+    Click "Add Vendor"
+    Wait-For "Vendor Name" -type $CT::Edit | Out-Null
+    Pick "Default Category" "Advertising"
+    Click "Add Vendor"            # the dialog's button (the last one found)
+    Wait-For "Vendor 'Fresh Vendor' created." | Out-Null
+    Type-Into "Description" "Flyers"
+    Type-Into "Amount" "30"
+    Click "Save Expense"
+    Wait-For "Expense 'Flyers' saved." | Out-Null
+  }
   Step "set up a recurring expense that back-fills three" {
     Click "Expenses"
     Click "Recurring"
@@ -195,7 +231,9 @@ problems = []
 on = c.execute("select value from settings where key='expenses_enabled'").fetchone()
 if on != ("false",): problems.append(f"expenses_enabled {on}")
 v = c.execute("select v.name, k.name from vendors v join expense_categories k on k.id = v.default_category_id").fetchall()
-if v != [("Smoke Supply", "Supplies")]: problems.append(f"vendors {v}")
+if sorted(v) != [("Fresh Vendor", "Advertising"), ("Smoke Supply", "Supplies")]: problems.append(f"vendors {v}")
+picked = c.execute("select e.description, v.name, k.name from expenses e join vendors v on v.id = e.vendor_id join expense_categories k on k.id = e.category_id where e.description in ('Smoke tape', 'Flyers') order by 1").fetchall()
+if picked != [("Flyers", "Fresh Vendor", "Advertising"), ("Smoke tape", "Smoke Supply", "Supplies")]: problems.append(f"picked vendors {picked}")
 paper = c.execute("select e.amount, k.name, (select sum(amount) from expense_payments p where p.expense_id = e.id) from expenses e join expense_categories k on k.id = e.category_id where e.description = 'Smoke paper'").fetchall()
 if paper != [(100.0, "Supplies", 40.0)]: problems.append(f"paper {paper}")
 rent = c.execute("select e.date, e.amount, p.amount, p.method from expenses e join expense_payments p on p.expense_id = e.id where e.recurring_id is not null order by e.date").fetchall()

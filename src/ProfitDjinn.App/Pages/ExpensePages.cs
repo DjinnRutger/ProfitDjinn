@@ -131,7 +131,8 @@ public sealed class ExpenseFormPage : AppPage
     private readonly long? _id;
     private readonly string _desc;
     private readonly Dictionary<string, Field> _fields = new();
-    private readonly ComboBox _vendor, _category, _method;
+    private readonly RecordPicker _vendor;
+    private readonly ComboBox _category, _method;
     private readonly DateBox _date, _due, _paidOn;
     private readonly TextBox _description, _reference, _amount, _notes, _check;
     private readonly CheckBox _paid;
@@ -159,7 +160,7 @@ public sealed class ExpenseFormPage : AppPage
         _vendorDefaults = Store.Vendors.ActiveForPicker().ToDictionary(v => v.Id, v => v.DefaultCategoryId);
         long? category = id is null && vendorId is { } v0 ? _vendorDefaults.GetValueOrDefault(v0) : e.CategoryId;
 
-        _vendor = ExpenseUi.VendorPicker(Store, e.VendorId);
+        _vendor = QuickAdd.VendorPicker(Shell, e.VendorId, (added, def) => _vendorDefaults![added] = def);
         _category = ExpenseUi.CategoryPicker(Store, id is null ? category : e.CategoryId);
         _date = Ui.DateBox(e.Date);
         _due = Ui.DateBox(e.DueDate);
@@ -173,9 +174,9 @@ public sealed class ExpenseFormPage : AppPage
         _paidOn = Ui.DateBox(today);
         _check = Ui.TextBox(null, "e.g. 1042").Also(t => t.MaxLength = 50);
 
-        _vendor.SelectionChanged += (_, _) =>
+        _vendor.SelectionChanged += () =>
         {
-            if (ExpenseUi.SelectedId(_vendor) is { } v && _vendorDefaults.GetValueOrDefault(v) is { } def)
+            if (_vendor.SelectedId is { } v && _vendorDefaults.GetValueOrDefault(v) is { } def)
             {
                 int at = ((List<Choice>)_category.ItemsSource).FindIndex(c => c.Id == def);
                 if (at >= 0) _category.SelectedIndex = at;
@@ -237,7 +238,7 @@ public sealed class ExpenseFormPage : AppPage
 
     public override void OnShown()
     {
-        if (_vendor.SelectedIndex <= 0 && _id is null) _vendor.Focus();
+        if (_vendor.SelectedId is null && _id is null) _vendor.FocusBox();
         else _description.Focus();
     }
 
@@ -246,6 +247,8 @@ public sealed class ExpenseFormPage : AppPage
     private void Save()
     {
         foreach (var f in _fields.Values) { f.Error = null; if (f.Content is TextBox t) Input.SetInvalid(t, false); }
+        _vendor.Invalid = false;
+        if (ExpenseUi.VendorProblem(_vendor) is { } vendorProblem) { ShowFieldErrors(new Dictionary<string, string> { ["vendor_id"] = vendorProblem }); Shell.ShowError(vendorProblem); return; }
         double? amount = null;
         if (_amount.Text.Trim().Length > 0)
         {
@@ -265,7 +268,7 @@ public sealed class ExpenseFormPage : AppPage
         }
         if (bad.Count > 0) { ShowFieldErrors(bad); Shell.ShowError(string.Join(" ", bad.Values.Distinct())); return; }
 
-        var draft = new ExpenseDraft(ExpenseUi.SelectedId(_vendor), ExpenseUi.SelectedId(_category), _date.Date, _due.Date,
+        var draft = new ExpenseDraft(_vendor.SelectedId, ExpenseUi.SelectedId(_category), _date.Date, _due.Date,
             _description.Text, _reference.Text, amount, _notes.Text, paid);
         Try(() =>
         {
@@ -285,6 +288,7 @@ public sealed class ExpenseFormPage : AppPage
             {
                 f.Error = message;
                 if (f.Content is TextBox t) Input.SetInvalid(t, true);
+                if (f.Content is Controls.RecordPicker rp) rp.Invalid = true;
             }
     }
 }

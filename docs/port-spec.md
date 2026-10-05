@@ -513,3 +513,18 @@ new tables follow the 1.x conventions (no AUTOINCREMENT, money FLOAT, DATE text,
   Charts side by side are now the same height. Rows built up one button at a time had no gaps.
   The collapsed sidebar's icons were off centre.
 
+## New in 2.6
+
+- **Customer and vendor boxes are type-to-pick** (invoice, recurring invoice, expense and
+  recurring expense forms). Typing lists names containing the text, names starting with it
+  first, and fills in the rest of the best match (selected, so typing on replaces it; Tab or
+  Enter accepts; Backspace/Delete never fill in). An exact name, any case, picks the record.
+  The arrow, or focusing an empty box, lists everyone. An inactive customer or vendor already
+  on an edited record stays listed, marked "(inactive)". Vendor stays optional: an empty box
+  means no vendor.
+- Text that matches no one shows **Add Customer "X"** / **Add Vendor "X"** under the box. It
+  opens a dialog with the name filled in (customer: contact, email, phone, address; vendor:
+  contact, email, phone, default category), creates the record and picks it, without leaving
+  the form. A quick-added vendor's default category is applied to the expense. Saving with
+  unmatched text is refused with a field error naming the Add button.
+
