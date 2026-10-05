@@ -101,6 +101,8 @@ internal static class Seed
         new(SettingKeys.UpdateLatestUrl, "", "text", "Release page of the latest version (auto-managed)", "updates", null),
         new(SettingKeys.DatabaseAppVersion, "", "text", "App version that last opened this database (auto-managed)", "backup", null),
         new(SettingKeys.WorkOrdersEnabled, "true", "boolean", "Work orders: log work per customer and bill it", "features", null),
+        new(SettingKeys.MileageRate, "0.70", "number", "Dollars per mile for mileage expenses", "expenses", null),
+        new(SettingKeys.BankingEnabled, "false", "boolean", "Bank accounts: balances, transfers and reconciliation", "features", null),
     };
 
     /// <summary>

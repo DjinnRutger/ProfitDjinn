@@ -385,6 +385,70 @@ public static class Schema
         "CREATE INDEX IF NOT EXISTS ix_invoice_line_service_invoice_id ON invoice_line_service (invoice_id)",
     };
 
+    /// <summary>
+    /// 2.6 tables. Mileage details for an expense; bank, card, personal and payment-processor
+    /// accounts with their transactions (Bank Accounts, off by default); and a side table that
+    /// links an invoice payment to the account it was deposited to (payments is a 1.x table, so
+    /// it gets no column). The P&amp;L never reads the bank tables: transfers, owner contributions
+    /// and draws are not income or expense.
+    /// </summary>
+    private static readonly string[] Tables26 =
+    {
+        """
+        CREATE TABLE IF NOT EXISTS expense_mileage (
+        	expense_id INTEGER NOT NULL,
+        	miles FLOAT NOT NULL,
+        	rate FLOAT NOT NULL,
+        	PRIMARY KEY (expense_id)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS bank_accounts (
+        	id INTEGER NOT NULL,
+        	name VARCHAR(100) NOT NULL,
+        	kind VARCHAR(20) NOT NULL,
+        	opening_balance FLOAT NOT NULL DEFAULT 0,
+        	opening_date DATE NOT NULL,
+        	is_active BOOLEAN NOT NULL DEFAULT 1,
+        	reconciled_through DATE,
+        	reconciled_balance FLOAT,
+        	notes TEXT,
+        	created_at DATETIME,
+        	PRIMARY KEY (id)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS bank_transactions (
+        	id INTEGER NOT NULL,
+        	account_id INTEGER NOT NULL,
+        	date DATE NOT NULL,
+        	description VARCHAR(300) NOT NULL,
+        	amount FLOAT NOT NULL,
+        	kind VARCHAR(30) NOT NULL,
+        	status VARCHAR(12) NOT NULL DEFAULT 'pending',
+        	transfer_id INTEGER,
+        	reference VARCHAR(100),
+        	notes TEXT,
+        	invoice_payment_id INTEGER,
+        	expense_payment_id INTEGER,
+        	expense_id INTEGER,
+        	created_at DATETIME,
+        	PRIMARY KEY (id)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_bank_transactions_account ON bank_transactions (account_id, date)",
+        "CREATE INDEX IF NOT EXISTS ix_bank_transactions_invoice_payment ON bank_transactions (invoice_payment_id)",
+        "CREATE INDEX IF NOT EXISTS ix_bank_transactions_expense_payment ON bank_transactions (expense_payment_id)",
+        """
+        CREATE TABLE IF NOT EXISTS payment_accounts (
+        	payment_id INTEGER NOT NULL,
+        	account_id INTEGER NOT NULL,
+        	bank_transaction_id INTEGER NOT NULL,
+        	PRIMARY KEY (payment_id)
+        )
+        """,
+    };
+
     /// <summary>Run at every start. Safe to run any number of times.</summary>
     public static void Ensure(Database database)
     {
@@ -398,6 +462,7 @@ public static class Schema
             if (newCategories) Seed.ExpenseCategories(db, tx);
             foreach (string sql in RecurringInvoiceTables) db.Execute(sql, transaction: tx);
             foreach (string sql in ServiceDateTables) db.Execute(sql, transaction: tx);
+            foreach (string sql in Tables26) db.Execute(sql, transaction: tx);
             db.Execute("""
                 DELETE FROM invoice_line_service WHERE NOT EXISTS
                     (SELECT 1 FROM invoice_lines l WHERE l.id = invoice_line_service.line_id AND l.invoice_id = invoice_line_service.invoice_id
@@ -430,6 +495,17 @@ public static class Schema
         // 2.5 (a 2.4 table, not a 1.x one).
         if (!Columns(db, tx, "recurring_invoice_lines").Contains("bill_period"))
             db.Execute("ALTER TABLE recurring_invoice_lines ADD COLUMN bill_period BOOLEAN NOT NULL DEFAULT 0", transaction: tx);
+
+        // 2.6 (2.2 tables, not 1.x ones): cost of revenue, and who paid an expense.
+        if (!Columns(db, tx, "expense_categories").Contains("cost_of_revenue"))
+            db.Execute("ALTER TABLE expense_categories ADD COLUMN cost_of_revenue BOOLEAN NOT NULL DEFAULT 0", transaction: tx);
+        var paymentCols = Columns(db, tx, "expense_payments");
+        if (!paymentCols.Contains("paid_from"))
+            db.Execute("ALTER TABLE expense_payments ADD COLUMN paid_from VARCHAR(10) NOT NULL DEFAULT 'business'", transaction: tx);
+        if (!paymentCols.Contains("account_id"))
+            db.Execute("ALTER TABLE expense_payments ADD COLUMN account_id INTEGER", transaction: tx);
+        if (!paymentCols.Contains("reimbursed_on"))
+            db.Execute("ALTER TABLE expense_payments ADD COLUMN reimbursed_on DATE", transaction: tx);
     }
 
     private static bool TableExists(SqliteConnection db, SqliteTransaction tx, string table) =>

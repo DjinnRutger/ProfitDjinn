@@ -13,12 +13,15 @@ namespace ProfitDjinn.Core.Services;
 /// </summary>
 public enum ProfitBasis { Cash, Accrual }
 
-public sealed record ProfitMonth(int Month, string Name, double Income, double Expenses)
+/// <remarks>2.6: <paramref name="CostOfRevenue"/> is the part of Expenses in cost-of-revenue categories.</remarks>
+public sealed record ProfitMonth(int Month, string Name, double Income, double Expenses, double CostOfRevenue = 0)
 {
     public double Net => PyMath.Round(Income - Expenses, 2);
+    public double GrossProfit => PyMath.Round(Income - CostOfRevenue, 2);
+    public double OperatingExpenses => PyMath.Round(Expenses - CostOfRevenue, 2);
 }
 
-public sealed record CategoryTotal(string Name, double Amount, double Share);
+public sealed record CategoryTotal(string Name, double Amount, double Share, bool CostOfRevenue = false);
 
 public sealed record VendorTotal(string Name, double Amount, int Count);
 
@@ -38,9 +41,20 @@ public sealed record ProfitReport(
     IReadOnlyList<ProfitMonth> Months,
     IReadOnlyList<CategoryTotal> Categories,
     IReadOnlyList<VendorTotal> Vendors,
-    IReadOnlyList<ProfitYear> YearRows)
+    IReadOnlyList<ProfitYear> YearRows,
+    double CostOfRevenue = 0,
+    bool ShowGross = false)
 {
     public double Net => PyMath.Round(Income - Expenses, 2);
+
+    /// <summary>2.6. Income less cost of revenue.</summary>
+    public double GrossProfit => PyMath.Round(Income - CostOfRevenue, 2);
+
+    /// <summary>2.6. Gross profit as a share of income, or null with no income.</summary>
+    public double? GrossMargin => Income > 0 ? PyMath.Round(GrossProfit / Income * 100, 1) : null;
+
+    /// <summary>2.6. Expenses that are not cost of revenue.</summary>
+    public double OperatingExpenses => PyMath.Round(Expenses - CostOfRevenue, 2);
 
     /// <summary>Net as a share of income, or null with no income.</summary>
     public double? Margin => Income > 0 ? PyMath.Round(Net / Income * 100, 1) : null;
@@ -73,7 +87,7 @@ public sealed class ProfitService
     }
 
     /// <summary>One dated amount. Expense entries carry their category and vendor.</summary>
-    public sealed record Entry(DateOnly Date, double Amount, string Category, string Vendor, string Description, string Reference);
+    public sealed record Entry(DateOnly Date, double Amount, string Category, string Vendor, string Description, string Reference, bool CostOfRevenue = false);
 
     public ProfitReport Report(int year, ProfitBasis basis)
     {
@@ -90,13 +104,14 @@ public sealed class ProfitService
 
         var months = Enumerable.Range(1, 12).Select(m => new ProfitMonth(m, MonthNames[m - 1],
             PyMath.Sum(inYear.Where(e => e.Date.Month == m), e => e.Amount),
-            PyMath.Sum(outYear.Where(e => e.Date.Month == m), e => e.Amount))).ToList();
+            PyMath.Sum(outYear.Where(e => e.Date.Month == m), e => e.Amount),
+            PyMath.Sum(outYear.Where(e => e.Date.Month == m && e.CostOfRevenue), e => e.Amount))).ToList();
 
         double totalOut = PyMath.Sum(outYear, e => e.Amount);
         var categories = outYear.GroupBy(e => e.Category)
-            .Select(g => (Name: g.Key, Amount: PyMath.Sum(g, e => e.Amount)))
+            .Select(g => (Name: g.Key, Amount: PyMath.Sum(g, e => e.Amount), Cogs: g.Any(e => e.CostOfRevenue)))
             .OrderByDescending(c => c.Amount).ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(c => new CategoryTotal(c.Name, c.Amount, totalOut > 0 ? c.Amount / totalOut * 100 : 0))
+            .Select(c => new CategoryTotal(c.Name, c.Amount, totalOut > 0 ? c.Amount / totalOut * 100 : 0, c.Cogs))
             .ToList();
         var vendors = outYear.GroupBy(e => e.Vendor)
             .Select(g => new VendorTotal(g.Key, PyMath.Sum(g, e => e.Amount), g.Count()))
@@ -107,8 +122,11 @@ public sealed class ProfitService
             PyMath.Sum(income.Where(e => e.Date.Year == y), e => e.Amount),
             PyMath.Sum(expenses.Where(e => e.Date.Year == y), e => e.Amount), y == current)).ToList();
 
+        // Gross profit only shows once some category is marked cost of revenue, so reports for
+        // people who never use it look exactly as before.
+        bool showGross = _db.Run(db => db.ExecuteScalar<bool>("SELECT EXISTS (SELECT 1 FROM expense_categories WHERE cost_of_revenue = 1)"));
         return new ProfitReport(year, current, basis, years, PyMath.Sum(inYear, e => e.Amount), totalOut,
-            months, categories, vendors, yearRows);
+            months, categories, vendors, yearRows, PyMath.Sum(outYear.Where(e => e.CostOfRevenue), e => e.Amount), showGross);
     }
 
     /// <summary>This year's net profit, cash basis, for the dashboard tile.</summary>
@@ -141,10 +159,11 @@ public sealed class ProfitService
         {
             string cat = e.CategoryName.Length > 0 ? e.CategoryName : "Uncategorized";
             string vendor = e.VendorName.Length > 0 ? e.VendorName : "(No vendor)";
+            bool cogs = e.Category?.CostOfRevenue == true;
             if (basis == ProfitBasis.Accrual)
-                expenses.Add(new Entry(e.Date, e.Amount, cat, vendor, e.Description, e.Reference ?? ""));
+                expenses.Add(new Entry(e.Date, e.Amount, cat, vendor, e.Description, e.Reference ?? "", cogs));
             else
-                expenses.AddRange(e.Payments.Select(p => new Entry(p.Date, p.Amount, cat, vendor, e.Description, e.Reference ?? "")));
+                expenses.AddRange(e.Payments.Select(p => new Entry(p.Date, p.Amount, cat, vendor, e.Description, e.Reference ?? "", cogs)));
         }
         return (income, expenses);
     });
@@ -158,12 +177,29 @@ public sealed class ProfitService
         var csv = new Csv();
         csv.Row($"Profit and Loss {year}", basis == ProfitBasis.Cash ? "Cash basis" : "Accrual basis");
         csv.Row();
-        csv.Row("Month", "Income", "Expenses", "Net");
-        foreach (var m in r.Months) csv.Row(m.Name, Money(m.Income), Money(m.Expenses), Money(m.Net));
-        csv.Row("Total", Money(r.Income), Money(r.Expenses), Money(r.Net));
+        if (r.ShowGross)
+        {
+            csv.Row("Month", "Income", "Cost of revenue", "Gross profit", "Operating expenses", "Net");
+            foreach (var m in r.Months) csv.Row(m.Name, Money(m.Income), Money(m.CostOfRevenue), Money(m.GrossProfit), Money(m.OperatingExpenses), Money(m.Net));
+            csv.Row("Total", Money(r.Income), Money(r.CostOfRevenue), Money(r.GrossProfit), Money(r.OperatingExpenses), Money(r.Net));
+        }
+        else
+        {
+            csv.Row("Month", "Income", "Expenses", "Net");
+            foreach (var m in r.Months) csv.Row(m.Name, Money(m.Income), Money(m.Expenses), Money(m.Net));
+            csv.Row("Total", Money(r.Income), Money(r.Expenses), Money(r.Net));
+        }
         csv.Row();
-        csv.Row("Expense category", "Amount", "Share %");
-        foreach (var c in r.Categories) csv.Row(c.Name, Money(c.Amount), c.Share.ToString("0.0", CultureInfo.InvariantCulture));
+        if (r.ShowGross)
+        {
+            csv.Row("Expense category", "Amount", "Share %", "Class");
+            foreach (var c in r.Categories) csv.Row(c.Name, Money(c.Amount), c.Share.ToString("0.0", CultureInfo.InvariantCulture), c.CostOfRevenue ? "Cost of revenue" : "Operating");
+        }
+        else
+        {
+            csv.Row("Expense category", "Amount", "Share %");
+            foreach (var c in r.Categories) csv.Row(c.Name, Money(c.Amount), c.Share.ToString("0.0", CultureInfo.InvariantCulture));
+        }
         return csv.ToString();
     }
 
