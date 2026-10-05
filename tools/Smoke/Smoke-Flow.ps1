@@ -122,6 +122,13 @@ try {
     Click "Save Customer"
     Wait-For "Customer 'Smoke Test Co' created." | Out-Null
   }
+  Step "open Work Orders with no open work" {
+    # The empty state crashed 2.6.0 (InvalidCastException); demo data never reaches it.
+    Click "Work Orders"
+    Wait-For "No open work. Open a customer and start logging work so it doesn't get forgotten." | Out-Null
+    Invoke-Link "Browse customers"
+    Invoke-Link "Smoke Test Co"
+  }
   Step "open the work order tab" {
     Click "Work Order"
     Wait-For "Add To-Do" | Out-Null

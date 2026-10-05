@@ -62,12 +62,12 @@ public sealed class WorkOrdersPage : AppPage
         foreach (var wo in orders) page.Children.Add(WorkOrderCard(wo).Margin(0, 0, 0, 16));
         if (orders.Count == 0)
         {
-            var empty = Ui.Empty("clipboard-check", search.Length > 0
+            var emptyBox = (Border)Ui.Empty("clipboard-check", search.Length > 0
                 ? $"No work orders match “{search}”."
                 : "No open work. Open a customer and start logging work so it doesn't get forgotten.");
-            ((StackPanel)empty).Children.Add(Ui.Link("Browse customers", () => Shell.Navigate(Routes.Customers(Shell)), bold: false)
+            ((StackPanel)emptyBox.Child).Children.Add(Ui.Link("Browse customers", () => Shell.Navigate(Routes.Customers(Shell)), bold: false)
                 .Also(l => { l.HorizontalAlignment = HorizontalAlignment.Center; l.Margin = new Thickness(0, 8, 0, 0); }));
-            page.Children.Add(Ui.Card(empty));
+            page.Children.Add(Ui.Card(emptyBox));
         }
         Content = page;
     }
