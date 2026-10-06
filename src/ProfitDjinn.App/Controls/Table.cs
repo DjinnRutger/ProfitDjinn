@@ -52,7 +52,7 @@ public static class Table
                 return cell;
             }).ToArray();
             var grid = RowGrid(columns, cells);
-            var border = new Border { Child = grid, BorderThickness = new Thickness(0, 0, 0, 1), Background = System.Windows.Media.Brushes.Transparent }
+            var border = new RowBorder { Child = grid, BorderThickness = new Thickness(0, 0, 0, 1), Background = System.Windows.Media.Brushes.Transparent }
                 .WithResource(Border.BorderBrushProperty, "Border");
             string? brush = rowBrush?.Invoke(item);
             if (brush is not null) border.SetResourceReference(Border.BackgroundProperty, brush);
@@ -61,6 +61,7 @@ public static class Table
             if (onRowClick is not null)
             {
                 border.Cursor = Cursors.Hand;
+                border.Open = () => onRowClick(item);
                 border.MouseLeftButtonUp += (s, e) =>
                 {
                     // Buttons and links inside the row handle their own clicks.
@@ -110,5 +111,26 @@ public static class Table
         for (var cur = d; cur is not null && cur != stop; cur = System.Windows.Media.VisualTreeHelper.GetParent(cur) ?? LogicalTreeHelper.GetParent(cur))
             if (cur is Button or Link or CheckBox or TextBox) return true;
         return false;
+    }
+}
+
+/// <summary>
+/// A table row. When it opens something, UI Automation sees an invokable data item, so screen
+/// readers and the smoke tests can open it without a mouse.
+/// </summary>
+internal sealed class RowBorder : Border
+{
+    public Action? Open { get; set; }
+
+    protected override System.Windows.Automation.Peers.AutomationPeer OnCreateAutomationPeer() => new RowPeer(this);
+
+    private sealed class RowPeer : System.Windows.Automation.Peers.FrameworkElementAutomationPeer, System.Windows.Automation.Provider.IInvokeProvider
+    {
+        public RowPeer(RowBorder owner) : base(owner) { }
+        protected override System.Windows.Automation.Peers.AutomationControlType GetAutomationControlTypeCore() =>
+            System.Windows.Automation.Peers.AutomationControlType.DataItem;
+        public override object? GetPattern(System.Windows.Automation.Peers.PatternInterface pattern) =>
+            pattern == System.Windows.Automation.Peers.PatternInterface.Invoke && ((RowBorder)Owner).Open is not null ? this : base.GetPattern(pattern);
+        public void Invoke() => ((RowBorder)Owner).Open?.Invoke();
     }
 }

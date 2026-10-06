@@ -105,7 +105,7 @@ public sealed class RecurringFormPage : AppPage
         _amount = Ui.TextBox(id is null ? "" : t.Amount.ToString("0.00", CultureInfo.InvariantCulture));
         Input.SetPrefix(_amount, "$");
         var freqs = new List<Freq> { new(RecurringFrequency.Monthly, "Every month"), new(RecurringFrequency.Yearly, "Every year") };
-        _frequency = new ComboBox { ItemsSource = freqs, SelectedIndex = t.Frequency == RecurringFrequency.Yearly ? 1 : 0 };
+        _frequency = new Dropdown { ItemsSource = freqs, SelectedIndex = t.Frequency == RecurringFrequency.Yearly ? 1 : 0 };
         _start = Ui.DateBox(t.StartDate);
         _day = Ui.TextBox(t.DayOfMonth.ToString(CultureInfo.InvariantCulture)).Also(b => { b.MaxLength = 2; b.Width = 80; b.HorizontalAlignment = HorizontalAlignment.Left; });
         _end = Ui.DateBox(t.EndDate);

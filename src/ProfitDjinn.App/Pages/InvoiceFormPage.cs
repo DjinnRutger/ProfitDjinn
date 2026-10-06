@@ -75,7 +75,7 @@ public sealed class InvoiceFormPage : AppPage
         var items = Store.Items.Enabled ? Store.Items.Active() : Array.Empty<ProfitDjinn.Core.Model.ServiceItem>();
         if (items.Count > 0)
         {
-            var picker = new ComboBox { Width = 240, ItemsSource = items.Select(i => $"{i.Description} — {Ui.Money(i.Price)}").ToList(), MinHeight = 31, FontSize = 13.6 };
+            var picker = new Dropdown { Width = 240, ItemsSource = items.Select(i => $"{i.Description} — {Ui.Money(i.Price)}").ToList(), MinHeight = 31, FontSize = 13.6 };
             Input.SetPlaceholder(picker, "Quick-add service…");
             picker.SelectionChanged += (_, _) =>
             {

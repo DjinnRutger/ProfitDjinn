@@ -29,6 +29,8 @@ $psi = New-Object System.Diagnostics.ProcessStartInfo $Exe
 $psi.Arguments = "--page settings:features"
 $psi.UseShellExecute = $false
 $psi.EnvironmentVariables["PROFITDJINN_DATA_DIR"] = $DataDir
+# Off-screen and never focused, so a run does not take over the desktop (-Keys: see below).
+$psi.EnvironmentVariables["PROFITDJINN_OFFSCREEN"] = "1"
 $proc = [System.Diagnostics.Process]::Start($psi)
 for ($i = 0; $i -lt 80 -and $proc.MainWindowHandle -eq 0; $i++) { Start-Sleep -Milliseconds 250; $proc.Refresh() }
 if ($proc.MainWindowHandle -eq 0) { throw "No window." }
@@ -78,12 +80,10 @@ function Toggle([string] $name) {
 }
 function Pick([string] $combo, [string] $item) {
   $c = Wait-For $combo -type $CT::ComboBox
-  $c.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
-  Start-Sleep -Milliseconds 400
-  $items = Find-All $item $CT::ListItem $c
-  if ($items.Count -eq 0) { throw "No '$item' in '$combo'." }
-  $items[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
-  $c.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
+  # Set the choice by its label without opening the list (Dropdown supports it): an open list
+  # closes the moment its window loses focus, and test windows never keep it.
+  try { $c.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($item) }
+  catch { throw "No '$item' in '$combo'." }
   Start-Sleep -Milliseconds 300
 }
 function Invoke-Link([string] $name) {
@@ -105,10 +105,15 @@ public static class SmokeWinBank {
   [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT r);
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
   public struct RECT { public int Left, Top, Right, Bottom; }
 }
 "@
 function Save-Screenshot([string] $path) {
+  # The test window is off-screen, where Windows does not draw it. Move it on screen behind every
+  # other window (no activation) so PrintWindow has something to capture.
+  [SmokeWinBank]::SetWindowPos($proc.MainWindowHandle, [IntPtr]1, 0, 0, 0, 0, 0x0001 -bor 0x0010) | Out-Null   # HWND_BOTTOM; NOSIZE, NOACTIVATE
+  Start-Sleep -Milliseconds 800
   $r = New-Object SmokeWinBank+RECT
   [SmokeWinBank]::GetWindowRect($proc.MainWindowHandle, [ref]$r) | Out-Null
   $bmp = New-Object System.Drawing.Bitmap ($r.Right - $r.Left), ($r.Bottom - $r.Top)

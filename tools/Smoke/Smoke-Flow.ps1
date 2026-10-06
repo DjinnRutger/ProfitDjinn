@@ -16,6 +16,9 @@
   window is brought to the front). Exits 1 on the first step that does not happen.
 #>
 param(
+  # Also check the type-to-pick fill-in with real keystrokes. That needs the window in front,
+  # so it takes focus for a few seconds; run it before a release, not on every change.
+  [switch] $Keys,
   [Parameter(Mandatory)] [string] $Exe,
   [string] $DataDir = (Join-Path $env:TEMP ("profitdjinn-smoke-" + [guid]::NewGuid().ToString("N")))
 )
@@ -32,6 +35,8 @@ $psi = New-Object System.Diagnostics.ProcessStartInfo $Exe
 $psi.Arguments = "--page newcustomer"
 $psi.UseShellExecute = $false
 $psi.EnvironmentVariables["PROFITDJINN_DATA_DIR"] = $DataDir
+# Off-screen and never focused, so a run does not take over the desktop (-Keys: see below).
+if (-not $Keys) { $psi.EnvironmentVariables["PROFITDJINN_OFFSCREEN"] = "1" }
 $proc = [System.Diagnostics.Process]::Start($psi)
 for ($i = 0; $i -lt 80 -and $proc.MainWindowHandle -eq 0; $i++) { Start-Sleep -Milliseconds 250; $proc.Refresh() }
 if ($proc.MainWindowHandle -eq 0) { throw "No window." }
@@ -99,10 +104,15 @@ public static class SmokeWin {
   [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT r);
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
   public struct RECT { public int Left, Top, Right, Bottom; }
 }
 "@
 function Save-Screenshot([string] $path) {
+  # The test window is off-screen, where Windows does not draw it. Move it on screen behind every
+  # other window (no activation) so PrintWindow has something to capture.
+  [SmokeWin]::SetWindowPos($proc.MainWindowHandle, [IntPtr]1, 0, 0, 0, 0, 0x0001 -bor 0x0010) | Out-Null   # HWND_BOTTOM; NOSIZE, NOACTIVATE
+  Start-Sleep -Milliseconds 800
   $r = New-Object SmokeWin+RECT
   [SmokeWin]::GetWindowRect($proc.MainWindowHandle, [ref]$r) | Out-Null
   $bmp = New-Object System.Drawing.Bitmap ($r.Right - $r.Left), ($r.Bottom - $r.Top)
@@ -230,13 +240,16 @@ try {
     Click "New Invoice"
     Wait-For "Save Invoice" -type ([System.Windows.Automation.ControlType]::Button) | Out-Null
     Start-Sleep -Milliseconds 500
-    [SmokeWin]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
-    (Wait-For "Customer" -type ([System.Windows.Automation.ControlType]::Edit)).SetFocus()
-    Start-Sleep -Milliseconds 300
-    Add-Type -AssemblyName System.Windows.Forms
-    [System.Windows.Forms.SendKeys]::SendWait("Smo{TAB}")
-    Start-Sleep -Milliseconds 500
-    if ((Value-Of "Customer") -ne "Smoke Test Co") { throw "Typing 'Smo' did not fill in Smoke Test Co (got '$(Value-Of "Customer")')." }
+    if ($Keys) {
+      [SmokeWin]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
+      (Wait-For "Customer" -type ([System.Windows.Automation.ControlType]::Edit)).SetFocus()
+      Start-Sleep -Milliseconds 300
+      Add-Type -AssemblyName System.Windows.Forms
+      [System.Windows.Forms.SendKeys]::SendWait("Smo{TAB}")
+      Start-Sleep -Milliseconds 500
+      if ((Value-Of "Customer") -ne "Smoke Test Co") { throw "Typing 'Smo' did not fill in Smoke Test Co (got '$(Value-Of "Customer")')." }
+    }
+    else { Type-Into "Customer" "smoke test co" }   # an exact name in any case picks the record
     Click "Add Line"
     Type-Into "Description" "Quick fix"
     Type-Into "0.00" "10"

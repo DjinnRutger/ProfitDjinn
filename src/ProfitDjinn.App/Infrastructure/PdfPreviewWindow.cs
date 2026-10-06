@@ -39,6 +39,7 @@ public sealed class PdfPreviewWindow : Window
         var area = SystemParameters.WorkArea;
         Width = Math.Min(980, area.Width * 0.9);
         Height = Math.Min(1100, area.Height * 0.92);
+        if (App.Offscreen) App.PlaceOffscreen(this);
         SetResourceReference(BackgroundProperty, "PageBg");
         SetResourceReference(FontFamilyProperty, "BodyFont");
 

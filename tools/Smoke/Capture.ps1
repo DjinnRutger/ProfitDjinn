@@ -8,7 +8,9 @@
   protection; found the hard way on 2026-10-02.) The script stops the app at once if its title
   does not show "[test data]". -Keys are SendKeys strings sent once the window is up (e.g. "^+g"
   opens the style gallery). -Leave keeps the app running for further captures.
-  Captures with PrintWindow, so the window does not need to be in front.
+  Without -Keys the app runs off-screen and never takes focus, and draws its own window to the
+  PNG (PROFITDJINN_SNAPSHOT): nothing appears on the desktop. With -Keys the window has to be
+  on screen and in front for the keystrokes, and it is captured with PrintWindow.
 #>
 param(
   [Parameter(Mandatory)] [string] $Exe,
@@ -44,11 +46,25 @@ $psi = New-Object System.Diagnostics.ProcessStartInfo $Exe
 if ($Page) { $psi.Arguments = "--page $Page" }
 $psi.UseShellExecute = $false
 $psi.EnvironmentVariables["PROFITDJINN_DATA_DIR"] = $DataDir
+if (-not $Keys) {
+  # Off-screen, never focused; the app saves the PNG itself after -Wait seconds.
+  $psi.EnvironmentVariables["PROFITDJINN_OFFSCREEN"] = "1"
+  $psi.EnvironmentVariables["PROFITDJINN_SNAPSHOT"] = [System.IO.Path]::GetFullPath($Out)
+  $psi.EnvironmentVariables["PROFITDJINN_SNAPSHOT_DELAY"] = "$Wait"
+  Remove-Item $Out -ErrorAction SilentlyContinue
+}
 $p = [System.Diagnostics.Process]::Start($psi)
 for ($i = 0; $i -lt 60 -and $p.MainWindowHandle -eq 0; $i++) { Start-Sleep -Milliseconds 250; $p.Refresh() }
 if ($p.MainWindowHandle -eq 0) { throw "ProfitDjinn did not open a window." }
 if ($p.MainWindowTitle -notlike '*test data*') { $p.Kill(); throw "The app did not pick up PROFITDJINN_DATA_DIR (title: $($p.MainWindowTitle)). Stopped it before it could do anything." }
 $h = $p.MainWindowHandle
+if (-not $Keys) {
+  for ($i = 0; $i -lt ($Wait + 30) * 4 -and -not (Test-Path $Out); $i++) { Start-Sleep -Milliseconds 250 }
+  if (-not (Test-Path $Out)) { $p.Kill(); throw "The app did not save $Out." }
+  if (-not $Leave) { $p.Kill() | Out-Null }
+  "saved $Out (pid $($p.Id))"
+  return
+}
 [Win]::MoveWindow($h, 20, 20, $Width, $Height, $true) | Out-Null
 Start-Sleep -Seconds $Wait
 if ($Keys) {

@@ -60,12 +60,12 @@ public static class WorkLineDialog
         var qtyBox = Ui.TextBox(qty);
         var rateBox = Ui.TextBox(rate);
         Input.SetPrefix(rateBox, "$");
-        var typeBox = new ComboBox { ItemsSource = LineTypes.All.Select(t => new TypeChoice(t, LineTypes.Label(t))).ToList() };
+        var typeBox = new Dropdown { ItemsSource = LineTypes.All.Select(t => new TypeChoice(t, LineTypes.Label(t))).ToList() };
         typeBox.SelectedIndex = Math.Max(0, LineTypes.All.ToList().IndexOf(LineTypes.IsValid(type) ? type : LineTypes.Labor));
 
         if (items.Count > 0)
         {
-            var picker = new ComboBox { ItemsSource = items.Select(i => $"{i.Description} — {Ui.Money(i.Price)}").ToList() };
+            var picker = new Dropdown { ItemsSource = items.Select(i => $"{i.Description} — {Ui.Money(i.Price)}").ToList() };
             Input.SetPlaceholder(picker, "Pick a service item to fill in the line…");
             picker.SelectionChanged += (_, _) =>
             {

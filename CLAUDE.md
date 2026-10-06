@@ -63,6 +63,20 @@ Tools (`tools/Smoke/`), all on throwaway data folders:
   (`Field` sets the accessible name) or placeholder.
 - `Capture.ps1` / `Shoot-Themes.ps1`: screenshots of a page in each theme on fixture copies.
 
+**Test runs must not take over the desktop** (Jon, 2026-10-05). The smoke scripts and
+`Capture.ps1` set `PROFITDJINN_OFFSCREEN=1` (honoured only with `PROFITDJINN_DATA_DIR`): the
+window opens off-screen with `ShowActivated=false`, and whenever UI Automation brings it to the
+front anyway, `App.GiveBackForeground` hands the foreground straight back to the user's window.
+A run takes focus for well under a second in total. Consequences:
+- Drive the app through UI Automation only: no SendKeys, no mouse, no `SetFocus`. Dropdowns are
+  `Controls/Dropdown` (a ComboBox whose ValuePattern sets the choice by label; an opened list
+  closes as soon as the window loses focus); table rows that open something are invokable
+  `DataItem`s (`Invoke-Row`). Use `new Dropdown`, never `new ComboBox`, in new screens.
+- The real-keystroke picker fill-in checks run only with `-Keys` (window on screen, takes focus
+  for a few seconds); run them before a release, after telling Jon.
+- Windows does not draw an off-screen window: `Capture.ps1` has the app draw itself to a PNG
+  (`PROFITDJINN_SNAPSHOT`), and failure screenshots move the window on screen behind everything.
+
 ## Parity with 1.x is tested, not assumed
 
 - `tools/Parity/make_fixture.py` runs `Fixtures/parity_ops.json` through the real 1.x routes

@@ -146,7 +146,7 @@ public sealed class RecurringInvoiceFormPage : AppPage
         var d = existing is null ? draft! : new RecurringInvoiceDraft(existing.CustomerId, existing.Interval, existing.StartDate, existing.DayOfMonth,
             existing.EndDate, existing.Notes ?? "", existing.Term1 ?? "", existing.Term2 ?? "", existing.IsActive, Array.Empty<InvoiceLineDraft>());
         var freqs = new List<Freq> { new(BillingInterval.Month, "Every month"), new(BillingInterval.Year, "Every year") };
-        _frequency = new ComboBox { ItemsSource = freqs, SelectedIndex = d.Interval == BillingInterval.Year ? 1 : 0 };
+        _frequency = new Dropdown { ItemsSource = freqs, SelectedIndex = d.Interval == BillingInterval.Year ? 1 : 0 };
         _start = Ui.DateBox(d.StartDate);
         _day = Ui.TextBox((d.DayOfMonth ?? 1).ToString(CultureInfo.InvariantCulture))
             .Also(b => { b.MaxLength = 2; b.Width = 80; b.HorizontalAlignment = HorizontalAlignment.Left; });
@@ -185,7 +185,7 @@ public sealed class RecurringInvoiceFormPage : AppPage
         var items = Store.Items.Enabled ? Store.Items.Active() : Array.Empty<ProfitDjinn.Core.Model.ServiceItem>();
         if (items.Count > 0)
         {
-            var picker = new ComboBox { Width = 240, ItemsSource = items.Select(i => $"{i.Description} — {Ui.Money(i.Price)}").ToList(), MinHeight = 31, FontSize = 13.6 };
+            var picker = new Dropdown { Width = 240, ItemsSource = items.Select(i => $"{i.Description} — {Ui.Money(i.Price)}").ToList(), MinHeight = 31, FontSize = 13.6 };
             Input.SetPlaceholder(picker, "Quick-add service…");
             picker.SelectionChanged += (_, _) =>
             {

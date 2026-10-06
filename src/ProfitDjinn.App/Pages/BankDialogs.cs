@@ -19,7 +19,7 @@ public static class BankDialogs
     private static ComboBox Combo(IEnumerable<(string Value, string Label)> items, string? selected)
     {
         var list = items.Select(i => new Item(i.Value, i.Label)).ToList();
-        return new ComboBox { ItemsSource = list, SelectedIndex = Math.Max(0, list.FindIndex(i => i.Value == selected)) };
+        return new Dropdown { ItemsSource = list, SelectedIndex = Math.Max(0, list.FindIndex(i => i.Value == selected)) };
     }
 
     private static string Value(ComboBox c) => ((Item)c.SelectedItem).Value;
@@ -137,8 +137,8 @@ public static class BankDialogs
     {
         var accounts = shell.Store.Banking.Accounts().Select(a => new AccountItem(a.Id, a.Name)).ToList();
         if (accounts.Count < 2) { shell.ShowError("Add a second account first: a transfer moves money between two of your accounts."); return; }
-        var fromBox = new ComboBox { ItemsSource = accounts, SelectedIndex = Math.Max(0, accounts.FindIndex(a => a.Id == from?.Id)) };
-        var toBox = new ComboBox { ItemsSource = accounts, SelectedIndex = accounts.FindIndex(a => a.Id != (from?.Id ?? accounts[0].Id)) };
+        var fromBox = new Dropdown { ItemsSource = accounts, SelectedIndex = Math.Max(0, accounts.FindIndex(a => a.Id == from?.Id)) };
+        var toBox = new Dropdown { ItemsSource = accounts, SelectedIndex = accounts.FindIndex(a => a.Id != (from?.Id ?? accounts[0].Id)) };
         var date = Ui.DateBox(DateOnly.FromDateTime(DateTime.Today));
         var amount = Ui.TextBox(from is { IsProcessor: true, Balance: > 0 } ? from.Balance.ToString("0.00", CultureInfo.InvariantCulture) : "");
         Input.SetPrefix(amount, "$");

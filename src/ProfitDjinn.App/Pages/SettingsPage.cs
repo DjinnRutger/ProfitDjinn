@@ -254,7 +254,7 @@ public sealed class SettingsPage : AppPage
         var items = options.Select(o => new Option(o.Value, o.Label)).ToList();
         int at = items.FindIndex(o => o.Value == current);
         if (at < 0) { items.Insert(0, new Option(current, current)); at = 0; }
-        var combo = new ComboBox { ItemsSource = items, SelectedIndex = at, MaxWidth = 320, MinWidth = 200, HorizontalAlignment = HorizontalAlignment.Left };
+        var combo = new Dropdown { ItemsSource = items, SelectedIndex = at, MaxWidth = 320, MinWidth = 200, HorizontalAlignment = HorizontalAlignment.Left };
         combo.SelectionChanged += (_, _) => Changed();
         _readers[key] = () => (combo.SelectedItem as Option)?.Value ?? current;
         return _fields[key] = Ui.Field(label, combo, hint: hint);

@@ -12,6 +12,9 @@
   Python's sqlite3. Exits 1 on the first step that does not happen.
 #>
 param(
+  # Also check the type-to-pick fill-in with real keystrokes. That needs the window in front,
+  # so it takes focus for a few seconds; run it before a release, not on every change.
+  [switch] $Keys,
   [Parameter(Mandatory)] [string] $Exe,
   [string] $DataDir = (Join-Path $env:TEMP ("profitdjinn-smoke-exp-" + [guid]::NewGuid().ToString("N")))
 )
@@ -29,6 +32,8 @@ $psi = New-Object System.Diagnostics.ProcessStartInfo $Exe
 $psi.Arguments = "--page settings:features"
 $psi.UseShellExecute = $false
 $psi.EnvironmentVariables["PROFITDJINN_DATA_DIR"] = $DataDir
+# Off-screen and never focused, so a run does not take over the desktop (-Keys: see below).
+if (-not $Keys) { $psi.EnvironmentVariables["PROFITDJINN_OFFSCREEN"] = "1" }
 $proc = [System.Diagnostics.Process]::Start($psi)
 for ($i = 0; $i -lt 80 -and $proc.MainWindowHandle -eq 0; $i++) { Start-Sleep -Milliseconds 250; $proc.Refresh() }
 if ($proc.MainWindowHandle -eq 0) { throw "No window." }
@@ -83,12 +88,10 @@ function Toggle([string] $name) {
 }
 function Pick([string] $combo, [string] $item) {
   $c = Wait-For $combo -type $CT::ComboBox
-  $c.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
-  Start-Sleep -Milliseconds 400
-  $items = Find-All $item $CT::ListItem $c
-  if ($items.Count -eq 0) { throw "No '$item' in '$combo'." }
-  $items[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
-  $c.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
+  # Set the choice by its label without opening the list (Dropdown supports it): an open list
+  # closes the moment its window loses focus, and test windows never keep it.
+  try { $c.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($item) }
+  catch { throw "No '$item' in '$combo'." }
   Start-Sleep -Milliseconds 300
 }
 function Step([string] $what, [scriptblock] $do) {
@@ -105,26 +108,24 @@ public static class SmokeWinExp {
   [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT r);
-  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
-  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
-  [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int dx, int dy, uint data, UIntPtr extra);
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
   public struct RECT { public int Left, Top, Right, Bottom; }
 }
 "@
-# Screen coordinates from UI Automation are physical pixels; match them on a scaled display.
-[SmokeWinExp]::SetProcessDPIAware() | Out-Null
-# A real left click in the middle of an element (table rows have no UI Automation action).
-function Mouse-Click($element) {
-  [SmokeWinExp]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
-  Start-Sleep -Milliseconds 300
-  $b = $element.Current.BoundingRectangle
-  [SmokeWinExp]::SetCursorPos([int]($b.X + $b.Width / 2), [int]($b.Y + $b.Height / 2)) | Out-Null
-  Start-Sleep -Milliseconds 150
-  [SmokeWinExp]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)   # left down
-  [SmokeWinExp]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)   # left up
+# Opens the table row holding the text (rows are invokable data items, so no mouse is needed).
+function Invoke-Row([string] $text) {
+  $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+  $e = Wait-For $text
+  while ($e -and $e.Current.ControlType -ne [System.Windows.Automation.ControlType]::DataItem) { $e = $walker.GetParent($e) }
+  if (-not $e) { throw "No table row holds '$text'." }
+  $e.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   Start-Sleep -Milliseconds 400
 }
 function Save-Screenshot([string] $path) {
+  # The test window is off-screen, where Windows does not draw it. Move it on screen behind every
+  # other window (no activation) so PrintWindow has something to capture.
+  [SmokeWinExp]::SetWindowPos($proc.MainWindowHandle, [IntPtr]1, 0, 0, 0, 0, 0x0001 -bor 0x0010) | Out-Null   # HWND_BOTTOM; NOSIZE, NOACTIVATE
+  Start-Sleep -Milliseconds 800
   $r = New-Object SmokeWinExp+RECT
   [SmokeWinExp]::GetWindowRect($proc.MainWindowHandle, [ref]$r) | Out-Null
   $bmp = New-Object System.Drawing.Bitmap ($r.Right - $r.Left), ($r.Bottom - $r.Top)
@@ -180,14 +181,17 @@ try {
     Click "New Expense"
     Wait-For "Save Expense" -type $CT::Button | Out-Null
     Start-Sleep -Milliseconds 500
-    [SmokeWinExp]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
-    (Wait-For "Vendor" -type $CT::Edit).SetFocus()
-    Start-Sleep -Milliseconds 300
-    Add-Type -AssemblyName System.Windows.Forms
-    [System.Windows.Forms.SendKeys]::SendWait("Smo{TAB}")
-    Start-Sleep -Milliseconds 500
-    $got = (Wait-For "Vendor" -type $CT::Edit).GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
-    if ($got -ne "Smoke Supply") { throw "Typing 'Smo' did not fill in Smoke Supply (got '$got')." }
+    if ($Keys) {
+      [SmokeWinExp]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
+      (Wait-For "Vendor" -type $CT::Edit).SetFocus()
+      Start-Sleep -Milliseconds 300
+      Add-Type -AssemblyName System.Windows.Forms
+      [System.Windows.Forms.SendKeys]::SendWait("Smo{TAB}")
+      Start-Sleep -Milliseconds 500
+      $got = (Wait-For "Vendor" -type $CT::Edit).GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
+      if ($got -ne "Smoke Supply") { throw "Typing 'Smo' did not fill in Smoke Supply (got '$got')." }
+    }
+    else { Type-Into "Vendor" "smoke supply" }   # an exact name in any case picks the record
     Type-Into "Description" "Smoke tape"
     Type-Into "Amount" "12"
     Click "Save Expense"
@@ -243,7 +247,7 @@ try {
     $spent = 40 + 500 * @($dates | Where-Object { $_.Year -eq $today.Year }).Count
     Invoke-Link ("-`$" + $spent.ToString("0.00", $inv))
     Wait-Like "Net is income minus expenses*" | Out-Null
-    Mouse-Click (Wait-For "Smoke rent")
+    Invoke-Row "Smoke rent"
     Wait-For "Edit" -type $CT::Button | Out-Null    # only the expense page has Edit
     Click "Profit & Loss"
     Wait-For "P&L CSV" -type $CT::Button | Out-Null

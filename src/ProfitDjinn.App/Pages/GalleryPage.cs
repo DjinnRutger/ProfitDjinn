@@ -56,7 +56,7 @@ public sealed class GalleryPage : AppPage
                 Ui.Field("Email", Ui.TextBox(null, "you@example.com")).Also(f => f.Error = "Enter a valid email address."),
                 Ui.Field("Amount", Ui.TextBox("120.00").Also(t => Input.SetPrefix(t, "$"))))),
             (Ui.Star(), Ui.Stack(0,
-                Ui.Field("Method", new ComboBox { ItemsSource = new[] { "Cash", "Check", "Credit Card" }, SelectedIndex = 1 }),
+                Ui.Field("Method", new Dropdown { ItemsSource = new[] { "Cash", "Check", "Credit Card" }, SelectedIndex = 1 }),
                 Ui.Field("Date", Ui.DateBox(DateOnly.FromDateTime(DateTime.Today))),
                 Ui.Field("Notes", Ui.TextArea("Some notes"), hint: "Private. Never printed."))),
             (Ui.Star(), Ui.Stack(12,

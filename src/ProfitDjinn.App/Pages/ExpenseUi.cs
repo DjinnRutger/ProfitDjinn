@@ -66,7 +66,7 @@ public static class ExpenseUi
             catch (UserFacingException) { }
         }
         int at = choices.FindIndex(c => c.Id == current);
-        return new ComboBox { ItemsSource = choices, SelectedIndex = at >= 0 ? at : allowNone ? 0 : -1 };
+        return new Dropdown { ItemsSource = choices, SelectedIndex = at >= 0 ? at : allowNone ? 0 : -1 };
     }
 
     public static long? SelectedId(ComboBox box) => (box.SelectedItem as Choice)?.Id;
@@ -92,7 +92,7 @@ public static class ExpenseUi
         items.Add(new SourceChoice(PaidFrom.NoCash, null, "No cash (e.g. mileage)"));
         int at = items.FindIndex(i => i.PaidFrom == (paidFrom ?? PaidFrom.Business) && i.AccountId == accountId);
         if (at < 0) at = items.FindIndex(i => i.PaidFrom == PaidFrom.Business && i.AccountId is null);
-        return new ComboBox { ItemsSource = items, SelectedIndex = at };
+        return new Dropdown { ItemsSource = items, SelectedIndex = at };
     }
 
     /// <summary>2.6. Deposited To for an invoice payment: only with Bank Accounts on and an open account.</summary>
@@ -103,7 +103,7 @@ public static class ExpenseUi
         if (accounts.Count == 0) return null;
         var items = new List<SourceChoice> { new(PaidFrom.Business, null, "— Not tracked —") };
         items.AddRange(accounts.Select(a => new SourceChoice(PaidFrom.Business, a.Id, a.Name)));
-        return new ComboBox { ItemsSource = items, SelectedIndex = 0 };
+        return new Dropdown { ItemsSource = items, SelectedIndex = 0 };
     }
 
     /// <summary>What a Paid From / Deposited To box says; business with no account when there is none.</summary>
@@ -115,7 +115,7 @@ public static class ExpenseUi
     {
         var choices = PaymentMethods.All.Select(m => new MethodItem(m.Value, m.Label)).ToList();
         int at = choices.FindIndex(m => m.Value == current);
-        return new ComboBox { ItemsSource = choices, SelectedIndex = at >= 0 ? at : 0 };
+        return new Dropdown { ItemsSource = choices, SelectedIndex = at >= 0 ? at : 0 };
     }
 
     public sealed record MethodItem(string Value, string Label)

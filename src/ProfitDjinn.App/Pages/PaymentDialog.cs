@@ -82,7 +82,7 @@ public static class PaymentDialog
 
         var methods = PaymentMethods.All.Select(m => new MethodChoice(m.Value, m.Label)).ToList();
         if (credit > 0) methods.Add(new MethodChoice(PaymentMethods.AccountCredit, $"Account Credit ({Ui.Money(credit)} available)"));
-        var method = new ComboBox { ItemsSource = methods, SelectedIndex = 0 };
+        var method = new Dropdown { ItemsSource = methods, SelectedIndex = 0 };
         var amount = Ui.TextBox(PyMath.Round(balance, 2).ToString("F2", CultureInfo.InvariantCulture));
         Input.SetPrefix(amount, "$");
         var check = Ui.TextBox(null, "e.g. 1042").Also(t => { t.MaxLength = 50; t.SetResourceReference(TextBox.FontFamilyProperty, "MonoFont"); });
