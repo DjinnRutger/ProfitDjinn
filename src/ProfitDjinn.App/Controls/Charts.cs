@@ -174,6 +174,13 @@ public sealed class DoughnutChart : StackPanel
     private readonly Ring _ring = new();
     private readonly WrapPanel _legend = new() { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 16, 0, 0) };
 
+    /// <summary>2.7. A slice was clicked (its index). Set it and the slices show a hand cursor.</summary>
+    public event Action<int>? Clicked
+    {
+        add => _ring.Clicked += value;
+        remove => _ring.Clicked -= value;
+    }
+
     public DoughnutChart()
     {
         Children.Add(_ring);
@@ -202,11 +209,14 @@ public sealed class DoughnutChart : StackPanel
         private readonly ChartTip _tip;
         private int _hover = -1;
 
+        public event Action<int>? Clicked;
+
         public Ring()
         {
             _tip = new ChartTip(this);
             MouseMove += OnMove;
             MouseLeave += (_, _) => { _hover = -1; _tip.Hide(); InvalidateVisual(); };
+            MouseLeftButtonUp += (_, _) => { if (_hover >= 0) Clicked?.Invoke(_hover); };
         }
 
         public void SetData(IReadOnlyList<(string Label, double Value)> data)
@@ -279,6 +289,7 @@ public sealed class DoughnutChart : StackPanel
                 }
             }
             if (hit != _hover) { _hover = hit; InvalidateVisual(); }
+            Cursor = hit >= 0 && Clicked is not null ? Cursors.Hand : null;
             if (hit >= 0)
             {
                 double pct = _data[hit].Value / total * 100;
@@ -305,11 +316,15 @@ public sealed class PairBarChart : FrameworkElement
     public string LabelA { get; set; } = "Income";
     public string LabelB { get; set; } = "Expenses";
 
+    /// <summary>2.7. A bar pair was clicked (its index). Set it and the bars show a hand cursor.</summary>
+    public event Action<int>? Clicked;
+
     public PairBarChart()
     {
         _tip = new ChartTip(this);
         MouseMove += OnMove;
         MouseLeave += (_, _) => { _hover = -1; _tip.Hide(); InvalidateVisual(); };
+        MouseLeftButtonUp += (_, _) => { if (_hover >= 0) Clicked?.Invoke(_hover); };
     }
 
     public void SetData(IReadOnlyList<(string Label, double A, double B)> data)
@@ -403,6 +418,7 @@ public sealed class PairBarChart : FrameworkElement
         var p = e.GetPosition(this);
         int hit = Array.FindIndex(_slots, r => r.Contains(p));
         if (hit != _hover) { _hover = hit; InvalidateVisual(); }
+        Cursor = hit >= 0 && Clicked is not null ? Cursors.Hand : null;
         if (hit >= 0)
         {
             var d = _data[hit];

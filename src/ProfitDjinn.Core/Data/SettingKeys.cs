@@ -55,6 +55,12 @@ public static class SettingKeys
     /// <summary>2.6. Bank Accounts on/off (off by default): accounts, transfers, reconciliation.</summary>
     public const string BankingEnabled = "banking_enabled";
 
+    /// <summary>2.7. The Revenue page on/off (on by default). Off hides the page; the dashboard keeps the figure.</summary>
+    public const string RevenueEnabled = "revenue_enabled";
+
+    /// <summary>2.7. Service items on/off (on by default). Off hides Items and the invoice quick-add; items are kept.</summary>
+    public const string ItemsEnabled = "items_enabled";
+
     /// <summary>2.3. Daily check for a newer release on GitHub (on by default), and what it last found.</summary>
     public const string UpdateCheckEnabled = "update_check_enabled";
     public const string UpdateLastCheck = "update_last_check";

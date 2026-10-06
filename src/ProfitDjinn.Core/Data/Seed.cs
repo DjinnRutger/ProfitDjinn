@@ -103,6 +103,8 @@ internal static class Seed
         new(SettingKeys.WorkOrdersEnabled, "true", "boolean", "Work orders: log work per customer and bill it", "features", null),
         new(SettingKeys.MileageRate, "0.70", "number", "Dollars per mile for mileage expenses", "expenses", null),
         new(SettingKeys.BankingEnabled, "false", "boolean", "Bank accounts: balances, transfers and reconciliation", "features", null),
+        new(SettingKeys.RevenueEnabled, "true", "boolean", "Revenue report: income by month, year and customer", "features", null),
+        new(SettingKeys.ItemsEnabled, "true", "boolean", "Service items: a price list to quick-add onto invoices", "features", null),
     };
 
     /// <summary>

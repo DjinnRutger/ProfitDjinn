@@ -43,13 +43,15 @@ Windows SmartScreen may warn because the file is not code-signed; choose More in
   vendor. **Cash** basis (money received and paid, on the day it moved; how most small
   businesses file) or **Accrual** (invoice and expense dates, paid or not). Export the P&L or
   every expense as CSV for a spreadsheet or your accountant, or save a one-page PDF. The
-  Dashboard shows this year's net profit.
+  Dashboard shows this year's net profit. Click any figure (a tile, a month, a category, a
+  vendor, a bar or a slice) to see every payment, invoice or expense behind it and how it was
+  worked out; each one opens its record.
 - **Settings > Security** sets an optional app password, asked for at start (and by **Lock**
   in the sidebar). It keeps casual eyes out on a shared PC; it does not encrypt the data.
 - **Themes**: Light, Dark and Terminal, from the button at the top right or **Settings >
   Appearance**.
-- **Settings > Features** turns Work Orders, Expenses and Bank Accounts on or off; off hides
-  them and keeps the data.
+- **Settings > Features** turns Work Orders, the Revenue report, Service Items, Expenses and
+  Bank Accounts on or off; off hides them and keeps the data.
 - **Expenses extras**: mark categories as cost of revenue (the P&L then shows gross profit),
   say who paid (business, your own money to be paid back, or no cash), and log mileage
   (miles x your rate).

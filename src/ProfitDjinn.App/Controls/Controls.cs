@@ -202,16 +202,27 @@ public sealed class Link : TextBlock
 {
     public event RoutedEventHandler? Click;
 
+    private string _brush = "Link";
+    private string _hoverBrush = "LinkHover";
+
     public Link()
     {
         Cursor = Cursors.Hand;
-        SetResourceReference(ForegroundProperty, "Link");
-        MouseEnter += (_, _) => { TextDecorations = System.Windows.TextDecorations.Underline; SetResourceReference(ForegroundProperty, "LinkHover"); };
-        MouseLeave += (_, _) => { TextDecorations = null; SetResourceReference(ForegroundProperty, "Link"); };
+        SetResourceReference(ForegroundProperty, _brush);
+        MouseEnter += (_, _) => { TextDecorations = System.Windows.TextDecorations.Underline; SetResourceReference(ForegroundProperty, _hoverBrush); };
+        MouseLeave += (_, _) => { TextDecorations = null; SetResourceReference(ForegroundProperty, _brush); };
         MouseLeftButtonUp += (_, e) => { Click?.Invoke(this, new RoutedEventArgs()); e.Handled = true; };
     }
 
     internal void PerformClick() => Click?.Invoke(this, new RoutedEventArgs());
+
+    /// <summary>2.7. Other colours (one brush key for both = only the underline shows on hover).</summary>
+    public void SetBrushes(string brush, string hoverBrush)
+    {
+        _brush = brush;
+        _hoverBrush = hoverBrush;
+        SetResourceReference(ForegroundProperty, brush);
+    }
 
     /// <summary>Screen readers and UI Automation see a hyperlink they can invoke (the smoke test uses it).</summary>
     protected override System.Windows.Automation.Peers.AutomationPeer OnCreateAutomationPeer() => new LinkPeer(this);

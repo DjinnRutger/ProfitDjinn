@@ -47,12 +47,17 @@ public sealed class ReportService
 
     private readonly Database _db;
     private readonly Func<DateOnly> _today;
+    private readonly SettingsService? _settings;
 
-    public ReportService(Database db, Func<DateOnly> today)
+    public ReportService(Database db, Func<DateOnly> today, SettingsService? settings = null)
     {
         _db = db;
         _today = today;
+        _settings = settings;
     }
+
+    /// <summary>2.7. Settings > Features. Off hides the Revenue page; the dashboard still shows the year's figure.</summary>
+    public bool RevenueEnabled => _settings?.GetBool(SettingKeys.RevenueEnabled) ?? true;
 
     public DashboardStats Dashboard()
     {

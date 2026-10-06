@@ -268,6 +268,8 @@ public partial class MainWindow : Window
         var expenses = Store.Expenses.Enabled ? Visibility.Visible : Visibility.Collapsed;
         foreach (string key in ExpenseNav) if (_navButtons.TryGetValue(key, out var b)) b.Visibility = expenses;
         if (_navButtons.TryGetValue("workorders", out var wo)) wo.Visibility = Store.WorkOrders.Enabled ? Visibility.Visible : Visibility.Collapsed;
+        if (_navButtons.TryGetValue("revenue", out var rev)) rev.Visibility = Store.Reports.RevenueEnabled ? Visibility.Visible : Visibility.Collapsed;
+        if (_navButtons.TryGetValue("items", out var itm)) itm.Visibility = Store.Items.Enabled ? Visibility.Visible : Visibility.Collapsed;
         if (_navButtons.TryGetValue("banking", out var bank)) bank.Visibility = Store.Banking.Enabled ? Visibility.Visible : Visibility.Collapsed;
         SidebarFooter.Visibility = LockButton.Visibility;
 

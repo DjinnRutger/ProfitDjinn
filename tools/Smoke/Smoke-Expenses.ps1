@@ -71,6 +71,11 @@ function Wait-Like([string] $pattern, [int] $seconds = 10) {
   }
   throw "Timed out waiting for text like '$pattern'."
 }
+function Invoke-Link([string] $name) {
+  $e = Wait-For $name -type ([System.Windows.Automation.ControlType]::Hyperlink)
+  $e.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  Start-Sleep -Milliseconds 400
+}
 function Toggle([string] $name) {
   $e = Wait-For $name -type $CT::CheckBox
   $e.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
@@ -207,6 +212,16 @@ try {
     # Cash out this year: the $40 payment plus each $500 rent dated this year. No income.
     $spent = 40 + 500 * @($dates | Where-Object { $_.Year -eq $today.Year }).Count
     Wait-For ("-`$" + $spent.ToString("0.00", $inv)) | Out-Null
+  }
+  Step "drill into the net loss and come back" {
+    # 2.7: the Total row's net figure opens the entries behind it.
+    $spent = 40 + 500 * @($dates | Where-Object { $_.Year -eq $today.Year }).Count
+    Invoke-Link ("-`$" + $spent.ToString("0.00", $inv))
+    Wait-Like ("Net Loss*" + $today.Year) | Out-Null
+    Wait-Like "Net is income minus expenses*" | Out-Null
+    Wait-For "Smoke rent" | Out-Null
+    Click "Back to Profit & Loss"
+    Wait-For "P&L CSV" -type $CT::Button | Out-Null
   }
   # 2.6: mileage, an owner-paid expense paid back, and a cost-of-revenue category.
   Step "log mileage" {

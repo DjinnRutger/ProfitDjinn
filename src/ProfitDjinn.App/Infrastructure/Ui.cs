@@ -42,6 +42,20 @@ public static class Ui
         return l;
     }
 
+    /// <summary>
+    /// 2.7. A figure that opens its drill-down: it keeps the table's colour and weight, and only
+    /// shows a hand cursor and an underline on hover. To UI Automation it is a hyperlink.
+    /// </summary>
+    public static Link DrillText(string text, Action open, string brush = "Text", bool bold = false, double size = 14.4)
+    {
+        var l = Link(text, open, bold: bold);
+        l.FontSize = size;
+        if (bold) l.FontWeight = FontWeights.Bold;
+        l.SetBrushes(brush, brush);
+        l.HorizontalAlignment = HorizontalAlignment.Right;
+        return l;
+    }
+
     // ------------------------------------------------------------------ formats (1.x templates)
 
     /// <summary>"$1234.50": 1.x's templates printed money with "%.2f", no thousands separator.</summary>
