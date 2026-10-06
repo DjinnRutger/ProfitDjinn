@@ -71,7 +71,8 @@ public sealed class InvoiceFormPage : AppPage
             _lines.SetRows(existing.Lines.Select(l => new InvoiceRowInput(l.Description, InvoiceDetailPage.QtyText(l.Quantity), PyMath.JsToFixedText(l.UnitPrice, 2), l.ServiceStart, l.ServiceEnd)));
 
         var headerTools = Ui.Row(8);
-        var items = Store.Items.Active();
+        // 2.7: no quick-add while Service items is off.
+        var items = Store.Items.Enabled ? Store.Items.Active() : Array.Empty<ProfitDjinn.Core.Model.ServiceItem>();
         if (items.Count > 0)
         {
             var picker = new ComboBox { Width = 240, ItemsSource = items.Select(i => $"{i.Description} — {Ui.Money(i.Price)}").ToList(), MinHeight = 31, FontSize = 13.6 };

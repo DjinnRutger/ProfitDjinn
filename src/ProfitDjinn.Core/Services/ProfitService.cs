@@ -30,6 +30,36 @@ public sealed record ProfitYear(int Year, double Income, double Expenses, bool I
     public double Net => PyMath.Round(Income - Expenses, 2);
 }
 
+/// <summary>2.7. Which P&amp;L figure a drill-down explains.</summary>
+public enum ProfitPart { Income, Expenses, CostOfRevenue, Operating, Gross, Net }
+
+/// <summary>
+/// 2.7. Where a drill-down looks: a year, optionally one month, some expense categories (one,
+/// or the doughnut's "Other" group) or one vendor. Categories and vendor narrow expenses only.
+/// </summary>
+public sealed record ProfitScope(int Year, int? Month = null, IReadOnlyList<string>? Categories = null, string? Vendor = null);
+
+/// <summary>
+/// 2.7. A P&amp;L figure and the entries behind it. <see cref="Figure"/> is read from the report,
+/// so it is exactly the number that was clicked; the entry lists are its breakdown.
+/// </summary>
+public sealed record ProfitDetail(
+    ProfitPart Part,
+    ProfitScope Scope,
+    ProfitBasis Basis,
+    string Title,
+    string Explanation,
+    IReadOnlyList<ProfitService.Entry> Income,
+    IReadOnlyList<ProfitService.Entry> Expenses,
+    double IncomeTotal,
+    double ExpenseTotal,
+    double Figure,
+    bool ShowGross)
+{
+    public bool HasIncome => Part is ProfitPart.Income or ProfitPart.Gross or ProfitPart.Net;
+    public bool HasExpenses => Part != ProfitPart.Income;
+}
+
 /// <summary>The Profit &amp; Loss page for one year.</summary>
 public sealed record ProfitReport(
     int Year,
@@ -86,8 +116,12 @@ public sealed class ProfitService
         _today = today;
     }
 
-    /// <summary>One dated amount. Expense entries carry their category and vendor.</summary>
-    public sealed record Entry(DateOnly Date, double Amount, string Category, string Vendor, string Description, string Reference, bool CostOfRevenue = false);
+    /// <summary>
+    /// One dated amount. Expense entries carry their category and vendor; income entries carry
+    /// the customer in <see cref="Vendor"/>. 2.7: the invoice or expense it came from.
+    /// </summary>
+    public sealed record Entry(DateOnly Date, double Amount, string Category, string Vendor, string Description, string Reference, bool CostOfRevenue = false,
+        long? InvoiceId = null, long? ExpenseId = null);
 
     public ProfitReport Report(int year, ProfitBasis basis)
     {
@@ -146,11 +180,11 @@ public sealed class ProfitService
         {
             string who = inv.Customer?.Name ?? "";
             if (basis == ProfitBasis.Accrual)
-                income.Add(new Entry(inv.Date, inv.Total, "", who, $"Invoice {inv.InvoiceNumber}", inv.InvoiceNumber));
+                income.Add(new Entry(inv.Date, inv.Total, "", who, $"Invoice {inv.InvoiceNumber}", inv.InvoiceNumber, InvoiceId: inv.Id));
             else if (inv.Payments.Count > 0)
-                income.AddRange(inv.Payments.Select(p => new Entry(p.Date, p.Amount, "", who, $"Payment on {inv.InvoiceNumber} ({p.MethodLabel})", inv.InvoiceNumber)));
+                income.AddRange(inv.Payments.Select(p => new Entry(p.Date, p.Amount, "", who, $"Payment on {inv.InvoiceNumber} ({p.MethodLabel})", inv.InvoiceNumber, InvoiceId: inv.Id)));
             else if (inv.Paid && inv.NetTotal > 0)
-                income.Add(new Entry(inv.PaidDate ?? inv.Date, inv.NetTotal, "", who, $"Invoice {inv.InvoiceNumber} marked paid", inv.InvoiceNumber));
+                income.Add(new Entry(inv.PaidDate ?? inv.Date, inv.NetTotal, "", who, $"Invoice {inv.InvoiceNumber} marked paid", inv.InvoiceNumber, InvoiceId: inv.Id));
         }
 
         var all = Loader.Expenses(db);
@@ -161,12 +195,107 @@ public sealed class ProfitService
             string vendor = e.VendorName.Length > 0 ? e.VendorName : "(No vendor)";
             bool cogs = e.Category?.CostOfRevenue == true;
             if (basis == ProfitBasis.Accrual)
-                expenses.Add(new Entry(e.Date, e.Amount, cat, vendor, e.Description, e.Reference ?? "", cogs));
+                expenses.Add(new Entry(e.Date, e.Amount, cat, vendor, e.Description, e.Reference ?? "", cogs, ExpenseId: e.Id));
             else
-                expenses.AddRange(e.Payments.Select(p => new Entry(p.Date, p.Amount, cat, vendor, e.Description, e.Reference ?? "", cogs)));
+                expenses.AddRange(e.Payments.Select(p => new Entry(p.Date, p.Amount, cat, vendor, e.Description, e.Reference ?? "", cogs, ExpenseId: e.Id)));
         }
         return (income, expenses);
     });
+
+    // ------------------------------------------------------------------ drill-down (2.7)
+
+    /// <summary>
+    /// The entries behind one P&amp;L figure. The figure comes from <see cref="Report"/> (a tile,
+    /// a month, a category, a vendor), never re-added here, so it always matches the page.
+    /// </summary>
+    public ProfitDetail Detail(ProfitBasis basis, ProfitPart part, ProfitScope scope)
+    {
+        var r = Report(scope.Year, basis);
+        var (income, expenses) = Entries(basis);
+        bool InScope(Entry e) => e.Date.Year == scope.Year && (scope.Month is null || e.Date.Month == scope.Month);
+        bool narrowed = scope.Categories is not null || scope.Vendor is not null;
+        if (narrowed) part = ProfitPart.Expenses;
+
+        var inc = part is ProfitPart.Income or ProfitPart.Gross or ProfitPart.Net
+            ? income.Where(InScope).OrderBy(e => e.Date).ThenBy(e => e.Description, StringComparer.OrdinalIgnoreCase).ToList()
+            : new List<Entry>();
+        var exp = part == ProfitPart.Income ? new List<Entry>() : expenses.Where(InScope)
+            .Where(e => part switch
+            {
+                ProfitPart.CostOfRevenue or ProfitPart.Gross => e.CostOfRevenue,
+                ProfitPart.Operating => !e.CostOfRevenue,
+                _ => true,
+            })
+            .Where(e => scope.Categories is null || scope.Categories.Contains(e.Category))
+            .Where(e => scope.Vendor is null || e.Vendor == scope.Vendor)
+            .OrderBy(e => e.Date).ThenBy(e => e.Vendor, StringComparer.OrdinalIgnoreCase).ToList();
+
+        double figure;
+        if (scope.Vendor is { } vendor) figure = r.Vendors.FirstOrDefault(v => v.Name == vendor)?.Amount ?? 0;
+        else if (scope.Categories is { } cats) figure = PyMath.Sum(r.Categories.Where(c => cats.Contains(c.Name)), c => c.Amount);
+        else if (scope.Month is { } m)
+        {
+            var mo = r.Months[m - 1];
+            figure = part switch
+            {
+                ProfitPart.Income => mo.Income,
+                ProfitPart.Expenses => mo.Expenses,
+                ProfitPart.CostOfRevenue => mo.CostOfRevenue,
+                ProfitPart.Operating => mo.OperatingExpenses,
+                ProfitPart.Gross => mo.GrossProfit,
+                _ => mo.Net,
+            };
+        }
+        else figure = part switch
+        {
+            ProfitPart.Income => r.Income,
+            ProfitPart.Expenses => r.Expenses,
+            ProfitPart.CostOfRevenue => r.CostOfRevenue,
+            ProfitPart.Operating => r.OperatingExpenses,
+            ProfitPart.Gross => r.GrossProfit,
+            _ => r.Net,
+        };
+
+        string period = scope.Month is { } mm ? $"{MonthNames[mm - 1]} {scope.Year}" : scope.Year.ToString(CultureInfo.InvariantCulture);
+        string what = part switch
+        {
+            ProfitPart.Income => "Income",
+            ProfitPart.Expenses => "Expenses",
+            ProfitPart.CostOfRevenue => "Cost of Revenue",
+            ProfitPart.Operating => "Operating Expenses",
+            ProfitPart.Gross => "Gross Profit",
+            _ => figure < 0 ? "Net Loss" : "Net Profit",
+        };
+        string? narrow = scope.Vendor ?? (scope.Categories is { Count: 1 } one ? one[0] : scope.Categories is not null ? "Other categories" : null);
+        string title = narrow is null ? $"{what} · {period}" : $"{what} · {narrow} · {period}";
+
+        return new ProfitDetail(part, scope, basis, title, Explain(basis, part, scope, period),
+            inc, exp, PyMath.Sum(inc, e => e.Amount), PyMath.Sum(exp, e => e.Amount), figure, r.ShowGross);
+    }
+
+    private static string Explain(ProfitBasis basis, ProfitPart part, ProfitScope scope, string period)
+    {
+        bool cash = basis == ProfitBasis.Cash;
+        string income = cash
+            ? $"Income is the payments received in {period}, on the day each came in. An invoice marked paid without payment records counts its total on the day it was marked paid. Applying account credit is not counted again."
+            : $"Income is each invoice's total on its invoice date in {period}, paid or not.";
+        string expenses = cash
+            ? $"Expenses are the payments made in {period}, on the day each was paid."
+            : $"Expenses are each expense's amount on its expense date in {period}, paid or not.";
+        const string cogs = "Cost of revenue counts only categories marked Cost of revenue (Expenses > Categories).";
+        string narrow = scope.Vendor is { } v ? $" Only expenses from {v}."
+            : scope.Categories is { Count: 1 } one ? $" Only the {one[0]} category."
+            : scope.Categories is { } many ? $" Only the categories grouped as Other: {string.Join(", ", many)}." : "";
+        return part switch
+        {
+            ProfitPart.Income => income,
+            ProfitPart.Expenses => expenses + narrow,
+            ProfitPart.CostOfRevenue => expenses + " " + cogs,
+            ProfitPart.Operating => expenses + " Operating expenses are every category not marked Cost of revenue.",
+            ProfitPart.Gross => "Gross profit is income minus cost of revenue. " + income + " " + cogs,
+            _ => "Net is income minus expenses. " + income + " " + expenses,
+        };
+    }
 
     // ------------------------------------------------------------------ CSV
 

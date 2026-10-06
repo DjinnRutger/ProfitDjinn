@@ -550,3 +550,24 @@ new tables follow the 1.x conventions (no AUTOINCREMENT, money FLOAT, DATE text,
   invoice payments (Bank Accounts on only), "Paid From" on expense payments; the linked row
   goes when the payment goes. The P&L never reads bank data.
 
+## New in 2.7
+
+- **Settings > Features** gains **Revenue report** and **Service items**, both on by default
+  (`revenue_enabled`, `items_enabled`; new settings rows only). Revenue off hides the Revenue
+  page and its sidebar entry; the dashboard keeps the year's revenue figure, but the tile no
+  longer opens anything. Items off hides Items and its sidebar entry and the "Quick-add
+  service" list on the invoice and recurring invoice forms; saved items are kept. Their routes
+  open the Dashboard while off, like work orders and expenses.
+- **Profit & Loss drill-down.** Every figure opens a page listing what makes it up: the tiles
+  (Margin opens Net), each month's Income / Cost / Gross / Operating / Expenses / Net and the
+  Total row, each Expense Category and Top Vendor row, Year by Year's Income / Expenses / Net,
+  a bar in the chart (that month's Net) and a doughnut slice (that category; "Other" opens the
+  categories grouped into it). Cells showing "-" open nothing.
+- The page shows the figure exactly as the P&L shows it (read from the report, not added up
+  again), a plain-words note on how it is worked out for the basis, the sum for Gross and Net
+  ("Income $X - Expenses $Y = $Z"), then the income entries (payments, or invoices on accrual;
+  each opens its invoice) and the expense entries (each opens its expense). Applied account
+  credit never appears as income, as on the P&L.
+- Figures in the month and year tables keep their normal colour and show an underline on
+  hover (`Ui.DrillText`); the charts show a hand cursor over a bar or slice.
+

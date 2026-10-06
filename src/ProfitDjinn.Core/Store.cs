@@ -49,10 +49,10 @@ public sealed class Store
         Settings.Set(SettingKeys.DatabaseAppVersion, appVersion);
         Customers = new CustomerService(Database);
         Invoices = new InvoiceService(Database, Settings, today);
-        Items = new ItemService(Database);
+        Items = new ItemService(Database, Settings);
         WorkOrders = new WorkOrderService(Database, Settings, today);
         Billing = new BillingService(Database, Settings, Invoices, today);
-        Reports = new ReportService(Database, today);
+        Reports = new ReportService(Database, today, Settings);
         Backups = new BackupService(Database);
         Password = new AppPassword(Settings);
         BackupReminder = new BackupReminder(Settings, today);

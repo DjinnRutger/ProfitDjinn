@@ -8,8 +8,16 @@ namespace ProfitDjinn.Core.Services;
 public sealed class ItemService
 {
     private readonly Database _db;
+    private readonly SettingsService? _settings;
 
-    public ItemService(Database db) => _db = db;
+    public ItemService(Database db, SettingsService? settings = null)
+    {
+        _db = db;
+        _settings = settings;
+    }
+
+    /// <summary>2.7. Settings > Features. Off hides Items and the invoice quick-add; nothing is deleted.</summary>
+    public bool Enabled => _settings?.GetBool(SettingKeys.ItemsEnabled) ?? true;
 
     public IReadOnlyList<ServiceItem> List(bool includeInactive) => _db.Run(db => db.Query<ServiceItem>(
         includeInactive

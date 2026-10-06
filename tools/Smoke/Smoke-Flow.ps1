@@ -252,6 +252,17 @@ try {
     Start-Sleep -Milliseconds 500
     if ((Find-All "Work Orders" ([System.Windows.Automation.ControlType]::Button)).Count -ne 0) { throw "Work Orders is still in the sidebar." }
   }
+  Step "switch the Revenue report and Service items off" {
+    Click "Features settings"
+    Toggle "Revenue report"
+    Toggle "Service items"
+    Click "Save Changes"
+    Wait-For "Settings saved." | Out-Null
+    Start-Sleep -Milliseconds 500
+    foreach ($nav in "Revenue", "Items") {
+      if ((Find-All $nav ([System.Windows.Automation.ControlType]::Button)).Count -ne 0) { throw "$nav is still in the sidebar." }
+    }
+  }
 }
 catch {
   $shot = Join-Path $DataDir 'failure.png'
@@ -278,7 +289,10 @@ monthly = c.execute("select description from invoice_lines where description lik
 service = c.execute("select service_start, service_end from invoice_line_service").fetchall()
 period = c.execute("select bill_period from recurring_invoice_lines").fetchall()
 wo = c.execute("select value from settings where key = 'workorders_enabled'").fetchone()
-problems = []
+switches = c.execute("select key, value from settings where key in ('revenue_enabled', 'items_enabled') order by key").fetchall()
+if switches != [("items_enabled", "false"), ("revenue_enabled", "false")]: problems_switches = [f"revenue/items switches {switches}"]
+else: problems_switches = []
+problems = list(problems_switches)
 if service != [("2026-09-01", "2026-09-30")]: problems.append(f"service dates {service}")
 if period != [(1,)]: problems.append(f"bill period {period}")
 if wo != ("false",): problems.append(f"work orders setting {wo}")

@@ -56,6 +56,7 @@ public sealed class ProfitLossPage : AppPage
         string explain = basis == ProfitBasis.Cash
             ? "Income is money received and expenses are money paid, on the day each happened. Most small businesses file this way."
             : "Income is invoiced and expenses are incurred on their own dates, whether or not they have been paid.";
+        explain += " Click any figure to see what makes it up.";
         var toolbar = new DockPanel();
         var exports = Ui.Row(8,
             Ui.Button("P&L CSV", "Btn.OutlineSecondary", "file-earmark-spreadsheet", ExportSummary, small: true),
@@ -68,36 +69,46 @@ public sealed class ProfitLossPage : AppPage
         var explainLine = new Border { Padding = new Thickness(0, 10, 0, 0), Child = Ui.Muted(explain, 13).Also(t => t.TextWrapping = TextWrapping.Wrap) };
         page.Children.Add(Ui.Card(Ui.Stack(0, toolbar, explainLine), bodyPadding: new Thickness(16)).Margin(0, 0, 0, 24));
 
+        // 2.7: every figure opens the entries behind it.
+        void Open(ProfitPart part, int year, int? month = null, IReadOnlyList<string>? categories = null, string? vendor = null) =>
+            Shell.Navigate(Routes.ProfitDetail(Shell, basis, part, new ProfitScope(year, month, categories, vendor)));
+
         // ---- tiles
         // 2.6: once a category counts as cost of revenue, the tiles become the gross profit layout
         // (two rows of three); otherwise they are as before.
         var tiles = new UniformGrid { Columns = r.ShowGross ? 3 : 4, Margin = new Thickness(-8, 0, -8, r.ShowGross ? 8 : 24) };
         double tileBottom = r.ShowGross ? 16 : 0;
-        void Tile(string value, string label, string glyph, string tone, object? badge = null) =>
-            tiles.Children.Add(new StatTile { Value = value, Label = label, Glyph = glyph, Tone = tone, Accent = "left-" + tone, Badge = badge, Margin = new Thickness(8, 0, 8, tileBottom), Focusable = false, Cursor = System.Windows.Input.Cursors.Arrow });
+        void Tile(string value, string label, string glyph, string tone, ProfitPart part, object? badge = null)
+        {
+            var t = new StatTile { Value = value, Label = label, Glyph = glyph, Tone = tone, Accent = "left-" + tone, Badge = badge, Margin = new Thickness(8, 0, 8, tileBottom) };
+            t.Click += (_, _) => Open(part, r.Year);
+            tiles.Children.Add(t);
+        }
         string Pct(double? v) => v is { } x ? x.ToString("0.0", CultureInfo.InvariantCulture) + "%" : "—";
         object? vs = r.PreviousNet is { } prev ? Ui.Muted($"{Signed(prev)} in {r.Year - 1}", 12) : null;
-        Tile(Ui.Money(r.Income), "Income", "cash-stack", "success");
+        Tile(Ui.Money(r.Income), "Income", "cash-stack", "success", ProfitPart.Income);
         if (r.ShowGross)
         {
-            Tile(Ui.Money(r.CostOfRevenue), "Cost of Revenue", "box-seam", "danger");
-            Tile(Signed(r.GrossProfit), "Gross Profit", "graph-up", r.GrossProfit >= 0 ? "primary" : "danger", Ui.Badge($"{Pct(r.GrossMargin)} margin", "info75"));
-            Tile(Ui.Money(r.OperatingExpenses), "Operating Expenses", "wallet2", "warning");
+            Tile(Ui.Money(r.CostOfRevenue), "Cost of Revenue", "box-seam", "danger", ProfitPart.CostOfRevenue);
+            Tile(Signed(r.GrossProfit), "Gross Profit", "graph-up", r.GrossProfit >= 0 ? "primary" : "danger", ProfitPart.Gross, Ui.Badge($"{Pct(r.GrossMargin)} margin", "info75"));
+            Tile(Ui.Money(r.OperatingExpenses), "Operating Expenses", "wallet2", "warning", ProfitPart.Operating);
         }
-        else Tile(Ui.Money(r.Expenses), "Expenses", "wallet2", "danger");
-        Tile(Signed(r.Net), r.Net >= 0 ? "Net Profit" : "Net Loss", r.Net >= 0 ? "graph-up-arrow" : "graph-down-arrow", r.Net >= 0 ? "primary" : "danger");
-        Tile(Pct(r.Margin), r.ShowGross ? "Net Margin" : "Profit Margin", "percent", "info", vs);
+        else Tile(Ui.Money(r.Expenses), "Expenses", "wallet2", "danger", ProfitPart.Expenses);
+        Tile(Signed(r.Net), r.Net >= 0 ? "Net Profit" : "Net Loss", r.Net >= 0 ? "graph-up-arrow" : "graph-down-arrow", r.Net >= 0 ? "primary" : "danger", ProfitPart.Net);
+        Tile(Pct(r.Margin), r.ShowGross ? "Net Margin" : "Profit Margin", "percent", "info", ProfitPart.Net, vs);
         page.Children.Add(tiles);
 
         // ---- charts
         var chart = new PairBarChart();
         chart.SetData(r.Months.Select(mo => (mo.Name, mo.Income, mo.Expenses)).ToList());
+        chart.Clicked += i => Open(ProfitPart.Net, r.Year, month: i + 1);
         var chartCard = Ui.Card(chart, $"Income vs Expenses — {r.Year}", "bar-chart-fill", headerRight: Ui.Muted("by month", 12.8));
         FrameworkElement donutBody;
         if (r.Categories.Count > 0)
         {
             var donut = new DoughnutChart();
             donut.SetData(Slices(r).ToList());
+            donut.Clicked += i => Open(ProfitPart.Expenses, r.Year, categories: SliceCategories(r, i));
             donutBody = donut;
         }
         else donutBody = Ui.Empty("pie-chart", "No expenses in this year.");
@@ -106,30 +117,37 @@ public sealed class ProfitLossPage : AppPage
 
         // ---- tables
         TextBlock R(string t, string style = "Body") => Ui.Text(t, style, 14.4).Also(x => x.HorizontalAlignment = HorizontalAlignment.Right);
-        TextBlock Net(double v, bool bold = false) => R(Signed(v), bold ? "Strong" : "Body").WithResource(TextBlock.ForegroundProperty, v < 0 ? "DangerText" : "SuccessText")
-            .Also(t => { if (bold) t.FontWeight = FontWeights.Bold; });
-        UIElement Amount(double v) => v != 0 ? R(Ui.Money(v)) : Ui.Muted("—", 14.4);
-        TextBlock Bold(double v) => R(Ui.Money(v), "Strong").Also(t => t.FontWeight = FontWeights.Bold);
+        UIElement Net(double v, Action open, bool bold = false) => Ui.DrillText(Signed(v), open, v < 0 ? "DangerText" : "SuccessText", bold);
+        UIElement Amount(double v, Action open) => v != 0 ? Ui.DrillText(Ui.Money(v), open) : Ui.Muted("—", 14.4);
+        UIElement Bold(double v, Action open) => Ui.DrillText(Ui.Money(v), open, bold: true);
+        Action Month(ProfitPart part, ProfitMonth mo) => () => Open(part, r.Year, month: mo.Month);
+        Action Year(ProfitPart part) => () => Open(part, r.Year);
         var monthCols = new List<Column<ProfitMonth>>
         {
             new("Month", Ui.Star(), mo => Ui.Text(mo.Name, "Strong", 14.4)),
-            new("Income", Ui.Auto, mo => Amount(mo.Income), HorizontalAlignment.Right),
+            new("Income", Ui.Auto, mo => Amount(mo.Income, Month(ProfitPart.Income, mo)), HorizontalAlignment.Right),
         };
-        var totalRow = new List<UIElement?> { Ui.Bold("Total", 14.4), Bold(r.Income) };
+        var totalRow = new List<UIElement?> { Ui.Bold("Total", 14.4), Bold(r.Income, Year(ProfitPart.Income)) };
         if (r.ShowGross)
         {
-            monthCols.Add(new("Cost", Ui.Auto, mo => Amount(mo.CostOfRevenue), HorizontalAlignment.Right));
-            monthCols.Add(new("Gross", Ui.Auto, mo => mo.Income == 0 && mo.CostOfRevenue == 0 ? Ui.Muted("—", 14.4) : R(Signed(mo.GrossProfit)), HorizontalAlignment.Right));
-            monthCols.Add(new("Operating", Ui.Auto, mo => Amount(mo.OperatingExpenses), HorizontalAlignment.Right));
-            totalRow.AddRange(new UIElement?[] { Bold(r.CostOfRevenue), R(Signed(r.GrossProfit), "Strong").Also(t => t.FontWeight = FontWeights.Bold), Bold(r.OperatingExpenses) });
+            monthCols.Add(new("Cost", Ui.Auto, mo => Amount(mo.CostOfRevenue, Month(ProfitPart.CostOfRevenue, mo)), HorizontalAlignment.Right));
+            monthCols.Add(new("Gross", Ui.Auto, mo => mo.Income == 0 && mo.CostOfRevenue == 0 ? Ui.Muted("—", 14.4)
+                : Ui.DrillText(Signed(mo.GrossProfit), Month(ProfitPart.Gross, mo)), HorizontalAlignment.Right));
+            monthCols.Add(new("Operating", Ui.Auto, mo => Amount(mo.OperatingExpenses, Month(ProfitPart.Operating, mo)), HorizontalAlignment.Right));
+            totalRow.AddRange(new UIElement?[]
+            {
+                Bold(r.CostOfRevenue, Year(ProfitPart.CostOfRevenue)),
+                Ui.DrillText(Signed(r.GrossProfit), Year(ProfitPart.Gross), bold: true),
+                Bold(r.OperatingExpenses, Year(ProfitPart.Operating)),
+            });
         }
         else
         {
-            monthCols.Add(new("Expenses", Ui.Auto, mo => Amount(mo.Expenses), HorizontalAlignment.Right));
-            totalRow.Add(Bold(r.Expenses));
+            monthCols.Add(new("Expenses", Ui.Auto, mo => Amount(mo.Expenses, Month(ProfitPart.Expenses, mo)), HorizontalAlignment.Right));
+            totalRow.Add(Bold(r.Expenses, Year(ProfitPart.Expenses)));
         }
-        monthCols.Add(new("Net", Ui.Auto, mo => mo.Income == 0 && mo.Expenses == 0 ? Ui.Muted("—", 14.4) : Net(mo.Net), HorizontalAlignment.Right));
-        totalRow.Add(Net(r.Net, bold: true));
+        monthCols.Add(new("Net", Ui.Auto, mo => mo.Income == 0 && mo.Expenses == 0 ? Ui.Muted("—", 14.4) : Net(mo.Net, Month(ProfitPart.Net, mo)), HorizontalAlignment.Right));
+        totalRow.Add(Net(r.Net, Year(ProfitPart.Net), bold: true));
         var monthFooter = new List<UIElement?[]> { totalRow.ToArray() };
         var monthCard = Ui.Card(Table.Build(monthCols, r.Months, footer: monthFooter), "Monthly Breakdown", "table", bodyPadding: new Thickness(0));
 
@@ -142,7 +160,7 @@ public sealed class ProfitLossPage : AppPage
             new("Amount", Ui.Auto, c => R(Ui.Money(c.Amount), "Strong"), HorizontalAlignment.Right),
         };
         FrameworkElement catTable = r.Categories.Count > 0
-            ? Table.Build(catCols, r.Categories)
+            ? Table.Build(catCols, r.Categories, onRowClick: c => Open(ProfitPart.Expenses, r.Year, categories: new[] { c.Name }))
             : Ui.Stack(0, Table.Build(catCols, Array.Empty<CategoryTotal>()), Ui.Empty("tags", "No expenses in this year."));
         var catCard = Ui.Card(catTable, "Expense Categories", "tags", headerRight: Ui.Muted("for your tax return", 12.8), bodyPadding: new Thickness(0));
 
@@ -154,7 +172,7 @@ public sealed class ProfitLossPage : AppPage
         };
         var topVendors = r.Vendors.Take(10).ToList();
         FrameworkElement vendorTable = topVendors.Count > 0
-            ? Table.Build(vendorCols, topVendors)
+            ? Table.Build(vendorCols, topVendors, onRowClick: v => Open(ProfitPart.Expenses, r.Year, vendor: v.Name))
             : Ui.Stack(0, Table.Build(vendorCols, Array.Empty<VendorTotal>()), Ui.Empty("shop", "No expenses in this year."));
         var vendorCard = Ui.Card(vendorTable, "Top Vendors", "shop", bodyPadding: new Thickness(0)).Margin(0, 24, 0, 0);
 
@@ -162,9 +180,9 @@ public sealed class ProfitLossPage : AppPage
         {
             new("Year", Ui.Star(), y => Ui.Row(4, Ui.Link(y.Year.ToString(CultureInfo.InvariantCulture), () => Shell.Navigate(Routes.Profit(Shell, y.Year, basis))).Also(l => l.FontSize = 14.4),
                 y.IsCurrent ? Ui.Badge("YTD", "primary") : new TextBlock())),
-            new("Income", Ui.Auto, y => R(Ui.Money(y.Income)), HorizontalAlignment.Right),
-            new("Expenses", Ui.Auto, y => R(Ui.Money(y.Expenses)), HorizontalAlignment.Right),
-            new("Net", Ui.Auto, y => Net(y.Net), HorizontalAlignment.Right),
+            new("Income", Ui.Auto, y => Ui.DrillText(Ui.Money(y.Income), () => Open(ProfitPart.Income, y.Year)), HorizontalAlignment.Right),
+            new("Expenses", Ui.Auto, y => Ui.DrillText(Ui.Money(y.Expenses), () => Open(ProfitPart.Expenses, y.Year)), HorizontalAlignment.Right),
+            new("Net", Ui.Auto, y => Net(y.Net, () => Open(ProfitPart.Net, y.Year)), HorizontalAlignment.Right),
         };
         var yearCard = Ui.Card(Table.Build(yearCols, r.YearRows.OrderByDescending(y => y.Year).ToList()), "Year by Year", "calendar3", bodyPadding: new Thickness(0)).Margin(0, 24, 0, 0);
 
@@ -184,6 +202,10 @@ public sealed class ProfitLossPage : AppPage
         return r.Categories.Take(7).Select(c => (c.Name, c.Amount))
             .Append(("Other", Core.Rules.PyMath.Sum(r.Categories.Skip(7), c => c.Amount)));
     }
+
+    /// <summary>2.7. The categories behind doughnut slice <paramref name="i"/> ("Other" is everything after the top 7).</summary>
+    private static IReadOnlyList<string> SliceCategories(ProfitReport r, int i) =>
+        r.Categories.Count <= 8 || i < 7 ? new[] { r.Categories[i].Name } : r.Categories.Skip(7).Select(c => c.Name).ToList();
 
     private string BasisWord => _r.Basis == ProfitBasis.Cash ? "cash" : "accrual";
 

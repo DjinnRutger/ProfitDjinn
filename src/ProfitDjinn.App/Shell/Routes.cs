@@ -17,9 +17,12 @@ public static class Routes
     public static Func<AppPage> NewCustomer(MainWindow s) => () => new CustomerFormPage(s, null);
     public static Func<AppPage> EditCustomer(MainWindow s, long id) => () => new CustomerFormPage(s, id);
 
-    public static Func<AppPage> Items(MainWindow s, bool inactive = false) => () => new ItemsPage(s, inactive);
-    public static Func<AppPage> NewItem(MainWindow s) => () => new ItemFormPage(s, null);
-    public static Func<AppPage> EditItem(MainWindow s, long id) => () => new ItemFormPage(s, id);
+    public static Func<AppPage> Items(MainWindow s, bool inactive = false) => Itm(s, () => new ItemsPage(s, inactive));
+    public static Func<AppPage> NewItem(MainWindow s) => Itm(s, () => new ItemFormPage(s, null));
+    public static Func<AppPage> EditItem(MainWindow s, long id) => Itm(s, () => new ItemFormPage(s, id));
+
+    /// <summary>2.7. Items routes open the Dashboard while Service items is off (Settings > Features).</summary>
+    private static Func<AppPage> Itm(MainWindow s, Func<AppPage> open) => () => s.Store.Items.Enabled ? open() : new DashboardPage(s);
 
     public static Func<AppPage> Invoices(MainWindow s, InvoiceFilter filter = InvoiceFilter.All, string search = "") => () => new InvoicesPage(s, filter, search);
     public static Func<AppPage> Invoice(MainWindow s, long id) => () => new InvoiceDetailPage(s, id);
@@ -41,7 +44,10 @@ public static class Routes
     /// <summary>The customer's work order tab (created on first visit, as in 1.x).</summary>
     public static Func<AppPage> WorkOrder(MainWindow s, long customerId) => Wo(s, () => new WorkOrderPage(s, customerId));
 
-    public static Func<AppPage> Revenue(MainWindow s, int? year = null, bool all = false) => () => new RevenuePage(s, year, all);
+    public static Func<AppPage> Revenue(MainWindow s, int? year = null, bool all = false) => Rev(s, () => new RevenuePage(s, year, all));
+
+    /// <summary>2.7. The Revenue page opens the Dashboard while it is off (Settings > Features).</summary>
+    private static Func<AppPage> Rev(MainWindow s, Func<AppPage> open) => () => s.Store.Reports.RevenueEnabled ? open() : new DashboardPage(s);
     /// <summary>Settings, scrolled to a category (e.g. "workorders").</summary>
     public static Func<AppPage> Settings(MainWindow s, string? category = null) => () => new SettingsPage(s, category);
     public static Func<AppPage> Backup(MainWindow s) => () => new BackupPage(s);
@@ -64,6 +70,7 @@ public static class Routes
     public static Func<AppPage> EditRecurring(MainWindow s, long id) => Exp(s, () => new RecurringFormPage(s, id));
     public static Func<AppPage> ExpenseCategories(MainWindow s) => Exp(s, () => new ExpenseCategoriesPage(s));
     public static Func<AppPage> Profit(MainWindow s, int? year = null, ProfitBasis basis = ProfitBasis.Cash) => Exp(s, () => new ProfitLossPage(s, year, basis));
+    public static Func<AppPage> ProfitDetail(MainWindow s, ProfitBasis basis, ProfitPart part, ProfitScope scope) => Exp(s, () => new ProfitDetailPage(s, basis, part, scope));
 
     // ---- 2.6 Bank Accounts (Settings > Features, off by default): these open the Dashboard while off.
     private static Func<AppPage> Bank(MainWindow s, Func<AppPage> open) => () => s.Store.Banking.Enabled ? open() : new DashboardPage(s);

@@ -34,7 +34,7 @@ setting values forward. Keep it: existing databases depend on it.
     `Table` (Bootstrap table look), `LineBuilder`, `SuggestBox`, `BarChart`, `DoughnutChart`.
   - `Themes/`: `Theme.Light/Dark/Terminal.xaml` (same keys each) and `Controls.xaml`.
     `ThemeManager` swaps them and derives the brand brushes from `primary_color`.
-- `tests/ProfitDjinn.Tests`: xUnit, 133 tests including the parity tests.
+- `tests/ProfitDjinn.Tests`: xUnit, 137 tests including the parity tests.
 - `docs/port-spec.md` (behaviour) and `docs/design-spec.md` (look). "Fixed in 2.0" in the
   port spec lists every 1.x bug deliberately not copied. Read them before changing a screen.
 
@@ -237,6 +237,22 @@ Expenses or behind **Bank accounts** (Settings > Features, `banking_enabled`, of
   - SQLite returns an integer 0 for an empty or all-integer SUM: cast to REAL when Dapper maps it
     to a double (that crashed the account list once).
 - Smoke: `tools/Smoke/Smoke-Banking.ps1`; Smoke-Expenses covers mileage, owner-paid, COGS.
+
+## 2.7: Revenue/Items switches, P&L drill-down
+
+- `revenue_enabled` / `items_enabled` (on by default) join Settings > Features. Routes go
+  through `Routes.Rev(...)` / `Itm(...)`; `ReportService.RevenueEnabled`, `ItemService.Enabled`.
+  The dashboard Revenue tile stays (not clickable while off); the invoice quick-add checks
+  `Store.Items.Enabled`.
+- `ProfitService.Detail(basis, part, scope)` backs `ProfitDetailPage`. **The headline figure is
+  read from `Report()`** (tile field, `ProfitMonth`, category/vendor/year row), never re-summed:
+  Operating, Gross and Net are rounded differences there. The entry lists are the breakdown;
+  `ProfitDetailTests` checks every figure matches the page and the lists reconcile to it.
+  `Entry` carries `InvoiceId`/`ExpenseId` (trailing defaulted parameters).
+- `Ui.DrillText` is a `Link` in the table's own colour (`Link.SetBrushes`): underline on hover,
+  a UI Automation hyperlink. `PairBarChart.Clicked` / `DoughnutChart.Clicked` give the index.
+- Smoke: Smoke-Flow switches Revenue and Items off; Smoke-Expenses drills into the net total.
+  PowerShell 5.1 reads the .ps1 files as ANSI: match text containing "·" with `Wait-Like`.
 
 ## 1.x reference (Flask, in legacy/)
 

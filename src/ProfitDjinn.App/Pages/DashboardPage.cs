@@ -44,7 +44,8 @@ public sealed class DashboardPage : AppPage
         if (stats.UnbilledWork > 0) unbilled.Accent = "danger";
         if (Store.WorkOrders.Enabled) tiles.Children.Add(unbilled);
 
-        var revenue = Tile(Ui.Money(stats.YearRevenue), $"{stats.Year} Revenue", "graph-up-arrow", "success", null, Routes.Revenue(shell));
+        // 2.7: with the Revenue page off the figure stays, but the tile opens nothing.
+        var revenue = Tile(Ui.Money(stats.YearRevenue), $"{stats.Year} Revenue", "graph-up-arrow", "success", null, Store.Reports.RevenueEnabled ? Routes.Revenue(shell) : null);
         revenue.Accent = "bottom";
         tiles.Children.Add(revenue);
 
@@ -85,10 +86,11 @@ public sealed class DashboardPage : AppPage
         Content = page;
     }
 
-    private StatTile Tile(string value, string label, string glyph, string tone, object? badge, Func<AppPage> open)
+    private StatTile Tile(string value, string label, string glyph, string tone, object? badge, Func<AppPage>? open)
     {
         var t = new StatTile { Value = value, Label = label, Glyph = glyph, Tone = tone, Badge = badge, Margin = new Thickness(8, 0, 8, 0) };
-        t.Click += (_, _) => Shell.Navigate(open);
+        if (open is not null) t.Click += (_, _) => Shell.Navigate(open);
+        else { t.Focusable = false; t.Cursor = System.Windows.Input.Cursors.Arrow; }
         return t;
     }
 

@@ -181,7 +181,8 @@ public sealed class RecurringInvoiceFormPage : AppPage
         if (existing is not null)
             _lines.SetRows(existing.Lines.Select(l => new InvoiceRowInput(l.Description, InvoiceDetailPage.QtyText(l.Quantity), PyMath.JsToFixedText(l.UnitPrice, 2), BillPeriod: l.BillPeriod)));
         var headerTools = Ui.Row(8);
-        var items = Store.Items.Active();
+        // 2.7: no quick-add while Service items is off.
+        var items = Store.Items.Enabled ? Store.Items.Active() : Array.Empty<ProfitDjinn.Core.Model.ServiceItem>();
         if (items.Count > 0)
         {
             var picker = new ComboBox { Width = 240, ItemsSource = items.Select(i => $"{i.Description} — {Ui.Money(i.Price)}").ToList(), MinHeight = 31, FontSize = 13.6 };
