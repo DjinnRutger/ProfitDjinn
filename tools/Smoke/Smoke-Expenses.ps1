@@ -105,9 +105,25 @@ public static class SmokeWinExp {
   [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT r);
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int dx, int dy, uint data, UIntPtr extra);
   public struct RECT { public int Left, Top, Right, Bottom; }
 }
 "@
+# Screen coordinates from UI Automation are physical pixels; match them on a scaled display.
+[SmokeWinExp]::SetProcessDPIAware() | Out-Null
+# A real left click in the middle of an element (table rows have no UI Automation action).
+function Mouse-Click($element) {
+  [SmokeWinExp]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
+  Start-Sleep -Milliseconds 300
+  $b = $element.Current.BoundingRectangle
+  [SmokeWinExp]::SetCursorPos([int]($b.X + $b.Width / 2), [int]($b.Y + $b.Height / 2)) | Out-Null
+  Start-Sleep -Milliseconds 150
+  [SmokeWinExp]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)   # left down
+  [SmokeWinExp]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)   # left up
+  Start-Sleep -Milliseconds 400
+}
 function Save-Screenshot([string] $path) {
   $r = New-Object SmokeWinExp+RECT
   [SmokeWinExp]::GetWindowRect($proc.MainWindowHandle, [ref]$r) | Out-Null
@@ -221,6 +237,15 @@ try {
     Wait-Like "Net is income minus expenses*" | Out-Null
     Wait-For "Smoke rent" | Out-Null
     Click "Back to Profit & Loss"
+    Wait-For "P&L CSV" -type $CT::Button | Out-Null
+  }
+  Step "open an expense from a drill-down row" {
+    $spent = 40 + 500 * @($dates | Where-Object { $_.Year -eq $today.Year }).Count
+    Invoke-Link ("-`$" + $spent.ToString("0.00", $inv))
+    Wait-Like "Net is income minus expenses*" | Out-Null
+    Mouse-Click (Wait-For "Smoke rent")
+    Wait-For "Edit" -type $CT::Button | Out-Null    # only the expense page has Edit
+    Click "Profit & Loss"
     Wait-For "P&L CSV" -type $CT::Button | Out-Null
   }
   # 2.6: mileage, an owner-paid expense paid back, and a cost-of-revenue category.
