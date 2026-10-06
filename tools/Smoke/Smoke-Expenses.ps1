@@ -240,8 +240,29 @@ try {
     Wait-Like ("Net Loss*" + $today.Year) | Out-Null
     Wait-Like "Net is income minus expenses*" | Out-Null
     Wait-For "Smoke rent" | Out-Null
-    Click "Back to Profit & Loss"
+    Click "Back"
     Wait-For "P&L CSV" -type $CT::Button | Out-Null
+  }
+  Step "open a month and come back to the same scroll position" {
+    # The page's own scroll area (the widest one; the sidebar has another).
+    $scroller = @($root.FindAll([System.Windows.Automation.TreeScope]::Descendants,
+        (New-Object System.Windows.Automation.PropertyCondition ($AE::IsScrollPatternAvailableProperty), $true))) |
+      Sort-Object { $_.Current.BoundingRectangle.Width } | Select-Object -Last 1
+    $scroll = $scroller.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern)
+    $scroll.SetScrollPercent(-1, 60)
+    Start-Sleep -Milliseconds 400
+    $before = $scroll.Current.VerticalScrollPercent
+    if ($before -le 0) { throw "Could not scroll the Profit & Loss page (at $before%)." }
+    $month = @($dates | Where-Object { $_.Year -eq $today.Year })[0]
+    Invoke-Link $month.ToString("MMM", $inv)
+    Wait-Like ("Net Loss*" + $month.ToString("MMM yyyy", $inv)) | Out-Null
+    Wait-For "Smoke rent" | Out-Null
+    Click "Back"
+    Wait-For "P&L CSV" -type $CT::Button | Out-Null
+    Start-Sleep -Milliseconds 600
+    $after = $scroll.Current.VerticalScrollPercent
+    if ([Math]::Abs($after - $before) -gt 1) { throw "Back did not return to the scroll position ($before% before, $after% after)." }
+    Write-Host -NoNewline "(scrolled $([Math]::Round($before))%, back at $([Math]::Round($after))%) "
   }
   Step "open an expense from a drill-down row" {
     $spent = 40 + 500 * @($dates | Where-Object { $_.Year -eq $today.Year }).Count

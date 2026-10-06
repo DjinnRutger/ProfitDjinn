@@ -35,9 +35,16 @@ public enum ProfitPart { Income, Expenses, CostOfRevenue, Operating, Gross, Net 
 
 /// <summary>
 /// 2.7. Where a drill-down looks: a year, optionally one month, some expense categories (one,
-/// or the doughnut's "Other" group) or one vendor. Categories and vendor narrow expenses only.
+/// or the doughnut's "Other" group), one vendor, or one customer. Categories and vendor narrow
+/// expenses; customer narrows income.
 /// </summary>
-public sealed record ProfitScope(int Year, int? Month = null, IReadOnlyList<string>? Categories = null, string? Vendor = null);
+public sealed record ProfitScope(int Year, int? Month = null, IReadOnlyList<string>? Categories = null, string? Vendor = null, string? Customer = null)
+{
+    public bool NarrowsExpenses => Categories is not null || Vendor is not null;
+}
+
+/// <summary>2.7. One line of a drill-down breakdown: a customer, category or vendor and its total.</summary>
+public sealed record ProfitGroup(string Name, double Amount, int Count, bool CostOfRevenue = false);
 
 /// <summary>
 /// 2.7. A P&amp;L figure and the entries behind it. <see cref="Figure"/> is read from the report,
@@ -54,7 +61,10 @@ public sealed record ProfitDetail(
     double IncomeTotal,
     double ExpenseTotal,
     double Figure,
-    bool ShowGross)
+    bool ShowGross,
+    IReadOnlyList<ProfitGroup> ByCustomer,
+    IReadOnlyList<ProfitGroup> ByCategory,
+    IReadOnlyList<ProfitGroup> ByVendor)
 {
     public bool HasIncome => Part is ProfitPart.Income or ProfitPart.Gross or ProfitPart.Net;
     public bool HasExpenses => Part != ProfitPart.Income;
@@ -213,13 +223,16 @@ public sealed class ProfitService
         var r = Report(scope.Year, basis);
         var (income, expenses) = Entries(basis);
         bool InScope(Entry e) => e.Date.Year == scope.Year && (scope.Month is null || e.Date.Month == scope.Month);
-        bool narrowed = scope.Categories is not null || scope.Vendor is not null;
-        if (narrowed) part = ProfitPart.Expenses;
+        // A customer narrows to income; a category or vendor to expenses (keeping cost of revenue
+        // or operating when that is what was being looked at).
+        if (scope.Customer is not null) part = ProfitPart.Income;
+        else if (scope.NarrowsExpenses && part is ProfitPart.Income or ProfitPart.Gross or ProfitPart.Net) part = ProfitPart.Expenses;
 
-        var inc = part is ProfitPart.Income or ProfitPart.Gross or ProfitPart.Net
-            ? income.Where(InScope).OrderBy(e => e.Date).ThenBy(e => e.Description, StringComparer.OrdinalIgnoreCase).ToList()
+        // In the report's own order, so group totals add up exactly as the report's do.
+        var incRaw = part is ProfitPart.Income or ProfitPart.Gross or ProfitPart.Net
+            ? income.Where(InScope).Where(e => scope.Customer is null || e.Vendor == scope.Customer).ToList()
             : new List<Entry>();
-        var exp = part == ProfitPart.Income ? new List<Entry>() : expenses.Where(InScope)
+        var expRaw = part == ProfitPart.Income ? new List<Entry>() : expenses.Where(InScope)
             .Where(e => part switch
             {
                 ProfitPart.CostOfRevenue or ProfitPart.Gross => e.CostOfRevenue,
@@ -228,10 +241,17 @@ public sealed class ProfitService
             })
             .Where(e => scope.Categories is null || scope.Categories.Contains(e.Category))
             .Where(e => scope.Vendor is null || e.Vendor == scope.Vendor)
-            .OrderBy(e => e.Date).ThenBy(e => e.Vendor, StringComparer.OrdinalIgnoreCase).ToList();
+            .ToList();
+        var inc = incRaw.OrderBy(e => e.Date).ThenBy(e => e.Description, StringComparer.OrdinalIgnoreCase).ToList();
+        var exp = expRaw.OrderBy(e => e.Date).ThenBy(e => e.Vendor, StringComparer.OrdinalIgnoreCase).ToList();
 
+        // The figure as the page that was clicked shows it: a P&L figure from the report, or for
+        // a breakdown line (a month's category, a customer...) the same sum that line shows.
         double figure;
-        if (scope.Vendor is { } vendor) figure = r.Vendors.FirstOrDefault(v => v.Name == vendor)?.Amount ?? 0;
+        bool yearExpensesRow = scope.Month is null && part == ProfitPart.Expenses;
+        if (scope.Customer is not null) figure = PyMath.Sum(incRaw, e => e.Amount);
+        else if (scope.NarrowsExpenses && !yearExpensesRow) figure = PyMath.Sum(expRaw, e => e.Amount);
+        else if (scope.Vendor is { } vendor) figure = r.Vendors.FirstOrDefault(v => v.Name == vendor)?.Amount ?? 0;
         else if (scope.Categories is { } cats) figure = PyMath.Sum(r.Categories.Where(c => cats.Contains(c.Name)), c => c.Amount);
         else if (scope.Month is { } m)
         {
@@ -266,11 +286,20 @@ public sealed class ProfitService
             ProfitPart.Gross => "Gross Profit",
             _ => figure < 0 ? "Net Loss" : "Net Profit",
         };
-        string? narrow = scope.Vendor ?? (scope.Categories is { Count: 1 } one ? one[0] : scope.Categories is not null ? "Other categories" : null);
+        string? narrow = scope.Customer ?? scope.Vendor ?? (scope.Categories is { Count: 1 } one ? one[0] : scope.Categories is not null ? "Other categories" : null);
         string title = narrow is null ? $"{what} · {period}" : $"{what} · {narrow} · {period}";
 
+        // Breakdowns to drill further, largest first; none for what is already narrowed to one.
+        static List<ProfitGroup> Groups(List<Entry> entries, Func<Entry, string> key) => entries.GroupBy(key)
+            .Select(g => new ProfitGroup(g.Key, PyMath.Sum(g, e => e.Amount), g.Count(), g.Any(e => e.CostOfRevenue)))
+            .OrderByDescending(g => g.Amount).ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase).ToList();
+        var byCustomer = scope.Customer is null ? Groups(incRaw, e => e.Vendor) : new List<ProfitGroup>();
+        var byCategory = scope.Categories is not { Count: 1 } ? Groups(expRaw, e => e.Category) : new List<ProfitGroup>();
+        var byVendor = scope.Vendor is null ? Groups(expRaw, e => e.Vendor) : new List<ProfitGroup>();
+
         return new ProfitDetail(part, scope, basis, title, Explain(basis, part, scope, period),
-            inc, exp, PyMath.Sum(inc, e => e.Amount), PyMath.Sum(exp, e => e.Amount), figure, r.ShowGross);
+            inc, exp, PyMath.Sum(inc, e => e.Amount), PyMath.Sum(exp, e => e.Amount), figure, r.ShowGross,
+            byCustomer, byCategory, byVendor);
     }
 
     private static string Explain(ProfitBasis basis, ProfitPart part, ProfitScope scope, string period)
@@ -283,15 +312,16 @@ public sealed class ProfitService
             ? $"Expenses are the payments made in {period}, on the day each was paid."
             : $"Expenses are each expense's amount on its expense date in {period}, paid or not.";
         const string cogs = "Cost of revenue counts only categories marked Cost of revenue (Expenses > Categories).";
-        string narrow = scope.Vendor is { } v ? $" Only expenses from {v}."
+        string narrow = scope.Customer is { } who ? $" Only income from {who}."
+            : scope.Vendor is { } v ? $" Only expenses from {v}."
             : scope.Categories is { Count: 1 } one ? $" Only the {one[0]} category."
             : scope.Categories is { } many ? $" Only the categories grouped as Other: {string.Join(", ", many)}." : "";
         return part switch
         {
-            ProfitPart.Income => income,
+            ProfitPart.Income => income + narrow,
             ProfitPart.Expenses => expenses + narrow,
-            ProfitPart.CostOfRevenue => expenses + " " + cogs,
-            ProfitPart.Operating => expenses + " Operating expenses are every category not marked Cost of revenue.",
+            ProfitPart.CostOfRevenue => expenses + " " + cogs + narrow,
+            ProfitPart.Operating => expenses + " Operating expenses are every category not marked Cost of revenue." + narrow,
             ProfitPart.Gross => "Gross profit is income minus cost of revenue. " + income + " " + cogs,
             _ => "Net is income minus expenses. " + income + " " + expenses,
         };

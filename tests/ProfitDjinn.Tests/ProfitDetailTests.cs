@@ -140,6 +140,48 @@ public class ProfitDetailTests
         Assert.Equal("Cost of Revenue · Mar 2026", s.Profit.Detail(ProfitBasis.Accrual, ProfitPart.CostOfRevenue, new ProfitScope(2026, 3)).Title);
     }
 
+    [Theory]
+    [MemberData(nameof(Bases))]
+    public void A_month_breaks_down_by_customer_category_and_vendor_and_each_line_drills_to_its_own_total(ProfitBasis basis)
+    {
+        var s = DrillStore();
+        foreach (var m in s.Profit.Report(2026, basis).Months.Where(m => m.Income != 0 || m.Expenses != 0))
+        {
+            var month = s.Profit.Detail(basis, ProfitPart.Net, new ProfitScope(2026, m.Month));
+            Assert.Equal(m.Net, month.Figure);
+            Assert.Equal(PyMath.Round(m.Income, 2), PyMath.Round(PyMath.Sum(month.ByCustomer, g => g.Amount), 2));
+            Assert.Equal(PyMath.Round(m.Expenses, 2), PyMath.Round(PyMath.Sum(month.ByCategory, g => g.Amount), 2));
+            Assert.Equal(PyMath.Round(m.Expenses, 2), PyMath.Round(PyMath.Sum(month.ByVendor, g => g.Amount), 2));
+            foreach (var g in month.ByCustomer)
+            {
+                var d = s.Profit.Detail(basis, ProfitPart.Income, month.Scope with { Customer = g.Name });
+                Assert.Equal(ProfitPart.Income, d.Part);
+                Assert.Equal(g.Amount, d.Figure);
+                Assert.Equal(g.Count, d.Income.Count);
+                Assert.Empty(d.ByCustomer);
+            }
+            foreach (var g in month.ByCategory)
+            {
+                var d = s.Profit.Detail(basis, ProfitPart.Expenses, month.Scope with { Categories = new[] { g.Name } });
+                Assert.Equal(g.Amount, d.Figure);
+                Assert.Equal(g.Count, d.Expenses.Count);
+                Assert.Empty(d.ByCategory);
+                foreach (var v in d.ByVendor)       // and on again, to a vendor within that category
+                    Assert.Equal(v.Amount, s.Profit.Detail(basis, ProfitPart.Expenses, d.Scope with { Vendor = v.Name }).Figure);
+            }
+            foreach (var g in month.ByVendor)
+                Assert.Equal(g.Amount, s.Profit.Detail(basis, ProfitPart.Expenses, month.Scope with { Vendor = g.Name }).Figure);
+        }
+        // Cost of revenue stays cost of revenue when narrowed to a vendor.
+        var cogs = s.Profit.Detail(basis, ProfitPart.CostOfRevenue, new ProfitScope(2026));
+        foreach (var v in cogs.ByVendor)
+        {
+            var d = s.Profit.Detail(basis, ProfitPart.CostOfRevenue, cogs.Scope with { Vendor = v.Name });
+            Assert.Equal(v.Amount, d.Figure);
+            Assert.All(d.Expenses, e => Assert.True(e.CostOfRevenue));
+        }
+    }
+
     [Fact]
     public void Revenue_and_items_are_on_by_default_and_turning_items_off_keeps_them()
     {

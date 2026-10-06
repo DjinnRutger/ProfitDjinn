@@ -56,7 +56,7 @@ public sealed class ProfitLossPage : AppPage
         string explain = basis == ProfitBasis.Cash
             ? "Income is money received and expenses are money paid, on the day each happened. Most small businesses file this way."
             : "Income is invoiced and expenses are incurred on their own dates, whether or not they have been paid.";
-        explain += " Click any figure to see what makes it up.";
+        explain += " Click a month or any figure to see what makes it up.";
         var toolbar = new DockPanel();
         var exports = Ui.Row(8,
             Ui.Button("P&L CSV", "Btn.OutlineSecondary", "file-earmark-spreadsheet", ExportSummary, small: true),
@@ -124,7 +124,9 @@ public sealed class ProfitLossPage : AppPage
         Action Year(ProfitPart part) => () => Open(part, r.Year);
         var monthCols = new List<Column<ProfitMonth>>
         {
-            new("Month", Ui.Star(), mo => Ui.Text(mo.Name, "Strong", 14.4)),
+            // 2.7: the month opens its own breakdown (income, expenses, customers, categories, vendors).
+            new("Month", Ui.Star(), mo => mo.Income == 0 && mo.Expenses == 0 ? Ui.Text(mo.Name, "Strong", 14.4)
+                : Ui.DrillText(mo.Name, Month(ProfitPart.Net, mo), bold: true).Also(l => { l.HorizontalAlignment = HorizontalAlignment.Left; l.FontWeight = FontWeights.SemiBold; })),
             new("Income", Ui.Auto, mo => Amount(mo.Income, Month(ProfitPart.Income, mo)), HorizontalAlignment.Right),
         };
         var totalRow = new List<UIElement?> { Ui.Bold("Total", 14.4), Bold(r.Income, Year(ProfitPart.Income)) };

@@ -570,4 +570,11 @@ new tables follow the 1.x conventions (no AUTOINCREMENT, money FLOAT, DATE text,
   credit never appears as income, as on the P&L.
 - Figures in the month and year tables keep their normal colour and show an underline on
   hover (`Ui.DrillText`); the charts show a hand cursor over a bar or slice.
+- **2.7.1:** month names in the Monthly Breakdown open that month (Net). Detail pages for Net and
+  Gross show Income, Expenses (or Cost of Revenue) and the result as tiles, the first two
+  clickable, and every detail page lists By Customer, By Category and By Vendor (when there is
+  more than one) to narrow further, down to the single invoice or expense. A narrowed page's
+  figure is the total its line showed.
+- **Back returns to where the page was scrolled**, everywhere in the app (browser-like). The
+  detail page's button is now "Back".
 

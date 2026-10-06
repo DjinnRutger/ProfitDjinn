@@ -34,7 +34,7 @@ setting values forward. Keep it: existing databases depend on it.
     `Table` (Bootstrap table look), `LineBuilder`, `SuggestBox`, `BarChart`, `DoughnutChart`.
   - `Themes/`: `Theme.Light/Dark/Terminal.xaml` (same keys each) and `Controls.xaml`.
     `ThemeManager` swaps them and derives the brand brushes from `primary_color`.
-- `tests/ProfitDjinn.Tests`: xUnit, 137 tests including the parity tests.
+- `tests/ProfitDjinn.Tests`: xUnit, 139 tests including the parity tests.
 - `docs/port-spec.md` (behaviour) and `docs/design-spec.md` (look). "Fixed in 2.0" in the
   port spec lists every 1.x bug deliberately not copied. Read them before changing a screen.
 
@@ -263,6 +263,13 @@ Expenses or behind **Bank accounts** (Settings > Features, `banking_enabled`, of
   Operating, Gross and Net are rounded differences there. The entry lists are the breakdown;
   `ProfitDetailTests` checks every figure matches the page and the lists reconcile to it.
   `Entry` carries `InvoiceId`/`ExpenseId` (trailing defaulted parameters).
+- Month names open that month's Net detail. Detail pages show Income / Expenses / Net tiles (for
+  Gross and Net) and By Customer / By Category / By Vendor breakdowns; a line narrows the same
+  scope (`ProfitScope.Customer`, `Categories`, `Vendor`) and its page shows the line's own sum.
+  Cost of revenue and operating stay that way when narrowed. Only a year-level category or vendor
+  row reads its figure from the report; other narrowed figures are the entries' sum.
+- **Back restores the scroll position** for every page (`MainWindow._scrolled`, parallel to the
+  history); the detail page's Back button is a real `Shell.Back()`.
 - `Ui.DrillText` is a `Link` in the table's own colour (`Link.SetBrushes`): underline on hover,
   a UI Automation hyperlink. `PairBarChart.Clicked` / `DoughnutChart.Clicked` give the index.
 - Smoke: Smoke-Flow switches Revenue and Items off; Smoke-Expenses drills into the net total.

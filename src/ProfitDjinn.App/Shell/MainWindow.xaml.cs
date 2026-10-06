@@ -45,6 +45,8 @@ public partial class MainWindow : Window
     private static readonly string[] ExpenseNav = { "vendors", "expenses", "profit" };
 
     private readonly List<Func<AppPage>> _history = new();
+    /// <summary>How far each history entry was scrolled when it was left, so Back returns there.</summary>
+    private readonly List<double> _scrolled = new();
     private int _index = -1;
     private readonly Dictionary<string, Button> _navButtons = new();
     private readonly UiState _ui;
@@ -92,8 +94,14 @@ public partial class MainWindow : Window
             ShowError(ex.Message);
             return;
         }
-        if (_index < _history.Count - 1) _history.RemoveRange(_index + 1, _history.Count - _index - 1);
+        RememberScroll();
+        if (_index < _history.Count - 1)
+        {
+            _history.RemoveRange(_index + 1, _history.Count - _index - 1);
+            _scrolled.RemoveRange(_index + 1, _scrolled.Count - _index - 1);
+        }
         _history.Add(open);
+        _scrolled.Add(0);
         _index = _history.Count - 1;
         Show(page, notice);
     }
@@ -109,6 +117,7 @@ public partial class MainWindow : Window
         {
             // The page's record is gone (e.g. its last billable line was just billed). Go home.
             _history.Clear();
+            _scrolled.Clear();
             _index = -1;
             Navigate(Routes.Dashboard(this), notice ?? Notice.Warning(ex.Message));
             return;
@@ -117,10 +126,13 @@ public partial class MainWindow : Window
         ContentScroll.ScrollToVerticalOffset(scroll);
     }
 
+    public bool CanGoBack => _index > 0;
+
     public async void Back()
     {
         if (_index <= 0) return;
         if (CurrentPage is { } current && !await current.CanLeaveAsync()) return;
+        RememberScroll();
         _index--;
         ShowFromHistory();
     }
@@ -129,14 +141,23 @@ public partial class MainWindow : Window
     {
         if (_index >= _history.Count - 1) return;
         if (CurrentPage is { } current && !await current.CanLeaveAsync()) return;
+        RememberScroll();
         _index++;
         ShowFromHistory();
     }
 
+    private void RememberScroll()
+    {
+        if (_index >= 0 && _index < _scrolled.Count) _scrolled[_index] = ContentScroll.VerticalOffset;
+    }
+
+    /// <summary>Back and Forward rebuild the page and return to where it was scrolled.</summary>
     private void ShowFromHistory()
     {
         try { Show(_history[_index]()); }
-        catch (UserFacingException ex) { ShowError(ex.Message); }
+        catch (UserFacingException ex) { ShowError(ex.Message); return; }
+        double offset = _scrolled[_index];
+        if (offset > 0) Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => ContentScroll.ScrollToVerticalOffset(offset));
     }
 
     private void Show(AppPage page, Notice? notice = null, bool animate = true)

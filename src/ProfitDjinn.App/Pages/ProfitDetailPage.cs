@@ -30,22 +30,50 @@ public sealed class ProfitDetailPage : AppPage
 
         var page = new StackPanel();
         page.Children.Add(Ui.PageHeaderWithGlyph("bar-chart-line", d.Title, basisText, null,
-            Ui.Button("Back to Profit & Loss", "Btn.OutlineSecondary", "arrow-left", () => Shell.Navigate(Routes.Profit(Shell, d.Scope.Year, d.Basis)))));
+            Ui.Button("Back", "Btn.OutlineSecondary", "arrow-left", () =>
+            {
+                // A real Back, so the page underneath comes back scrolled where it was.
+                if (Shell.CanGoBack) Shell.Back();
+                else Shell.Navigate(Routes.Profit(Shell, d.Scope.Year, d.Basis));
+            })));
 
         // ---- the figure and how it is worked out
         var summary = Ui.Stack(0,
             Ui.Text(Signed(d.Figure), "H1").WithResource(TextBlock.ForegroundProperty, d.Figure < 0 ? "DangerText" : "Text"),
             new Border { Padding = new Thickness(0, 8, 0, 0), Child = Ui.Muted(d.Explanation, 13.6).Also(t => t.TextWrapping = TextWrapping.Wrap) });
+        page.Children.Add(Ui.Card(summary, bodyPadding: new Thickness(16)).Margin(0, 0, 0, 24));
+
+        // ---- Gross and Net: income, minus expenses (each opens its own detail), equals the figure
         if (d.Part is ProfitPart.Gross or ProfitPart.Net)
         {
-            string minus = d.Part == ProfitPart.Gross ? "Cost of revenue" : "Expenses";
-            summary.Children.Add(new Border
+            bool gross = d.Part == ProfitPart.Gross;
+            var tiles = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Margin = new Thickness(-8, 0, -8, 24) };
+            StatTile Tile(string value, string label, string glyph, string tone, ProfitPart? open)
             {
-                Padding = new Thickness(0, 10, 0, 0),
-                Child = Ui.Text($"Income {Ui.Money(d.IncomeTotal)}  −  {minus} {Ui.Money(d.ExpenseTotal)}  =  {Signed(d.Figure)}", "Strong", 14.4),
-            });
+                var t = new StatTile { Value = value, Label = label, Glyph = glyph, Tone = tone, Accent = "left-" + tone, Margin = new Thickness(8, 0, 8, 0) };
+                if (open is { } p) t.Click += (_, _) => Drill(p, d.Scope);
+                else { t.Focusable = false; t.Cursor = System.Windows.Input.Cursors.Arrow; }
+                return t;
+            }
+            tiles.Children.Add(Tile(Ui.Money(d.IncomeTotal), "Income", "cash-stack", "success", ProfitPart.Income));
+            tiles.Children.Add(Tile(Ui.Money(d.ExpenseTotal), gross ? "Cost of Revenue" : "Expenses", gross ? "box-seam" : "wallet2", "danger",
+                gross ? ProfitPart.CostOfRevenue : ProfitPart.Expenses));
+            tiles.Children.Add(Tile(Signed(d.Figure), gross ? "Gross Profit" : d.Figure < 0 ? "Net Loss" : "Net Profit",
+                d.Figure < 0 ? "graph-down-arrow" : "graph-up-arrow", d.Figure < 0 ? "danger" : "primary", null));
+            page.Children.Add(tiles);
         }
-        page.Children.Add(Ui.Card(summary, bodyPadding: new Thickness(16)).Margin(0, 0, 0, 24));
+
+        // ---- breakdowns: each line narrows the same period to one customer, category or vendor
+        ProfitPart expensePart = d.Part is ProfitPart.CostOfRevenue or ProfitPart.Operating ? d.Part : ProfitPart.Expenses;
+        var breakdowns = new List<FrameworkElement>();
+        if (d.HasIncome && d.ByCustomer.Count > 1)
+            breakdowns.Add(Breakdown("By Customer", "people", d.ByCustomer, g => Drill(ProfitPart.Income, d.Scope with { Customer = g.Name })));
+        if (d.HasExpenses && d.ByCategory.Count > 1)
+            breakdowns.Add(Breakdown("By Category", "tags", d.ByCategory, g => Drill(expensePart, d.Scope with { Categories = new[] { g.Name } })));
+        if (d.HasExpenses && d.ByVendor.Count > 1)
+            breakdowns.Add(Breakdown("By Vendor", "shop", d.ByVendor, g => Drill(expensePart, d.Scope with { Vendor = g.Name })));
+        if (breakdowns.Count > 0)
+            page.Children.Add(Ui.Columns(24, breakdowns.Select(b => (Ui.Star(), (UIElement)b)).ToArray()).EqualHeight().Margin(0, 0, 0, 24));
 
         // ---- the entries
         TextBlock Amount(double v, bool bold = false) => Ui.Text(Ui.Money(v), bold ? "Strong" : "Body", 14.4)
@@ -89,6 +117,22 @@ public sealed class ProfitDetailPage : AppPage
                 bodyPadding: new Thickness(0)));
         }
         Content = page;
+    }
+
+    private void Drill(ProfitPart part, ProfitScope scope) => Shell.Navigate(Routes.ProfitDetail(Shell, _d.Basis, part, scope));
+
+    /// <summary>A small table of totals; clicking a line drills into it.</summary>
+    private FrameworkElement Breakdown(string title, string glyph, IReadOnlyList<ProfitGroup> groups, Action<ProfitGroup> open)
+    {
+        var cols = new List<Column<ProfitGroup>>
+        {
+            new("Name", Ui.Star(), g => _d.ShowGross && g.CostOfRevenue && glyph == "tags"
+                ? Ui.Row(8, Ui.Text(g.Name, "Body", 14.4, wrap: true), Ui.Badge("Cost of revenue", "info75"))
+                : Ui.Text(g.Name, "Body", 14.4, wrap: true)),
+            new("Entries", Ui.Auto, g => Ui.Muted(g.Count.ToString(System.Globalization.CultureInfo.InvariantCulture), 13.6), HorizontalAlignment.Center),
+            new("Amount", Ui.Auto, g => Ui.Text(Ui.Money(g.Amount), "Strong", 14.4).Also(t => t.HorizontalAlignment = HorizontalAlignment.Right), HorizontalAlignment.Right),
+        };
+        return Ui.Card(Table.Build(cols, groups, onRowClick: open), title, glyph, bodyPadding: new Thickness(0));
     }
 
     private static string Count(int n) => n == 0 ? "0 entries" : $"{n} {(n == 1 ? "entry" : "entries")} · click one to open it";
