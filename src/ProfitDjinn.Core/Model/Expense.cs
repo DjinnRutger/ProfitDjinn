@@ -136,6 +136,9 @@ public sealed class Vendor
     /// <summary>Loaded when a screen needs the totals.</summary>
     public List<Expense> Expenses { get; set; } = new();
 
+    /// <summary>2.9. Loaded with the vendor, newest last.</summary>
+    public List<PurchaseOrder> PurchaseOrders { get; set; } = new();
+
     public double TotalBilled => PyMath.Sum(Expenses, e => e.Amount);
 
     public double TotalPaid => PyMath.Sum(Expenses, e => e.AmountPaid);

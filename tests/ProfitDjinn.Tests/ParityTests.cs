@@ -186,7 +186,7 @@ public class ParityTests
             var cols = before.Query<string>($"SELECT name FROM pragma_table_info('{table}')").ToList();
             Assert.Equal(cols, after.Query<string>($"SELECT name FROM pragma_table_info('{table}')").ToList());
             Assert.Equal(before.ExecuteScalar<long>($"SELECT COUNT(*) FROM \"{table}\""),
-                         after.ExecuteScalar<long>($"SELECT COUNT(*) FROM \"{table}\"") - (table == "settings" ? 17 : 0));
+                         after.ExecuteScalar<long>($"SELECT COUNT(*) FROM \"{table}\"") - (table == "settings" ? 24 : 0));   // 2.0-2.7 added 17 settings rows, 2.9 seven more
         }
     }
 

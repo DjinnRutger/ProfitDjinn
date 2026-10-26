@@ -31,7 +31,7 @@ public sealed class SettingsPage : AppPage
         SettingKeys.AppPasswordHash, SettingKeys.Theme, "allow_registration", "maintenance_mode", "session_timeout",
         "items_per_page", "default_theme", SettingKeys.BackupReminderLast, SettingKeys.DatabaseAppVersion,
         SettingKeys.UpdateLastCheck, SettingKeys.UpdateLatestVersion, SettingKeys.UpdateLatestUrl,
-        SettingKeys.LoginLogo, SettingKeys.AppIconImage,
+        SettingKeys.LoginLogo, SettingKeys.AppIconImage, SettingKeys.DocumentLogo,
     };
 
     /// <summary>1.x / 2.0 category names that links still use, and the section each now lives in.</summary>
@@ -68,9 +68,10 @@ public sealed class SettingsPage : AppPage
 
         var sections = new List<Section>
         {
-            new("business", "Business", "building", "Your business details, printed at the top of every invoice.", Business),
+            new("business", "Business", "building", "Your business details, printed at the top of every invoice and purchase order.", Business),
             new("features", "Features", "toggles", "Turn parts of ProfitDjinn on or off. Turning one off hides it; nothing is deleted.", Features),
             new("invoices", "Invoices", "receipt", "Invoice numbers and the payment terms printed on each invoice.", Invoices),
+            new("purchaseorders", "Purchase Orders", "cart3", "Purchase order numbers.", PurchaseOrders),
             new("workorders", "Work Orders", "clipboard-check", "Work order numbers and your default labor rate.", WorkOrders),
             new("expenses", "Expenses", "wallet2", "Vendors, bills, recurring costs and the Profit & Loss report.", Expenses),
             new("appearance", "Appearance", "palette", "Theme, colour, text size and the names shown in the app.", Appearance),
@@ -225,6 +226,17 @@ public sealed class SettingsPage : AppPage
         return _fields[key] = Ui.Field(label, box, hint: hint);
     }
 
+    /// <summary>2.9. A multi-line text setting; Windows line breaks are saved as \n.</summary>
+    private Field TextArea(string key, string label, string? hint, string? placeholder)
+    {
+        _shown.Add(key);
+        var box = Ui.TextArea(Store.Settings.Get(key), 76);
+        if (placeholder is not null) Input.SetPlaceholder(box, placeholder);
+        box.TextChanged += (_, _) => Changed();
+        _readers[key] = () => box.Text.Replace("\r\n", "\n").Trim();
+        return _fields[key] = Ui.Field(label, box, hint: hint);
+    }
+
     private Field Money(string key, string label, string? hint = null)
     {
         var f = Text(key, label, hint, maxWidth: 200);
@@ -273,10 +285,40 @@ public sealed class SettingsPage : AppPage
             (Ui.Star(), Text(SettingKeys.CompanyZip, "ZIP", placeholder: "e.g. 59715"))),
         Ui.Columns(16,
             (Ui.Star(), Text(SettingKeys.CompanyEmail, "Email", placeholder: "e.g. you@example.com")),
-            (Ui.Star(), Text(SettingKeys.CompanyPhone, "Phone", placeholder: "e.g. (555) 555-0100"))));
+            (Ui.Star(), Text(SettingKeys.CompanyPhone, "Phone", placeholder: "e.g. (555) 555-0100"))),
+        // 2.9: a letterhead for invoices and purchase orders. All optional; left empty, invoices look as before.
+        Group("Letterhead on invoices and purchase orders"),
+        LogoRow(),
+        Text(SettingKeys.CompanyContactLine, "Contact line", "Printed beside the logo, above your phone and email.", placeholder: "e.g. Jane Smith, Owner"),
+        TextArea(SettingKeys.CompanyServices, "Services", "One per line. Printed as a bulleted list under the logo.",
+            "e.g. Residential & Commercial Glass Replacement"));
 
     /// <summary>2.5. One switch per optional feature. The smoke tests find them by their titles.</summary>
-    private FrameworkElement Features() => Ui.Stack(0,
+    private FrameworkElement Features()
+    {
+        // 2.9: expenses and purchase orders are both kept per vendor, so while either is on the
+        // Vendors switch shows On and cannot be turned off (VendorService.Enabled reads the same
+        // rule). What is saved is only the user's own choice for Vendors, so turning Expenses on
+        // and off again leaves Vendors as it was.
+        bool own = Store.Settings.GetBool(SettingKeys.VendorsEnabled);
+        var vendors = Switch(SettingKeys.VendorsEnabled, own);
+        var expenses = Switch(SettingKeys.ExpensesEnabled, Store.Expenses.Enabled);
+        var orders = Switch(SettingKeys.PurchaseOrdersEnabled, Store.PurchaseOrders.Enabled);
+        bool holding = false;
+        vendors.Checked += (_, _) => { if (!holding) own = true; };
+        vendors.Unchecked += (_, _) => { if (!holding) own = false; };
+        _readers[SettingKeys.VendorsEnabled] = () => own ? "true" : "false";
+        void Hold()
+        {
+            bool needed = expenses.IsChecked == true || orders.IsChecked == true;
+            holding = true;
+            vendors.IsChecked = needed || own;
+            holding = false;
+            vendors.IsEnabled = !needed;
+        }
+        foreach (var sw in new[] { expenses, orders }) { sw.Checked += (_, _) => Hold(); sw.Unchecked += (_, _) => Hold(); }
+        Hold();
+        return Ui.Stack(0,
         SwitchRow(SettingKeys.WorkOrdersEnabled, "Work orders",
             "A running tab per customer: log work as you do it, then bill it onto an invoice. Off hides Work Orders, the customer page's Work Order button and the Unbilled Work tile.",
             Switch(SettingKeys.WorkOrdersEnabled, Store.Settings.GetBool(SettingKeys.WorkOrdersEnabled))),
@@ -286,12 +328,19 @@ public sealed class SettingsPage : AppPage
         SwitchRow(SettingKeys.ItemsEnabled, "Service items",
             "A saved price list you can quick-add onto invoices. Off hides Items and the invoice Quick-add list; saved items are kept.",
             Switch(SettingKeys.ItemsEnabled, Store.Items.Enabled)),
+        SwitchRow(SettingKeys.VendorsEnabled, "Vendors",
+            "The businesses you buy from. Expenses and purchase orders both need it, so it stays on while either of them is on.",
+            vendors),
         SwitchRow(SettingKeys.ExpensesEnabled, "Track expenses",
-            "Adds Vendors, Expenses and Profit & Loss to the sidebar.",
-            Switch(SettingKeys.ExpensesEnabled, Store.Expenses.Enabled)),
+            "Adds Expenses and Profit & Loss to the sidebar (and Vendors).",
+            expenses),
+        SwitchRow(SettingKeys.PurchaseOrdersEnabled, "Purchase orders",
+            "Adds Purchase Orders to the sidebar (and Vendors): order from a vendor with as many lines as you need, print it on your letterhead, and mark it received. A vendor's page lists the orders sent to them.",
+            orders),
         SwitchRow(SettingKeys.BankingEnabled, "Bank accounts",
             "Adds Banking to the sidebar: your bank, card and payment-processor accounts, transfers, payouts and reconciling to your statements. Payments can then say which account the money went to. Never changes invoices or the Profit & Loss.",
             Switch(SettingKeys.BankingEnabled, Store.Banking.Enabled)));
+    }
 
     private FrameworkElement Invoices() => Ui.Stack(0,
         Group("Numbering"),
@@ -301,6 +350,14 @@ public sealed class SettingsPage : AppPage
         Group("Payment terms"),
         Text(SettingKeys.InvoiceTerm1, "Terms, line 1", placeholder: "e.g. Payment due within 30 days"),
         Text(SettingKeys.InvoiceTerm2, "Terms, line 2", placeholder: "e.g. Make checks payable to Your Name"));
+
+    /// <summary>2.9. Purchase order numbering, as invoices number.</summary>
+    private FrameworkElement PurchaseOrders() => Ui.Stack(0,
+        Store.PurchaseOrders.Enabled ? new Border() : Ui.Muted("Purchase orders are off. Turn them on under Features.", 13.6).Also(t => t.Margin = new Thickness(0, 0, 0, 12)),
+        Group("Numbering"),
+        Ui.Columns(16,
+            (Ui.Star(), Text(SettingKeys.PurchaseOrderPrefix, "Number prefix", "Letters before the number, e.g. PO for PO1001. Leave empty for numbers only.", mono: true)),
+            (Ui.Star(), Text(SettingKeys.PurchaseOrderNextNumber, "Starting number", "Used for the first purchase order. After that, numbers continue from the highest one.", mono: true))));
 
     private FrameworkElement WorkOrders() => Ui.Stack(0,
         Group("Numbering"),
@@ -551,6 +608,56 @@ public sealed class SettingsPage : AppPage
                 ReloadHere(Notice.Success("Image removed."));
             }, small: true).Margin(8, 0, 0, 0));
         return Ui.Field(label, widget, hint: hint);
+    }
+
+    /// <summary>
+    /// 2.9. The logo printed on invoices and purchase orders. Any PNG or JPEG: it is resized and
+    /// saved as a PNG (LogoImage), at once, like the other images on this page.
+    /// </summary>
+    private FrameworkElement LogoRow()
+    {
+        string path = Store.Paths.DocumentLogoPath;
+        bool set = Store.Settings.Get(SettingKeys.DocumentLogo).Length > 0 && File.Exists(path);
+        var widget = Ui.Row(8);
+        if (set && MainWindow.LoadImage(path) is { } img)
+            widget.Children.Add(new Border { Padding = new Thickness(4), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Background = System.Windows.Media.Brushes.White, Child = new Image { Source = img, Height = 48 } }
+                .WithResource(Border.BorderBrushProperty, "Border"));
+        else widget.Children.Add(Ui.Muted("No logo", 13.6).Margin(0, 0, 8, 0).Also(t => t.VerticalAlignment = VerticalAlignment.Center));
+        widget.Children.Add(Ui.Button(set ? "Replace Logo" : "Upload Logo", "Btn.Primary", "upload", () =>
+        {
+            var dialog = new OpenFileDialog { Filter = "Images (*.png;*.jpg;*.jpeg)|*.png;*.jpg;*.jpeg" };
+            if (dialog.ShowDialog(Shell) != true) return;
+            SaveLogo(dialog.FileName);
+        }, small: true).Margin(8, 0, 0, 0));
+        if (set)
+            widget.Children.Add(Ui.Button("Remove Logo", "Btn.OutlineDanger", "trash", async () =>
+            {
+                if (!await Shell.Confirm("Remove the logo from invoices and purchase orders?", "Remove", danger: true)) return;
+                try { if (File.Exists(path)) File.Delete(path); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    Shell.ShowError($"The logo could not be removed: {ex.Message}");
+                    return;
+                }
+                Store.Settings.Set(SettingKeys.DocumentLogo, "");
+                ReloadHere(Notice.Success("Logo removed."));
+            }, small: true).Margin(8, 0, 0, 0));
+        return Ui.Field("Logo", widget, hint: "Top left of every invoice and purchase order. A wide logo (your name beside the picture) prints best. PNG or JPEG.");
+    }
+
+    private void SaveLogo(string file)
+    {
+        try
+        {
+            byte[] png = LogoImage.ToPng(file);
+            string path = Store.Paths.DocumentLogoPath;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllBytes(path, png);
+            Store.Settings.Set(SettingKeys.DocumentLogo, "document_logo.png");
+            ReloadHere(Notice.Success("Logo saved. It prints on your invoices and purchase orders."));
+        }
+        catch (UserFacingException ex) { Shell.ShowError(ex.Message); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Shell.ShowError($"The logo could not be saved: {ex.Message}"); }
     }
 
     /// <summary>1.x's rules: a .png file, really a PNG (signature checked), 2 MB at most.</summary>

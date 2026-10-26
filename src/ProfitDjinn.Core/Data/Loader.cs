@@ -138,13 +138,42 @@ internal static class Loader
         if (vendors.Count == 0) return vendors;
         var ids = vendors.Select(v => v.Id).ToList();
         var expenses = Expenses(db, "vendor_id IN @ids", new { ids }, tx, withVendors: false).ToLookup(e => e.VendorId);
+        var orders = PurchaseOrders(db, "vendor_id IN @ids", new { ids }, tx, withVendors: false).ToLookup(o => o.VendorId);
         foreach (var v in vendors)
         {
             v.Expenses = expenses[v.Id].ToList();
             foreach (var e in v.Expenses) e.Vendor = v;
+            v.PurchaseOrders = orders[v.Id].ToList();
+            foreach (var o in v.PurchaseOrders) o.Vendor = v;
         }
         return vendors;
     }
+
+    /// <summary>2.9. Purchase orders with their lines (in order) and vendor.</summary>
+    internal static List<PurchaseOrder> PurchaseOrders(SqliteConnection db, string where = "1=1", object? args = null,
+        SqliteTransaction? tx = null, bool withVendors = true)
+    {
+        var orders = db.Query<PurchaseOrder>($"SELECT * FROM purchase_orders WHERE {where} ORDER BY id", args, tx).ToList();
+        if (orders.Count == 0) return orders;
+        var ids = orders.Select(o => o.Id).ToList();
+        var lines = db.Query<PurchaseOrderLine>("SELECT * FROM purchase_order_lines WHERE purchase_order_id IN @ids ORDER BY position, id", new { ids }, tx)
+            .ToLookup(l => l.PurchaseOrderId);
+        Dictionary<long, Vendor> vendors = new();
+        if (withVendors)
+        {
+            var vendorIds = orders.Select(o => o.VendorId).Distinct().ToList();
+            vendors = db.Query<Vendor>("SELECT * FROM vendors WHERE id IN @vendorIds", new { vendorIds }, tx).ToDictionary(v => v.Id);
+        }
+        foreach (var o in orders)
+        {
+            o.Lines = lines[o.Id].ToList();
+            if (withVendors) o.Vendor = vendors.GetValueOrDefault(o.VendorId);
+        }
+        return orders;
+    }
+
+    internal static PurchaseOrder? PurchaseOrder(SqliteConnection db, long id, SqliteTransaction? tx = null) =>
+        PurchaseOrders(db, "id = @id", new { id }, tx).SingleOrDefault();
 
     internal static Vendor? Vendor(SqliteConnection db, long id, SqliteTransaction? tx = null) =>
         Vendors(db, "id = @id", new { id }, tx).SingleOrDefault();

@@ -39,6 +39,7 @@ public sealed class VendorsPage : AppPage
         page.Children.Add(Ui.Card(bar, bodyPadding: new Thickness(16, 16, 16, 16)).Margin(0, 0, 0, 24));
         Loaded += (_, _) => { box.Focus(); box.CaretIndex = box.Text.Length; };
 
+        bool expenses = Store.Expenses.Enabled, orders = Store.PurchaseOrders.Enabled;
         var columns = new List<Column<Vendor>>
         {
             new("Name", Ui.Star(2), v =>
@@ -56,12 +57,21 @@ public sealed class VendorsPage : AppPage
             new("Owed", Ui.Auto, v => v.Owed > 0
                 ? Ui.Text(Ui.Money(v.Owed), "Strong").WithResource(TextBlock.ForegroundProperty, "DangerText")
                 : Ui.Muted("$0.00"), HorizontalAlignment.Right),
+            new("POs", Ui.Auto, v => Ui.Muted(v.PurchaseOrders.Count.ToString(), 13.6), HorizontalAlignment.Center),
             new("Status", Ui.Auto, v => v.IsActive ? Ui.Badge("Active", "success75") : Ui.Badge("Inactive", "secondary"), HorizontalAlignment.Center),
-            new("", Ui.Auto, v => Ui.Row(4,
-                Ui.IconButton("eye", "Btn.OutlineSecondary", "View", () => Shell.Navigate(Routes.Vendor(Shell, v.Id))),
-                Ui.IconButton("pencil", "Btn.OutlinePrimary", "Edit", () => Shell.Navigate(Routes.EditVendor(Shell, v.Id))),
-                Ui.IconButton("wallet2", "Btn.OutlineSuccess", "New Expense", () => Shell.Navigate(Routes.NewExpense(Shell, v.Id)))), HorizontalAlignment.Right),
+            new("", Ui.Auto, v =>
+            {
+                var row = Ui.Row(4,
+                    Ui.IconButton("eye", "Btn.OutlineSecondary", "View", () => Shell.Navigate(Routes.Vendor(Shell, v.Id))),
+                    Ui.IconButton("pencil", "Btn.OutlinePrimary", "Edit", () => Shell.Navigate(Routes.EditVendor(Shell, v.Id))));
+                if (expenses) row.Children.Add(Ui.IconButton("wallet2", "Btn.OutlineSuccess", "New Expense", () => Shell.Navigate(Routes.NewExpense(Shell, v.Id))));
+                if (orders) row.Children.Add(Ui.IconButton("cart3", "Btn.OutlineSuccess", "New Purchase Order", () => Shell.Navigate(Routes.NewPurchaseOrder(Shell, v.Id))));
+                return row;
+            }, HorizontalAlignment.Right),
         };
+        // 2.9: Vendors can be on without Expenses or Purchase orders; show only the columns that apply.
+        if (!expenses) columns.RemoveAll(c => c.Header is "Expenses" or "Owed");
+        if (!orders) columns.RemoveAll(c => c.Header == "POs");
         FrameworkElement body = vendors.Count == 0
             ? Ui.Stack(0, Table.Build(columns, Array.Empty<Vendor>()), Ui.Empty("shop", "No vendors found.", "Add one now.", () => Shell.Navigate(Routes.NewVendor(Shell))))
             : Table.Build(columns, vendors);
@@ -87,10 +97,13 @@ public sealed class VendorDetailPage : AppPage
         var today = DateOnly.FromDateTime(DateTime.Today);
 
         var page = new StackPanel();
-        page.Children.Add(Ui.PageHeader(v.Name, string.IsNullOrEmpty(v.Contact) ? null : $"Contact: {v.Contact}", null,
-            Ui.Button("New Expense", "Btn.Success", "wallet2", () => Shell.Navigate(Routes.NewExpense(Shell, v.Id))),
-            Ui.Button("Edit", "Btn.Primary", "pencil", () => Shell.Navigate(Routes.EditVendor(Shell, v.Id))),
-            Ui.Button("Delete", "Btn.OutlineDanger", "trash", Delete)));
+        bool expensesOn = Store.Expenses.Enabled, ordersOn = Store.PurchaseOrders.Enabled;
+        var buttons = new List<UIElement>();
+        if (ordersOn) buttons.Add(Ui.Button("New Purchase Order", "Btn.Success", "cart3", () => Shell.Navigate(Routes.NewPurchaseOrder(Shell, v.Id))));
+        if (expensesOn) buttons.Add(Ui.Button("New Expense", "Btn.Success", "wallet2", () => Shell.Navigate(Routes.NewExpense(Shell, v.Id))));
+        buttons.Add(Ui.Button("Edit", "Btn.Primary", "pencil", () => Shell.Navigate(Routes.EditVendor(Shell, v.Id))));
+        buttons.Add(Ui.Button("Delete", "Btn.OutlineDanger", "trash", Delete));
+        page.Children.Add(Ui.PageHeader(v.Name, string.IsNullOrEmpty(v.Contact) ? null : $"Contact: {v.Contact}", null, buttons.ToArray()));
 
         var left = new StackPanel();
         var info = new Grid();
@@ -115,7 +128,7 @@ public sealed class VendorDetailPage : AppPage
         }
         if (!string.IsNullOrEmpty(v.Phone)) Pair("Phone", Ui.Text(v.Phone, "Body", 14.4));
         if (!string.IsNullOrEmpty(v.Email)) Pair("Email", Ui.Link(v.Email, () => CustomersPage.MailTo(v.Email!), bold: false).Also(l => { l.FontSize = 14.4; l.TextWrapping = TextWrapping.Wrap; }));
-        if (v.DefaultCategoryId is { } cat)
+        if (expensesOn && v.DefaultCategoryId is { } cat)
         {
             string name = Store.Categories.List().FirstOrDefault(u => u.Category.Id == cat)?.Category.Name ?? "—";
             Pair("Category", Ui.Text(name, "Body", 14.4));
@@ -123,29 +136,46 @@ public sealed class VendorDetailPage : AppPage
         Pair("Status", v.IsActive ? Ui.Badge("Active", "success75") : Ui.Badge("Inactive", "secondary"));
         left.Children.Add(Ui.Card(info, "Contact Info", "person-vcard").Margin(0, 0, 0, 24));
 
-        var money = new Grid();
-        money.ColumnDefinitions.Add(new ColumnDefinition());
-        money.ColumnDefinitions.Add(new ColumnDefinition());
-        money.RowDefinitions.Add(new RowDefinition());
-        money.RowDefinitions.Add(new RowDefinition());
-        void Place(UIElement e, int row, int col, int span = 1) { Grid.SetRow(e, row); Grid.SetColumn(e, col); Grid.SetColumnSpan(e, span); money.Children.Add(e); }
-        Place(ExpenseUi.Small(Ui.Money(v.TotalBilled), "Total Billed", "primary").Margin(0, 0, 8, 16), 0, 0);
-        Place(ExpenseUi.Small(Ui.Money(v.TotalPaid), "Total Paid", "success").Margin(8, 0, 0, 16), 0, 1);
-        var owed = ExpenseUi.Small(Ui.Money(v.Owed), "Owed", "danger", 25.6);
-        owed.Muted = v.Owed <= 0;
-        Place(owed, 1, 0, 2);
-        left.Children.Add(money);
+        if (expensesOn)
+        {
+            var money = new Grid();
+            money.ColumnDefinitions.Add(new ColumnDefinition());
+            money.ColumnDefinitions.Add(new ColumnDefinition());
+            money.RowDefinitions.Add(new RowDefinition());
+            money.RowDefinitions.Add(new RowDefinition());
+            void Place(UIElement e, int row, int col, int span = 1) { Grid.SetRow(e, row); Grid.SetColumn(e, col); Grid.SetColumnSpan(e, span); money.Children.Add(e); }
+            Place(ExpenseUi.Small(Ui.Money(v.TotalBilled), "Total Billed", "primary").Margin(0, 0, 8, 16), 0, 0);
+            Place(ExpenseUi.Small(Ui.Money(v.TotalPaid), "Total Paid", "success").Margin(8, 0, 0, 16), 0, 1);
+            var owed = ExpenseUi.Small(Ui.Money(v.Owed), "Owed", "danger", 25.6);
+            owed.Muted = v.Owed <= 0;
+            Place(owed, 1, 0, 2);
+            left.Children.Add(money);
+        }
 
         if (!string.IsNullOrWhiteSpace(v.Notes))
             left.Children.Add(Ui.Card(Ui.Text(v.Notes, "Body", 14.4, wrap: true), "Notes", "sticky", "Warning").Margin(0, 24, 0, 0));
 
-        var expenses = Store.Vendors.ExpenseHistory(v);
-        var columns = ExpenseUi.Columns(Shell, today, showVendor: false);
-        FrameworkElement table = expenses.Count == 0
-            ? Ui.Stack(0, Table.Build(columns, Array.Empty<Expense>()), Ui.Empty("wallet2", "No expenses yet.", "Add the first one.", () => Shell.Navigate(Routes.NewExpense(Shell, v.Id))))
-            : Table.Build(columns, expenses, onRowClick: e => Shell.Navigate(Routes.Expense(Shell, e.Id)));
-        var history = Ui.Card(table, "Expenses", "wallet2", headerRight: Ui.Badge(expenses.Count.ToString(), "secondary"), bodyPadding: new Thickness(0));
-        history.VerticalAlignment = VerticalAlignment.Top;
+        var history = new StackPanel { VerticalAlignment = VerticalAlignment.Top };
+        // 2.9: the purchase orders sent to this vendor.
+        if (ordersOn)
+        {
+            var pos = Store.Vendors.PurchaseOrderHistory(v);
+            var poCols = PoUi.Columns(Shell, showVendor: false);
+            FrameworkElement poTable = pos.Count == 0
+                ? Ui.Stack(0, Table.Build(poCols, Array.Empty<PurchaseOrder>()), Ui.Empty("cart3", "No purchase orders yet.", "Create the first one.", () => Shell.Navigate(Routes.NewPurchaseOrder(Shell, v.Id))))
+                : Table.Build(poCols, pos, onRowClick: o => Shell.Navigate(Routes.PurchaseOrder(Shell, o.Id)));
+            history.Children.Add(Ui.Card(poTable, "Purchase Orders", "cart3", headerRight: Ui.Badge(pos.Count.ToString(), "secondary"), bodyPadding: new Thickness(0)));
+        }
+        if (expensesOn)
+        {
+            var expenses = Store.Vendors.ExpenseHistory(v);
+            var columns = ExpenseUi.Columns(Shell, today, showVendor: false);
+            FrameworkElement table = expenses.Count == 0
+                ? Ui.Stack(0, Table.Build(columns, Array.Empty<Expense>()), Ui.Empty("wallet2", "No expenses yet.", "Add the first one.", () => Shell.Navigate(Routes.NewExpense(Shell, v.Id))))
+                : Table.Build(columns, expenses, onRowClick: e => Shell.Navigate(Routes.Expense(Shell, e.Id)));
+            history.Children.Add(Ui.Card(table, "Expenses", "wallet2", headerRight: Ui.Badge(expenses.Count.ToString(), "secondary"), bodyPadding: new Thickness(0))
+                .Margin(0, history.Children.Count > 0 ? 24 : 0, 0, 0));
+        }
 
         page.Children.Add(Ui.Columns(24, (Ui.Star(1), left), (Ui.Star(2), history)));
         Content = page;
@@ -207,7 +237,7 @@ public sealed class VendorFormPage : AppPage
         grid.Children.Add(Ui.Columns(16, (Ui.Star(2), F("city", "City", _city)), (Ui.Star(), F("state", "State", _state)), (Ui.Star(), F("zip_code", "ZIP", _zip))));
         var catField = F("default_category_id", "Default Category", _category);
         catField.Hint = "Filled in for you on this vendor's new expenses.";
-        grid.Children.Add(catField);
+        if (Store.Expenses.Enabled) grid.Children.Add(catField);
         grid.Children.Add(F("notes", "Notes", _notes));
         grid.Children.Add(_active);
         grid.Children.Add(new Border { Style = Ui.Style("Rule"), Margin = new Thickness(0, 24, 0, 24) });

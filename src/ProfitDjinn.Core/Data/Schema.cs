@@ -449,6 +449,42 @@ public static class Schema
         """,
     };
 
+    /// <summary>
+    /// 2.9 purchase orders. Lines keep quantity and unit price apart (invoice lines keep only the
+    /// extended amount), so a later inventory feature can receive a line's quantity at its cost.
+    /// </summary>
+    private static readonly string[] PurchaseOrderTables =
+    {
+        """
+        CREATE TABLE IF NOT EXISTS purchase_orders (
+        	id INTEGER NOT NULL,
+        	po_number VARCHAR(50) NOT NULL,
+        	vendor_id INTEGER NOT NULL,
+        	date DATE NOT NULL,
+        	status VARCHAR(12) NOT NULL,
+        	received_date DATE,
+        	notes TEXT,
+        	created_at DATETIME,
+        	PRIMARY KEY (id)
+        )
+        """,
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_purchase_orders_po_number ON purchase_orders (po_number)",
+        "CREATE INDEX IF NOT EXISTS ix_purchase_orders_vendor_id ON purchase_orders (vendor_id)",
+        """
+        CREATE TABLE IF NOT EXISTS purchase_order_lines (
+        	id INTEGER NOT NULL,
+        	purchase_order_id INTEGER NOT NULL,
+        	position INTEGER NOT NULL,
+        	description VARCHAR(500) NOT NULL,
+        	quantity FLOAT NOT NULL,
+        	unit_price FLOAT NOT NULL,
+        	amount FLOAT NOT NULL,
+        	PRIMARY KEY (id)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_purchase_order_lines_po ON purchase_order_lines (purchase_order_id)",
+    };
+
     /// <summary>Run at every start. Safe to run any number of times.</summary>
     public static void Ensure(Database database)
     {
@@ -463,6 +499,7 @@ public static class Schema
             foreach (string sql in RecurringInvoiceTables) db.Execute(sql, transaction: tx);
             foreach (string sql in ServiceDateTables) db.Execute(sql, transaction: tx);
             foreach (string sql in Tables26) db.Execute(sql, transaction: tx);
+            foreach (string sql in PurchaseOrderTables) db.Execute(sql, transaction: tx);
             db.Execute("""
                 DELETE FROM invoice_line_service WHERE NOT EXISTS
                     (SELECT 1 FROM invoice_lines l WHERE l.id = invoice_line_service.line_id AND l.invoice_id = invoice_line_service.invoice_id

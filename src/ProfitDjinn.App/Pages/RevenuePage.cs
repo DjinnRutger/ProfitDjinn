@@ -132,11 +132,12 @@ public sealed class RevenuePage : AppPage
             new("Collected", Ui.Auto, x => R(Ui.Money(x.C.Collected), "Strong").WithResource(TextBlock.ForegroundProperty, "SuccessText"), HorizontalAlignment.Right),
             new("Share", Ui.Auto, x => Ui.Muted(x.C.Share.ToString("0.0", CultureInfo.InvariantCulture) + "%", 14.4), HorizontalAlignment.Right),
         };
-        var ranked = r.Customers.Select((c, i) => (i + 1, c)).ToList();
+        var ranked = r.TopCustomersLast12Months.Select((c, i) => (i + 1, c)).ToList();
         FrameworkElement custTable = ranked.Count > 0
             ? Table.Build(custCols, ranked)
-            : Ui.Stack(0, Table.Build(custCols, Array.Empty<(int, CustomerRevenue)>()), Ui.Empty("people", "No payments in this period."));
-        var rightTable = Ui.Card(custTable, "Top Customers", "trophy", "Warning", bodyPadding: new Thickness(0));
+            : Ui.Stack(0, Table.Build(custCols, Array.Empty<(int, CustomerRevenue)>()), Ui.Empty("people", "No payments in the last 12 months."));
+        // 2.9: always the last 12 months, so it answers "who matters now" whatever year is selected.
+        var rightTable = Ui.Card(custTable, "Top Customers", "trophy", "Warning", headerRight: Ui.Muted("last 12 months", 12.8), bodyPadding: new Thickness(0));
 
         page.Children.Add(Ui.Columns(24, (Ui.Star(), leftTable), (Ui.Star(), rightTable)));
         Content = page;

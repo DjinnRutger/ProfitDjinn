@@ -1,6 +1,5 @@
 using System.Globalization;
 using PdfSharp.Drawing;
-using PdfSharp.Fonts;
 using PdfSharp.Pdf;
 using ProfitDjinn.Core.Rules;
 using ProfitDjinn.Core.Services;
@@ -25,7 +24,7 @@ public static class ProfitPdf
 
     public static byte[] Render(ProfitReport r, CompanyInfo company, DateOnly printed)
     {
-        if (GlobalFontSettings.FontResolver is null) GlobalFontSettings.UseWindowsFontsUnderWindows = true;
+        PdfFonts.Ensure();
 
         var doc = new PdfDocument();
         doc.Info.Title = $"Profit and Loss {r.Year}";

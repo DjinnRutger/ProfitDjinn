@@ -38,7 +38,7 @@ public static class ExpenseUi
     /// current vendor that has been made inactive stays listed (marked) so editing an old
     /// expense does not drop it.
     /// </summary>
-    public static RecordPicker VendorPicker(Store store, long? current)
+    public static RecordPicker VendorPicker(Store store, long? current, string placeholder = "Type a vendor name, or leave empty")
     {
         var items = store.Vendors.ActiveForPicker().Select(v => new PickItem(v.Id, v.Name, v.Contact)).ToList();
         if (current is { } id && items.All(i => i.Id != id))
@@ -46,7 +46,7 @@ public static class ExpenseUi
             try { items.Add(new PickItem(id, store.Vendors.Get(id).Name + " (inactive)")); }
             catch (UserFacingException) { }
         }
-        return new RecordPicker(items, current, "Type a vendor name, or leave empty", "Add Vendor");
+        return new RecordPicker(items, current, placeholder, "Add Vendor");
     }
 
     /// <summary>"Choose a vendor..." when the box holds a name that is not a vendor; null when it is fine.</summary>

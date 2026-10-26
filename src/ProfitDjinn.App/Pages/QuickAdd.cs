@@ -41,9 +41,9 @@ public static class QuickAdd
     /// The vendor picker for the expense forms, with Add Vendor wired up. <paramref name="added"/>
     /// gets a quick-added vendor's id and default category, so the form can learn and apply it.
     /// </summary>
-    public static RecordPicker VendorPicker(MainWindow shell, long? current, Action<long, long?> added)
+    public static RecordPicker VendorPicker(MainWindow shell, long? current, Action<long, long?> added, string? placeholder = null)
     {
-        var picker = ExpenseUi.VendorPicker(shell.Store, current);
+        var picker = placeholder is null ? ExpenseUi.VendorPicker(shell.Store, current) : ExpenseUi.VendorPicker(shell.Store, current, placeholder);
         picker.AddRequested += async name =>
         {
             if (await Vendor(shell, name) is { } made)
@@ -111,21 +111,33 @@ public static class QuickAdd
         var email = Ui.TextBox(null);
         var phone = Ui.TextBox(null);
         var category = ExpenseUi.CategoryPicker(shell.Store, null, allowNone: true);
+        // 2.9: the address prints on purchase orders, so it can be given here too.
+        var address = Ui.TextBox(null);
+        var city = Ui.TextBox(null);
+        var state = Ui.TextBox(null).Also(t => { t.MaxLength = 2; t.CharacterCasing = CharacterCasing.Upper; });
+        var zip = Ui.TextBox(null);
         var fields = new Dictionary<string, Field>
         {
             ["name"] = Ui.Field("Vendor Name", name, required: true),
             ["contact"] = Ui.Field("Contact", contact),
             ["email"] = Ui.Field("Email", email),
             ["phone"] = Ui.Field("Phone", phone),
+            ["address"] = Ui.Field("Address", address),
+            ["city"] = Ui.Field("City", city),
+            ["state"] = Ui.Field("State", state),
+            ["zip_code"] = Ui.Field("ZIP", zip),
             ["default_category_id"] = Ui.Field("Default Category", category, hint: "Filled in on new expenses from this vendor."),
         };
         var body = Ui.Stack(0,
             fields["name"],
             Ui.Columns(16, (Ui.Star(), fields["contact"]), (Ui.Star(), fields["phone"])),
             fields["email"],
-            fields["default_category_id"],
-            Ui.Muted("Only the name is needed now; add the address and notes any time on the vendor's page.", 12.8)
-                .Also(t => t.TextWrapping = System.Windows.TextWrapping.Wrap));
+            fields["address"],
+            Ui.Columns(16, (Ui.Star(2), fields["city"]), (Ui.Star(), fields["state"]), (Ui.Star(), fields["zip_code"])));
+        // The category only means something while Expenses is on.
+        if (shell.Store.Expenses.Enabled) body.Children.Add(fields["default_category_id"]);
+        body.Children.Add(Ui.Muted("Only the name is needed now; add the rest any time on the vendor's page.", 12.8)
+            .Also(t => t.TextWrapping = System.Windows.TextWrapping.Wrap));
 
         (PickItem, long?)? made = null;
         bool ok = await shell.OpenDialog("Add Vendor", "shop", body, "Add Vendor", () =>
@@ -134,7 +146,7 @@ public static class QuickAdd
             long? cat = ExpenseUi.SelectedId(category);
             try
             {
-                var created = shell.Store.Vendors.Create(new VendorDraft(name.Text, contact.Text, "", "", "", "", phone.Text, email.Text, cat, "", true));
+                var created = shell.Store.Vendors.Create(new VendorDraft(name.Text, contact.Text, address.Text, city.Text, state.Text, zip.Text, phone.Text, email.Text, cat, "", true));
                 made = (new PickItem(created.Id, name.Text.Trim(), contact.Text.Trim()), cat);
                 shell.ShowNotice(created.Notice);
                 return true;
