@@ -73,7 +73,7 @@ public sealed class SettingsPage : AppPage
             new("invoices", "Invoices", "receipt", "Invoice numbers and the payment terms printed on each invoice.", Invoices),
             new("purchaseorders", "Purchase Orders", "cart3", "Purchase order numbers.", PurchaseOrders),
             new("workorders", "Work Orders", "clipboard-check", "Work order numbers and your default labor rate.", WorkOrders),
-            new("expenses", "Expenses", "wallet2", "Vendors, bills, recurring costs and the Profit & Loss report.", Expenses),
+            new("expenses", "Expenses", "wallet2", "Bills, recurring costs, receipts and the Profit & Loss report.", Expenses),
             new("appearance", "Appearance", "palette", "Theme, colour, text size and the names shown in the app.", Appearance),
             new("security", "Security & Lock Screen", "shield-lock", "The optional app password and the lock screen.", Security),
             new("backup", "Backup", "database", "Reminders to keep a copy of your data.", Backup),

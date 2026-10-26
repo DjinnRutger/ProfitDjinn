@@ -30,7 +30,8 @@ Windows SmartScreen may warn because the file is not code-signed; choose More in
   and Print, PDF or **Issue Now** to send it early (it keeps its scheduled date). **Skip**
   passes on one date. A line can print the period it bills as its service dates. The
   Dashboard counts the invoices due in the next 30 days.
-- **Revenue**: collected revenue by month or year, by customer.
+- **Revenue**: collected revenue by month or year, by customer, and your top ten customers
+  over the last 12 months.
 - **Items**: a price list for quick-adding common lines.
 - **Expenses** (optional, off until you turn it on in **Settings > Expenses**): vendors, bills
   and purchases with partial payments, due dates and overdue flags, receipts (PDFs or photos)
@@ -50,8 +51,16 @@ Windows SmartScreen may warn because the file is not code-signed; choose More in
   in the sidebar). It keeps casual eyes out on a shared PC; it does not encrypt the data.
 - **Themes**: Light, Dark and Terminal, from the button at the top right or **Settings >
   Appearance**.
-- **Settings > Features** turns Work Orders, the Revenue report, Service Items, Expenses and
-  Bank Accounts on or off; off hides them and keeps the data.
+- **Settings > Features** turns Work Orders, the Revenue report, Service Items, Vendors,
+  Expenses, Purchase Orders and Bank Accounts on or off; off hides them and keeps the data.
+  Expenses and Purchase Orders both need Vendors, so Vendors stays on while either is on.
+- **Purchase Orders** (optional): order from a vendor with as many lines as you need, numbered
+  like invoices (prefix and starting number in **Settings > Purchase Orders**), printed as a
+  classic PO form on your letterhead, and marked Received or Cancelled. A vendor's page lists
+  the orders sent to them.
+- **Letterhead**: in **Settings > Business**, add your logo (PNG or JPEG, any size), a contact
+  line ("Jane Smith, Owner") and the services you offer. They print at the top of purchase
+  orders, and of invoices once you set any of them.
 - **Expenses extras**: mark categories as cost of revenue (the P&L then shows gross profit),
   say who paid (business, your own money to be paid back, or no cash), and log mileage
   (miles x your rate).
@@ -60,7 +69,7 @@ Windows SmartScreen may warn because the file is not code-signed; choose More in
   your statement. Payments can say which account the money went to. Never changes invoices.
 - **Recurring revenue**: the Recurring Invoices page shows monthly and yearly recurring
   revenue and active clients.
-- **Settings** is grouped into sections (Business, Features, Invoices, Work Orders, Expenses,
+- **Settings** is grouped into sections (Business, Features, Invoices, Purchase Orders, Work Orders, Expenses,
   Appearance, Security, Backup, Updates). Changes are saved with the **Save Changes** bar that
   appears at the bottom when you change something.
 - **Updates**: once a day ProfitDjinn checks GitHub for a newer version and, if there is one,
