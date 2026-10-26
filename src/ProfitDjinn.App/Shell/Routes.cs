@@ -12,7 +12,7 @@ public static class Routes
     public static Func<AppPage> Dashboard(MainWindow s) => () => new DashboardPage(s);
     public static Func<AppPage> Gallery(MainWindow s) => () => new GalleryPage(s);
 
-    public static Func<AppPage> Customers(MainWindow s, string search = "", bool inactive = false) => () => new CustomersPage(s, search, inactive);
+    public static Func<AppPage> Customers(MainWindow s, string search = "", bool inactive = false, int page = 1) => () => new CustomersPage(s, search, inactive, page);
     public static Func<AppPage> Customer(MainWindow s, long id) => () => new CustomerDetailPage(s, id);
     public static Func<AppPage> NewCustomer(MainWindow s) => () => new CustomerFormPage(s, null);
     public static Func<AppPage> EditCustomer(MainWindow s, long id) => () => new CustomerFormPage(s, id);
@@ -24,7 +24,7 @@ public static class Routes
     /// <summary>2.7. Items routes open the Dashboard while Service items is off (Settings > Features).</summary>
     private static Func<AppPage> Itm(MainWindow s, Func<AppPage> open) => () => s.Store.Items.Enabled ? open() : new DashboardPage(s);
 
-    public static Func<AppPage> Invoices(MainWindow s, InvoiceFilter filter = InvoiceFilter.All, string search = "") => () => new InvoicesPage(s, filter, search);
+    public static Func<AppPage> Invoices(MainWindow s, InvoiceFilter filter = InvoiceFilter.All, string search = "", int page = 1) => () => new InvoicesPage(s, filter, search, page);
     public static Func<AppPage> Invoice(MainWindow s, long id) => () => new InvoiceDetailPage(s, id);
     public static Func<AppPage> NewInvoice(MainWindow s, long? customerId = null) => () => new InvoiceFormPage(s, null, customerId);
     public static Func<AppPage> EditInvoice(MainWindow s, long id) => () => new InvoiceFormPage(s, id, null);

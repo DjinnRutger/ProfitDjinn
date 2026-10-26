@@ -19,15 +19,16 @@ public sealed class InvoicesPage : AppPage
     public override string NavKey => "invoices";
     public override IReadOnlyList<Crumb> Crumbs => new[] { new Crumb("Invoices") };
 
-    public InvoicesPage(MainWindow shell, InvoiceFilter filter, string search) : base(shell)
+    public InvoicesPage(MainWindow shell, InvoiceFilter filter, string search, int pageNumber = 1) : base(shell)
     {
         _filter = filter;
         _search = search;
         var invoices = Store.Invoices.List(filter, search);
+        var slice = Paging.Slice(invoices, pageNumber);
         var (unpaidCount, unpaidTotal) = Store.Invoices.UnpaidSummary();
 
         var lead = new WrapPanel();
-        lead.Children.Add(Ui.Text($"{invoices.Count} invoice{(invoices.Count != 1 ? "s" : "")} shown", "Lead"));
+        lead.Children.Add(Ui.Text($"{invoices.Count:N0} invoice{(invoices.Count != 1 ? "s" : "")} shown", "Lead"));
         if (unpaidCount > 0)
         {
             lead.Children.Add(Ui.Text("  ·  ", "Lead"));
@@ -86,18 +87,21 @@ public sealed class InvoicesPage : AppPage
             body = Ui.Stack(0, Table.Build(columns, Array.Empty<Invoice>()), Ui.Empty("receipt", "No invoices found.", "Create one now.", () => Shell.Navigate(Routes.NewInvoice(Shell))));
         else
         {
+            // The totals cover every invoice the filter matches, not just this page.
             double balance = PyMath.Sum(invoices, i => i.BalanceDue);
             var footer = new List<UIElement?[]>
             {
                 new UIElement?[]
                 {
-                    Ui.Bold("Total shown"), null, null,
+                    Ui.Bold(slice.PageCount > 1 ? $"Total, all {invoices.Count:N0}" : "Total shown"), null, null,
                     Ui.Text(Ui.Money(PyMath.Sum(invoices, i => i.Total)), "Money").Also(t => t.FontWeight = FontWeights.Bold),
                     balance > 0 ? Ui.Text("-" + Ui.Money(balance), "Money").Also(t => t.FontWeight = FontWeights.Bold).WithResource(TextBlock.ForegroundProperty, "DangerText") : null,
                     null, null,
                 },
             };
-            body = Table.Build(columns, invoices, footer: footer);
+            body = Table.Build(columns, slice.Items, footer: footer);
+            if (Pager.Build(slice, "invoices", p => Shell.Navigate(Routes.Invoices(Shell, _filter, _search, p))) is { } pager)
+                body = Ui.Stack(0, body, pager);
         }
         // With an Upcoming section above it, this one gets a title so the two read as sections.
         page.Children.Add(upcoming is null
