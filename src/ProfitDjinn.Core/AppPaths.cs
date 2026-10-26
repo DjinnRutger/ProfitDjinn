@@ -45,6 +45,9 @@ public sealed class AppPaths
 
     public string AppIconPath => Path.Combine(BrandingFolder, "app_icon.png");
 
+    /// <summary>2.9. The logo printed on invoices and purchase orders, saved as a PNG at upload.</summary>
+    public string DocumentLogoPath => Path.Combine(BrandingFolder, "document_logo.png");
+
     /// <summary>Per-user window state (sidebar collapsed, window size). Not in the database.</summary>
     public string UiStatePath => Path.Combine(DataFolder, "ui.json");
 

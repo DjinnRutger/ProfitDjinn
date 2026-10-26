@@ -61,6 +61,22 @@ public static class SettingKeys
     /// <summary>2.7. Service items on/off (on by default). Off hides Items and the invoice quick-add; items are kept.</summary>
     public const string ItemsEnabled = "items_enabled";
 
+    /// <summary>2.9. Vendors on/off (off by default). Expenses and purchase orders both need vendors,
+    /// so Vendors also counts as on while either of them is on (VendorService.Enabled).</summary>
+    public const string VendorsEnabled = "vendors_enabled";
+
+    /// <summary>2.9. Purchase orders on/off (off by default), and their numbering (as invoices).</summary>
+    public const string PurchaseOrdersEnabled = "purchase_orders_enabled";
+    public const string PurchaseOrderPrefix = "po_prefix";
+    public const string PurchaseOrderNextNumber = "po_next_number";
+
+    /// <summary>2.9. Printed in the header of invoices and purchase orders: a contact line
+    /// ("Jane Smith, Owner"), the services offered (one per line, printed as bullets) and a logo
+    /// (the file is AppPaths.DocumentLogoPath; the setting is non-empty while one is set).</summary>
+    public const string CompanyContactLine = "company_contact_line";
+    public const string CompanyServices = "company_services";
+    public const string DocumentLogo = "document_logo";
+
     /// <summary>2.3. Daily check for a newer release on GitHub (on by default), and what it last found.</summary>
     public const string UpdateCheckEnabled = "update_check_enabled";
     public const string UpdateLastCheck = "update_last_check";

@@ -13,8 +13,23 @@ public sealed record VendorDraft(
 public sealed class VendorService
 {
     private readonly Database _db;
+    private readonly SettingsService? _settings;
 
-    public VendorService(Database db) => _db = db;
+    public VendorService(Database db, SettingsService? settings = null)
+    {
+        _db = db;
+        _settings = settings;
+    }
+
+    /// <summary>
+    /// 2.9. Vendors have their own switch, but expenses and purchase orders are both kept per
+    /// vendor, so Vendors is on whenever either of them is. (Before 2.9 Vendors came with Expenses;
+    /// a database with Expenses on keeps its Vendors without any change.)
+    /// </summary>
+    public bool Enabled => _settings is null
+        || _settings.GetBool(SettingKeys.VendorsEnabled)
+        || _settings.GetBool(SettingKeys.ExpensesEnabled)
+        || _settings.GetBool(SettingKeys.PurchaseOrdersEnabled);
 
     /// <summary>Active vendors (or all), optionally filtered by name, sorted by name. Totals are loaded.</summary>
     public IReadOnlyList<Vendor> List(string? search = null, bool includeInactive = false)
@@ -32,6 +47,10 @@ public sealed class VendorService
         _db.Run(db => db.Query<Vendor>("SELECT * FROM vendors WHERE is_active = 1 ORDER BY name COLLATE NOCASE").ToList());
 
     public Vendor Get(long id) => _db.Run(db => Loader.Vendor(db, id)) ?? throw NotFound();
+
+    /// <summary>2.9. The vendor's purchase orders, newest first.</summary>
+    public IReadOnlyList<PurchaseOrder> PurchaseOrderHistory(Vendor vendor) =>
+        vendor.PurchaseOrders.OrderByDescending(o => o.Date).ThenByDescending(o => o.PoNumber, StringComparer.Ordinal).ToList();
 
     /// <summary>The vendor's expenses for the history table, newest first.</summary>
     public IReadOnlyList<Expense> ExpenseHistory(Vendor vendor) =>
@@ -62,7 +81,7 @@ public sealed class VendorService
     }
 
     /// <summary>
-    /// Only a vendor with no expenses and no recurring expenses can be deleted. Deleting one
+    /// Only a vendor with no expenses, recurring expenses or purchase orders can be deleted. Deleting one
     /// with history would leave expenses pointing at nothing; making it inactive keeps them.
     /// </summary>
     public Notice Delete(long id) => _db.InTransaction((db, tx) =>
@@ -70,12 +89,14 @@ public sealed class VendorService
         string name = db.ExecuteScalar<string?>("SELECT name FROM vendors WHERE id = @id", new { id }, tx) ?? throw NotFound();
         int expenses = db.ExecuteScalar<int>("SELECT COUNT(*) FROM expenses WHERE vendor_id = @id", new { id }, tx);
         int recurring = db.ExecuteScalar<int>("SELECT COUNT(*) FROM recurring_expenses WHERE vendor_id = @id", new { id }, tx);
-        if (expenses + recurring > 0)
+        int orders = db.ExecuteScalar<int>("SELECT COUNT(*) FROM purchase_orders WHERE vendor_id = @id", new { id }, tx);
+        if (expenses + recurring + orders > 0)
         {
             string what = string.Join(" and ", new[]
             {
                 expenses > 0 ? $"{expenses} {Fmt.Plural(expenses, "expense")}" : null,
                 recurring > 0 ? $"{recurring} recurring {Fmt.Plural(recurring, "expense")}" : null,
+                orders > 0 ? $"{orders} purchase {Fmt.Plural(orders, "order")}" : null,
             }.Where(s => s is not null));
             throw new UserFacingException($"{name} has {what}, so it cannot be deleted. Edit the vendor and make it inactive instead; that hides it and keeps the records.");
         }

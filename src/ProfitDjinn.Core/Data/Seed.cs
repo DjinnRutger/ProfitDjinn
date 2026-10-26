@@ -105,6 +105,13 @@ internal static class Seed
         new(SettingKeys.BankingEnabled, "false", "boolean", "Bank accounts: balances, transfers and reconciliation", "features", null),
         new(SettingKeys.RevenueEnabled, "true", "boolean", "Revenue report: income by month, year and customer", "features", null),
         new(SettingKeys.ItemsEnabled, "true", "boolean", "Service items: a price list to quick-add onto invoices", "features", null),
+        new(SettingKeys.VendorsEnabled, "false", "boolean", "Vendors: the businesses you buy from", "features", null),
+        new(SettingKeys.PurchaseOrdersEnabled, "false", "boolean", "Purchase orders to your vendors", "features", null),
+        new(SettingKeys.PurchaseOrderPrefix, "PO", "text", "Purchase order number prefix", "purchaseorders", null),
+        new(SettingKeys.PurchaseOrderNextNumber, "1001", "number", "Next purchase order number sequence start", "purchaseorders", null),
+        new(SettingKeys.CompanyContactLine, "", "text", "Contact line printed under your logo, e.g. Jane Smith, Owner", "invoices", null),
+        new(SettingKeys.CompanyServices, "", "text", "Services you offer, one per line, printed as bullets", "invoices", null),
+        new(SettingKeys.DocumentLogo, "", "text", "Logo on invoices and purchase orders (auto-managed)", "invoices", null),
     };
 
     /// <summary>

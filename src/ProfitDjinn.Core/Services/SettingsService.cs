@@ -8,8 +8,14 @@ namespace ProfitDjinn.Core.Services;
 public sealed class SettingsService
 {
     private readonly Database _db;
+    private readonly AppPaths? _paths;
 
-    public SettingsService(Database db) => _db = db;
+    /// <param name="paths">Where the document logo lives; without it <see cref="Company"/> has no logo.</param>
+    public SettingsService(Database db, AppPaths? paths = null)
+    {
+        _db = db;
+        _paths = paths;
+    }
 
     public string Get(string key, string fallback = "") =>
         _db.Run(db => db.ExecuteScalar<string?>("SELECT value FROM settings WHERE \"key\" = @key", new { key })) ?? fallback;
@@ -61,8 +67,28 @@ public sealed class SettingsService
     public CompanyInfo Company() => new(
         Get(SettingKeys.CompanyName), Get(SettingKeys.CompanyAddress), Get(SettingKeys.CompanyCity),
         Get(SettingKeys.CompanyState), Get(SettingKeys.CompanyZip), Get(SettingKeys.CompanyEmail),
-        Get(SettingKeys.CompanyPhone));
+        Get(SettingKeys.CompanyPhone), Get(SettingKeys.CompanyContactLine).Trim(),
+        Get(SettingKeys.CompanyServices).Replace("\r\n", "\n").Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).ToList(),
+        DocumentLogo());
+
+    /// <summary>2.9. The logo PNG, or null when none is set or its file is missing.</summary>
+    private byte[]? DocumentLogo()
+    {
+        if (_paths is null || Get(SettingKeys.DocumentLogo).Length == 0) return null;
+        try { return File.Exists(_paths.DocumentLogoPath) ? File.ReadAllBytes(_paths.DocumentLogoPath) : null; }
+        catch (IOException) { return null; }
+    }
 }
 
-/// <summary>The business details printed at the top of every invoice.</summary>
-public sealed record CompanyInfo(string Name, string Address, string City, string State, string Zip, string Email, string Phone);
+/// <summary>
+/// The business details printed at the top of every invoice. 2.9 adds the optional contact line,
+/// services (printed as bullets) and logo (PNG bytes) used on invoices and purchase orders.
+/// </summary>
+public sealed record CompanyInfo(string Name, string Address, string City, string State, string Zip, string Email, string Phone,
+    string ContactLine = "", IReadOnlyList<string>? Services = null, byte[]? Logo = null)
+{
+    public IReadOnlyList<string> ServiceList => Services ?? Array.Empty<string>();
+
+    /// <summary>True when any of the 2.9 header details is set, so documents use the letterhead header.</summary>
+    public bool HasLetterhead => Logo is not null || ContactLine.Length > 0 || ServiceList.Count > 0;
+}

@@ -1,5 +1,4 @@
 using PdfSharp.Drawing;
-using PdfSharp.Fonts;
 using PdfSharp.Pdf;
 using ProfitDjinn.Core.Model;
 using ProfitDjinn.Core.Rules;
@@ -11,31 +10,23 @@ namespace ProfitDjinn.Core.Pdf;
 /// The invoice PDF. A coordinate-for-coordinate port of 1.x app/utils/pdf_generator.py
 /// (fpdf2), so a 2.0 PDF looks like a 1.x one. Units below are millimetres, as in fpdf2.
 ///
-/// fpdf2 conventions copied here:
-///   - a cell's text is inset 1 mm from its edges (c_margin);
-///   - the text baseline is at y + h/2 + 0.3 * font size;
-///   - content starts at y = 15 (measured against a 1.x PDF of the same invoice).
+/// fpdf2's cell rules are in <see cref="PdfWriter"/>; content starts at y = 15 (measured
+/// against a 1.x PDF of the same invoice).
 /// Helvetica is drawn with Arial, its metric twin. Unlike fpdf2's core fonts, Arial covers
 /// all of Unicode that the invoice needs, so 1.x's ASCII clean-up is not needed.
 /// </summary>
 public static class InvoicePdf
 {
-    private const double PageW = 210, PageH = 297, Margin = 15, CellMargin = 1;
+    private const double PageW = 210, PageH = 297, Margin = 15, CellMargin = PdfWriter.CellMargin;
     private const double LineH = 5.5, RowPad = 1.5, RowMinH = 7.0, FooterReserve = 30.0, ServiceH = 4.5;
-    private const string Font = "Arial";
-
     private static readonly XColor Navy = XColor.FromArgb(28, 52, 88);
-    private static int _fontsReady;
 
     public static byte[] Render(Invoice invoice, CompanyInfo company)
     {
-        if (Interlocked.Exchange(ref _fontsReady, 1) == 0 && GlobalFontSettings.FontResolver is null)
-            GlobalFontSettings.UseWindowsFontsUnderWindows = true;
-
         var doc = new PdfDocument();
         doc.Info.Title = $"Invoice {invoice.InvoiceNumber}";
         doc.Info.Creator = $"ProfitDjinn {AppInfo.Version}";
-        var w = new Writer(doc);
+        var w = new PdfWriter(doc, PageW, PageH);
 
         double effW = PageW - 2 * Margin;
         double half = effW * 0.55;
@@ -43,21 +34,30 @@ public static class InvoicePdf
 
         // ---- two-column header ----
         double top = Margin;
-        w.Cell(Margin, top, half, 10, company.Name, 18, bold: true);
         w.Cell(rightX, top, effW - half, 10, "INVOICE", 20, bold: true, align: Align.Right);
-
-        var addr = new List<string>();
-        if (company.Address.Length > 0) addr.Add(company.Address);
-        string cityState = $"{company.City}, {company.State} {company.Zip}".Trim(',', ' ').Trim();
-        if (cityState.Length > 0) addr.Add(cityState);
-        if (company.Email.Length > 0) addr.Add(company.Email);
-        if (company.Phone.Length > 0) addr.Add(company.Phone);
-
-        double leftY = top + 11;
-        foreach (string line in addr.Where(l => l.Trim().Length > 0))
+        double leftY;
+        if (company.HasLetterhead)
         {
-            w.Cell(Margin, leftY, half, 5, line, 10);
-            leftY += 5;
+            // 2.9: logo, contact line and services, as on the purchase order. The right column
+            // ("INVOICE", number, date) needs about 45 mm.
+            leftY = Letterhead.Draw(w, company, Margin, top, effW - 45);
+        }
+        else
+        {
+            w.Cell(Margin, top, half, 10, company.Name, 18, bold: true);
+            var addr = new List<string>();
+            if (company.Address.Length > 0) addr.Add(company.Address);
+            string cityState = $"{company.City}, {company.State} {company.Zip}".Trim(',', ' ').Trim();
+            if (cityState.Length > 0) addr.Add(cityState);
+            if (company.Email.Length > 0) addr.Add(company.Email);
+            if (company.Phone.Length > 0) addr.Add(company.Phone);
+
+            leftY = top + 11;
+            foreach (string line in addr.Where(l => l.Trim().Length > 0))
+            {
+                w.Cell(Margin, leftY, half, 5, line, 10);
+                leftY += 5;
+            }
         }
         w.Cell(rightX, top + 12, effW - half, 6, $"Invoice #: {invoice.InvoiceNumber}", 10, align: Align.Right);
         w.Cell(rightX, top + 18, effW - half, 6, $"Date: {invoice.Date:yyyy-MM-dd}", 10, align: Align.Right);
@@ -184,89 +184,5 @@ public static class InvoicePdf
         using var ms = new MemoryStream();
         doc.Save(ms, closeStream: false);
         return ms.ToArray();
-    }
-
-    private enum Align { Left, Center, Right }
-
-    /// <summary>Draws in millimetres with fpdf2's cell rules.</summary>
-    private sealed class Writer
-    {
-        private const double PtPerMm = 72.0 / 25.4;
-        private readonly PdfDocument _doc;
-        private XGraphics _g = null!;
-
-        public Writer(PdfDocument doc)
-        {
-            _doc = doc;
-            NewPage();
-        }
-
-        public void NewPage()
-        {
-            _g?.Dispose();
-            var page = _doc.AddPage();
-            page.Width = XUnit.FromMillimeter(PageW);
-            page.Height = XUnit.FromMillimeter(PageH);
-            _g = XGraphics.FromPdfPage(page);
-        }
-
-        public void Finish() => _g.Dispose();
-
-        private static XFont MakeFont(double pt, bool bold) => new(Font, pt, bold ? XFontStyleEx.Bold : XFontStyleEx.Regular);
-
-        public void Cell(double x, double y, double w, double h, string text, double pt, bool bold = false,
-            Align align = Align.Left, XColor? color = null)
-        {
-            if (string.IsNullOrEmpty(text)) return;
-            var font = MakeFont(pt, bold);
-            double textW = _g.MeasureString(text, font).Width / PtPerMm;
-            double tx = align switch
-            {
-                Align.Right => x + w - CellMargin - textW,
-                Align.Center => x + (w - textW) / 2,
-                _ => x + CellMargin,
-            };
-            double baseline = y + 0.5 * h + 0.3 * (pt / PtPerMm);
-            _g.DrawString(text, font, new XSolidBrush(color ?? XColors.Black),
-                new XPoint(tx * PtPerMm, baseline * PtPerMm), XStringFormats.BaseLineLeft);
-        }
-
-        public void Fill(double x, double y, double w, double h, XColor color) =>
-            _g.DrawRectangle(new XSolidBrush(color), x * PtPerMm, y * PtPerMm, w * PtPerMm, h * PtPerMm);
-
-        public void Line(double x1, double y1, double x2, double y2, XColor color) =>
-            _g.DrawLine(new XPen(color, 0.2 * PtPerMm), x1 * PtPerMm, y1 * PtPerMm, x2 * PtPerMm, y2 * PtPerMm);
-
-        /// <summary>
-        /// Greedy word wrap to <paramref name="widthMm"/>, like fpdf2's multi_cell: break at
-        /// spaces, honour line breaks, and split a word that is wider than the column.
-        /// </summary>
-        public List<string> Wrap(string text, double widthMm, double pt, bool bold)
-        {
-            var font = MakeFont(pt, bold);
-            double Width(string s) => _g.MeasureString(s, font).Width / PtPerMm;
-            var lines = new List<string>();
-            foreach (string paragraph in text.Replace("\r\n", "\n").Split('\n'))
-            {
-                string current = "";
-                foreach (string word in paragraph.Split(' '))
-                {
-                    string candidate = current.Length == 0 ? word : current + " " + word;
-                    if (Width(candidate) <= widthMm) { current = candidate; continue; }
-                    if (current.Length > 0) { lines.Add(current); current = ""; }
-                    string rest = word;
-                    while (rest.Length > 0 && Width(rest) > widthMm)
-                    {
-                        int take = 1;
-                        while (take < rest.Length && Width(rest[..(take + 1)]) <= widthMm) take++;
-                        lines.Add(rest[..take]);
-                        rest = rest[take..];
-                    }
-                    current = rest;
-                }
-                lines.Add(current);
-            }
-            return lines;
-        }
     }
 }

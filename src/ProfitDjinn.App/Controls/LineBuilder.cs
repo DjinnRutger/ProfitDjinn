@@ -76,6 +76,8 @@ public sealed class LineBuilder : StackPanel
     {
         var desc = Ui.TextBox(description, "Description").Also(t => t.Style = Ui.Style("Input.Small"));
         var qty = Ui.TextBox(quantity).Also(t => { t.Style = Ui.Style("Input.Small"); t.HorizontalContentAlignment = HorizontalAlignment.Center; t.Width = 72; });
+        // 2.9: a name for screen readers and the smoke tests (the box has no placeholder to go by).
+        System.Windows.Automation.AutomationProperties.SetName(qty, "Qty");
         var unit = Ui.TextBox(unitPrice, "0.00").Also(t => { t.Style = Ui.Style("Input.Small"); t.HorizontalContentAlignment = HorizontalAlignment.Right; t.Width = 110; });
         var remove = new Button { Style = Ui.Style("Btn.Bare"), ToolTip = "Remove", Padding = new Thickness(6, 4, 6, 4) }.WithResource(Button.ForegroundProperty, "DangerText");
         Btn.SetIcon(remove, "trash3");

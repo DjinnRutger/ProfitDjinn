@@ -29,6 +29,7 @@ public sealed class Store
     public RecurringInvoiceService RecurringInvoices { get; }
     public BankService Banking { get; }
     public ProfitService Profit { get; }
+    public PurchaseOrderService PurchaseOrders { get; }
     public UpdateService Updates { get; }
 
     /// <param name="today">The clock. Tests pass a fixed date; the app passes the local date.</param>
@@ -45,7 +46,7 @@ public sealed class Store
         UpgradeBackup.SaveIfVersionChanged(Database, paths, appVersion, DateTime.Now);
         Schema.Ensure(Database);
 
-        Settings = new SettingsService(Database);
+        Settings = new SettingsService(Database, paths);
         Settings.Set(SettingKeys.DatabaseAppVersion, appVersion);
         Customers = new CustomerService(Database);
         Invoices = new InvoiceService(Database, Settings, today);
@@ -56,7 +57,7 @@ public sealed class Store
         Backups = new BackupService(Database);
         Password = new AppPassword(Settings);
         BackupReminder = new BackupReminder(Settings, today);
-        Vendors = new VendorService(Database);
+        Vendors = new VendorService(Database, Settings);
         Categories = new ExpenseCategoryService(Database);
         Receipts = new ReceiptStore(Settings, paths);
         Expenses = new ExpenseService(Database, Settings, Receipts, today);
@@ -66,6 +67,7 @@ public sealed class Store
         RecurringInvoices = new RecurringInvoiceService(Database, Settings, Invoices, today);
         Banking = new BankService(Database, Settings, today);
         Profit = new ProfitService(Database, today);
+        PurchaseOrders = new PurchaseOrderService(Database, Settings, today);
         Updates = new UpdateService(Settings, today, appVersion);
     }
 }

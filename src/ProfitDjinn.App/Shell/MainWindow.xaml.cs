@@ -27,7 +27,8 @@ public partial class MainWindow : Window
         ("customers", "Customers", "building"),
         ("invoices", "Invoices", "receipt"),
         ("workorders", "Work Orders", "clipboard-check"),
-        ("vendors", "Vendors", "shop"),            // 2.2, shown only while Expenses is on
+        ("vendors", "Vendors", "shop"),            // 2.2; 2.9: shown while Vendors (or Expenses, or Purchase orders) is on
+        ("purchaseorders", "Purchase Orders", "cart3"),  // 2.9, shown only while Purchase orders is on
         ("expenses", "Expenses", "wallet2"),
         ("revenue", "Revenue", "graph-up-arrow"),
         ("profit", "Profit & Loss", "bar-chart-line"),   // 2.2, shown only while Expenses is on
@@ -42,7 +43,7 @@ public partial class MainWindow : Window
     };
 
     /// <summary>Sidebar items that belong to the optional Expenses feature.</summary>
-    private static readonly string[] ExpenseNav = { "vendors", "expenses", "profit" };
+    private static readonly string[] ExpenseNav = { "expenses", "profit" };
 
     private readonly List<Func<AppPage>> _history = new();
     /// <summary>How far each history entry was scrolled when it was left, so Back returns there.</summary>
@@ -288,6 +289,8 @@ public partial class MainWindow : Window
         ShowUpdateBadge();
         var expenses = Store.Expenses.Enabled ? Visibility.Visible : Visibility.Collapsed;
         foreach (string key in ExpenseNav) if (_navButtons.TryGetValue(key, out var b)) b.Visibility = expenses;
+        if (_navButtons.TryGetValue("vendors", out var ven)) ven.Visibility = Store.Vendors.Enabled ? Visibility.Visible : Visibility.Collapsed;
+        if (_navButtons.TryGetValue("purchaseorders", out var po)) po.Visibility = Store.PurchaseOrders.Enabled ? Visibility.Visible : Visibility.Collapsed;
         if (_navButtons.TryGetValue("workorders", out var wo)) wo.Visibility = Store.WorkOrders.Enabled ? Visibility.Visible : Visibility.Collapsed;
         if (_navButtons.TryGetValue("revenue", out var rev)) rev.Visibility = Store.Reports.RevenueEnabled ? Visibility.Visible : Visibility.Collapsed;
         if (_navButtons.TryGetValue("items", out var itm)) itm.Visibility = Store.Items.Enabled ? Visibility.Visible : Visibility.Collapsed;

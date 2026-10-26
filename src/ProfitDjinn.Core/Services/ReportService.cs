@@ -38,7 +38,8 @@ public sealed record RevenueReport(
     double? YtdPercent,
     IReadOnlyList<MonthRow> Months,
     IReadOnlyList<YearRow> YearRows,
-    IReadOnlyList<CustomerRevenue> Customers);
+    IReadOnlyList<CustomerRevenue> Customers,
+    IReadOnlyList<CustomerRevenue> TopCustomersLast12Months);
 
 /// <summary>Dashboard and Revenue figures. A port of 1.x app/blueprints/main.py.</summary>
 public sealed class ReportService
@@ -150,7 +151,32 @@ public sealed class ReportService
         return new RevenueReport(year, currentYear, years,
             totalRevenue, PyMath.Sum(filtered, i => i.Total), PyMath.Sum(filtered, i => i.BalanceDue),
             filtered.Count, filtered.Count(i => i.Paid), filtered.Count(i => i.IsPartial),
-            average, prev, ytd, months, yearRows, customers);
+            average, prev, ytd, months, yearRows, customers, TopCustomers(all, _today()));
+    }
+
+    public const int TopCustomerCount = 10;
+
+    /// <summary>
+    /// 2.9. The Top Customers table: the ten customers who paid the most on invoices dated in the
+    /// 12 months up to today, whatever year the page shows. Same counting as the rest of the page
+    /// (AmountPaid by invoice date, same-name customers merged); Share is of that window's total.
+    /// </summary>
+    public static IReadOnlyList<CustomerRevenue> TopCustomers(IEnumerable<Invoice> invoices, DateOnly today)
+    {
+        var from = today.AddMonths(-12);
+        var window = invoices.Where(i => i.Date > from && i.Date <= today && i.AmountPaid > 0).ToList();
+        var byName = new Dictionary<string, double>();
+        var order = new List<string>();
+        foreach (var inv in window)
+        {
+            string name = inv.Customer?.Name ?? "";
+            if (!byName.ContainsKey(name)) { byName[name] = 0.0; order.Add(name); }
+            byName[name] += inv.AmountPaid;
+        }
+        double total = PyMath.Sum(window, i => i.AmountPaid);
+        return order.OrderByDescending(n => byName[n]).Take(TopCustomerCount)
+            .Select(n => new CustomerRevenue(n, byName[n], total > 0 ? byName[n] / total * 100 : 0))
+            .ToList();
     }
 
     /// <summary>

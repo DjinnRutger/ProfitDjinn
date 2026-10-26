@@ -56,10 +56,22 @@ public static class Routes
     // the Dashboard instead, which also covers Back/Forward history and --page.
     private static Func<AppPage> Exp(MainWindow s, Func<AppPage> open) => () => s.Store.Expenses.Enabled ? open() : new DashboardPage(s);
 
-    public static Func<AppPage> Vendors(MainWindow s, string search = "", bool inactive = false) => Exp(s, () => new VendorsPage(s, search, inactive));
-    public static Func<AppPage> Vendor(MainWindow s, long id) => Exp(s, () => new VendorDetailPage(s, id));
-    public static Func<AppPage> NewVendor(MainWindow s) => Exp(s, () => new VendorFormPage(s, null));
-    public static Func<AppPage> EditVendor(MainWindow s, long id) => Exp(s, () => new VendorFormPage(s, id));
+    // 2.9: Vendors has its own switch, and is on whenever Expenses or Purchase orders is.
+    private static Func<AppPage> Vnd(MainWindow s, Func<AppPage> open) => () => s.Store.Vendors.Enabled ? open() : new DashboardPage(s);
+
+    public static Func<AppPage> Vendors(MainWindow s, string search = "", bool inactive = false) => Vnd(s, () => new VendorsPage(s, search, inactive));
+    public static Func<AppPage> Vendor(MainWindow s, long id) => Vnd(s, () => new VendorDetailPage(s, id));
+    public static Func<AppPage> NewVendor(MainWindow s) => Vnd(s, () => new VendorFormPage(s, null));
+    public static Func<AppPage> EditVendor(MainWindow s, long id) => Vnd(s, () => new VendorFormPage(s, id));
+
+    // ---- 2.9 purchase orders (Settings > Features, off by default): these open the Dashboard while off.
+    private static Func<AppPage> Po(MainWindow s, Func<AppPage> open) => () => s.Store.PurchaseOrders.Enabled ? open() : new DashboardPage(s);
+
+    public static Func<AppPage> PurchaseOrders(MainWindow s, string? status = null, string search = "", int page = 1) =>
+        Po(s, () => new PurchaseOrdersPage(s, status, search, page));
+    public static Func<AppPage> PurchaseOrder(MainWindow s, long id) => Po(s, () => new PurchaseOrderDetailPage(s, id));
+    public static Func<AppPage> NewPurchaseOrder(MainWindow s, long? vendorId = null) => Po(s, () => new PurchaseOrderFormPage(s, null, vendorId));
+    public static Func<AppPage> EditPurchaseOrder(MainWindow s, long id) => Po(s, () => new PurchaseOrderFormPage(s, id, null));
     public static Func<AppPage> Expenses(MainWindow s, ExpenseFilter filter = ExpenseFilter.All, string search = "", long? category = null) =>
         Exp(s, () => new ExpensesPage(s, filter, search, category));
     public static Func<AppPage> Expense(MainWindow s, long id) => Exp(s, () => new ExpenseDetailPage(s, id));
@@ -99,6 +111,9 @@ public static class Routes
                 "bill" => Bill(s, id),
                 "edititem" => EditItem(s, id),
                 "vendor" => Vendor(s, id),
+                "purchaseorder" => PurchaseOrder(s, id),
+                "editpurchaseorder" => EditPurchaseOrder(s, id),
+                "newpurchaseorder" => NewPurchaseOrder(s, id),
                 "editvendor" => EditVendor(s, id),
                 "expense" => Expense(s, id),
                 "editexpense" => EditExpense(s, id),
@@ -130,6 +145,8 @@ public static class Routes
         "gallery" => Gallery(s),
         "vendors" => Vendors(s),
         "newvendor" => NewVendor(s),
+        "purchaseorders" => PurchaseOrders(s),
+        "newpurchaseorder" => NewPurchaseOrder(s),
         "expenses" => Expenses(s),
         "newexpense" => NewExpense(s),
         "recurring" => Recurring(s),

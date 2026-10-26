@@ -290,6 +290,46 @@ Expenses or behind **Bank accounts** (Settings > Features, `banking_enabled`, of
 - Smoke: `tools/Smoke/Smoke-Paging.ps1` seeds 850 customers and 1,600 invoices of made-up data and
   fails if either list takes over 15 s to open or the pager does not move.
 
+## 2.9: purchase orders, Vendors switch, letterhead, Revenue top ten
+
+- **Vendors is its own feature** (`vendors_enabled`), but `VendorService.Enabled` is also true while
+  Expenses or Purchase orders is on: both are kept per vendor. Settings > Features shows the Vendors
+  switch On and locked while either is on, but saves only the user's own Vendors choice, so turning
+  Expenses on and off again leaves Vendors as it was (Smoke-Expenses checks it). Vendor routes go through `Routes.Vnd(...)`; the vendor
+  list, page and form show expense parts only with Expenses on and PO parts only with POs on.
+  A pre-2.9 database with Expenses on keeps its Vendors with no migration.
+- **Purchase orders** (`purchase_orders_enabled`, off by default; routes through `Routes.Po(...)`):
+  `PurchaseOrderService`, tables `purchase_orders` and `purchase_order_lines`, pages in
+  `Pages/PurchaseOrderPages.cs`. Numbering is the invoice rule (`Numbering.Next`) with `po_prefix`
+  / `po_next_number`. Status is set by hand: open, received (dated today), cancelled; Reopen clears
+  it. A vendor with POs cannot be deleted. The form reuses `LineBuilder`; a line with no
+  description and no amount is dropped, a priced line needs a description.
+- **Inventory later:** PO lines keep `quantity` and `unit_price` apart (invoice lines keep only the
+  amount) so a future inventory module can receive a line into stock at its cost, and Mark Received
+  is where that would hook in. Nothing posts to expenses or stock today.
+- **PO PDF** (`Pdf/PurchaseOrderPdf.cs`) is drawn like a printed PO pad on US Letter: letterhead,
+  "PURCHASE ORDER" between two rules with the number under it, a rounded box with the vendor on
+  ruled lines and a ruled QUAN./DESCRIPTION/PRICE/AMOUNT table to the bottom of the box, the total
+  in the last row of the last page, "Thank You" in Segoe Script. A long description carries on in
+  the next rows; notes follow the lines; every page repeats the header ("Page n of m").
+- **Letterhead** (`Pdf/Letterhead.cs`): logo, contact line (`company_contact_line`), phone • email,
+  address, and services as bullets (`company_services`, one per line). Used by the PO, and by the
+  invoice whenever any of logo / contact line / services is set (`CompanyInfo.HasLetterhead`);
+  otherwise the invoice header is unchanged. `CompanyInfo` gained trailing optional members.
+- **Logo** (`document_logo` setting, file `AppPaths.DocumentLogoPath`): uploaded in Settings >
+  Business as any PNG or JPEG up to 50 MB; `Infrastructure/LogoImage` decodes it straight to at
+  most 1,600 px and saves an RGB PNG (print logos can be huge CMYK JPEGs PDFsharp cannot embed).
+  Not in the .db backup, like the other branding images.
+- **Fonts:** `Pdf/PdfFonts` is PDFsharp's font resolver for every PDF (Arial, Arial Black, Segoe
+  Script read from the Windows fonts folder, anything else drawn as Arial); PDFsharp's own Windows
+  lookup has no Arial Black or Segoe Script. The PDF writer moved out of `InvoicePdf` into
+  `Pdf/PdfWriter.cs` unchanged, plus images and rounded rectangles.
+- **Revenue:** the Top Customers table is the ten who paid the most on invoices dated in the 12
+  months up to today (`ReportService.TopCustomers`), whatever year is selected. The doughnut still
+  follows the selected period.
+- Smoke: `tools/Smoke/Smoke-PurchaseOrders.ps1`. `ParityTests` counts the settings rows a 1.x
+  database gains (24 since 2.9).
+
 ## 1.x reference (Flask, in legacy/)
 
 Everything below describes the 1.x code in `legacy/`. It stays accurate for that code.
