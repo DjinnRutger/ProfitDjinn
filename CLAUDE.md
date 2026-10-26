@@ -275,6 +275,21 @@ Expenses or behind **Bank accounts** (Settings > Features, `banking_enabled`, of
 - Smoke: Smoke-Flow switches Revenue and Items off; Smoke-Expenses drills into the net total.
   PowerShell 5.1 reads the .ps1 files as ANSI: match text containing "·" with `Wait-Like`.
 
+## 2.8: long lists are paged
+
+- A WPF table row costs about 15 ms to build (cells, links, badges, the action buttons are about half
+  of it; shared size groups are not the cost, measured), and `Table` builds every row it is given. At
+  1,600 invoices the Invoices list took ~28 s to open and Customers (~850) ~12 s; loading the data is
+  ~0.2 s. So those two lists show 50 rows a page: `Rules/Paging` (`Slice`, `Buttons`, tested in
+  `PagingTests`) and `Controls/Pager` (Previous / numbers / Next, hidden when one page is enough).
+- The page number is part of the route (`Routes.Invoices(..., page)`, `Routes.Customers(..., page)`),
+  so Back returns to the same page and scroll position. The Invoices footer totals still cover every
+  invoice the filter matches ("Total, all N" when paged).
+- Any other list that can grow into the hundreds needs the same (customer invoice history, P&L detail,
+  expenses, bank register are not paged yet). Never hand `Table.Build` an unbounded list.
+- Smoke: `tools/Smoke/Smoke-Paging.ps1` seeds 850 customers and 1,600 invoices of made-up data and
+  fails if either list takes over 15 s to open or the pager does not move.
+
 ## 1.x reference (Flask, in legacy/)
 
 Everything below describes the 1.x code in `legacy/`. It stays accurate for that code.

@@ -6,6 +6,7 @@ using ProfitDjinn.App.Controls;
 using ProfitDjinn.App.Infrastructure;
 using ProfitDjinn.App.Shell;
 using ProfitDjinn.Core.Model;
+using ProfitDjinn.Core.Rules;
 
 namespace ProfitDjinn.App.Pages;
 
@@ -18,13 +19,14 @@ public sealed class CustomersPage : AppPage
     public override string NavKey => "customers";
     public override IReadOnlyList<Crumb> Crumbs => new[] { new Crumb("Customers") };
 
-    public CustomersPage(MainWindow shell, string search, bool inactive) : base(shell)
+    public CustomersPage(MainWindow shell, string search, bool inactive, int pageNumber = 1) : base(shell)
     {
         _search = search;
         _inactive = inactive;
         var customers = Store.Customers.List(search, inactive);
+        var slice = Paging.Slice(customers, pageNumber);
 
-        string lead = $"{customers.Count} customer{(customers.Count != 1 ? "s" : "")}" + (search.Length > 0 ? $" matching \"{search}\"" : "");
+        string lead = $"{customers.Count:N0} customer{(customers.Count != 1 ? "s" : "")}" + (search.Length > 0 ? $" matching \"{search}\"" : "");
         var page = new StackPanel();
         page.Children.Add(Ui.PageHeader("Customers", lead, null,
             Ui.Button("New Customer", "Btn.Primary", "plus-lg", () => Shell.Navigate(Routes.NewCustomer(Shell)))));
@@ -71,7 +73,9 @@ public sealed class CustomersPage : AppPage
         };
         FrameworkElement body = customers.Count == 0
             ? Ui.Stack(0, Table.Build(columns, Array.Empty<Customer>()), Ui.Empty("people", "No customers found.", "Add one now.", () => Shell.Navigate(Routes.NewCustomer(Shell))))
-            : Table.Build(columns, customers);
+            : Table.Build(columns, slice.Items);
+        if (Pager.Build(slice, "customers", p => Shell.Navigate(Routes.Customers(Shell, _search, _inactive, p))) is { } pager)
+            body = Ui.Stack(0, body, pager);
         page.Children.Add(Ui.Card(body, bodyPadding: new Thickness(0)));
         Content = page;
     }
